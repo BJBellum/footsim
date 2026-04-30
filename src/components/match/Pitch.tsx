@@ -45,18 +45,19 @@ export function Pitch({ state, homeFormation, awayFormation }: Props) {
   const awayPositions = FORMATION_POSITIONS[awayFormation].map(mirror);
 
   return (
-    <svg viewBox="0 0 100 50" className="w-full max-w-3xl rounded-lg border border-border bg-[#1F8B4C] shadow-subtle-md">
-      {/* Outer + halfway */}
-      <rect x="0.5" y="0.5" width="99" height="49" fill="none" stroke="white" strokeOpacity="0.7" strokeWidth="0.3" />
-      <line x1="50" y1="0.5" x2="50" y2="49.5" stroke="white" strokeOpacity="0.7" strokeWidth="0.3" />
-      <circle cx="50" cy="25" r="6" fill="none" stroke="white" strokeOpacity="0.7" strokeWidth="0.3" />
-      <circle cx="50" cy="25" r="0.5" fill="white" />
-      {/* Penalty boxes */}
-      <rect x="0.5" y="13" width="14" height="24" fill="none" stroke="white" strokeOpacity="0.7" strokeWidth="0.3" />
-      <rect x="85.5" y="13" width="14" height="24" fill="none" stroke="white" strokeOpacity="0.7" strokeWidth="0.3" />
-      {/* Six yard */}
-      <rect x="0.5" y="18" width="6" height="14" fill="none" stroke="white" strokeOpacity="0.7" strokeWidth="0.3" />
-      <rect x="93.5" y="18" width="6" height="14" fill="none" stroke="white" strokeOpacity="0.7" strokeWidth="0.3" />
+    <svg
+      viewBox="0 0 100 50"
+      className="w-full max-w-3xl rounded-lg border border-border shadow-subtle-md"
+      style={{ background: 'var(--pitch)' }}
+    >
+      <rect x="0.5" y="0.5" width="99" height="49" fill="none" stroke="var(--pitch-line)" strokeWidth="0.3" />
+      <line x1="50" y1="0.5" x2="50" y2="49.5" stroke="var(--pitch-line)" strokeWidth="0.3" />
+      <circle cx="50" cy="25" r="6" fill="none" stroke="var(--pitch-line)" strokeWidth="0.3" />
+      <circle cx="50" cy="25" r="0.5" fill="var(--pitch-line)" />
+      <rect x="0.5" y="13" width="14" height="24" fill="none" stroke="var(--pitch-line)" strokeWidth="0.3" />
+      <rect x="85.5" y="13" width="14" height="24" fill="none" stroke="var(--pitch-line)" strokeWidth="0.3" />
+      <rect x="0.5" y="18" width="6" height="14" fill="none" stroke="var(--pitch-line)" strokeWidth="0.3" />
+      <rect x="93.5" y="18" width="6" height="14" fill="none" stroke="var(--pitch-line)" strokeWidth="0.3" />
 
       {homePositions.slice(0, state.homeOnPitch.length).map((pos, i) => (
         <circle
@@ -64,7 +65,7 @@ export function Pitch({ state, homeFormation, awayFormation }: Props) {
           cx={pos.x}
           cy={pos.y}
           r="1.4"
-          fill="#FAFAF8"
+          fill="#F4F0E6"
           stroke="#1A1A1A"
           strokeWidth="0.2"
           opacity="0.95"
@@ -76,8 +77,8 @@ export function Pitch({ state, homeFormation, awayFormation }: Props) {
           cx={pos.x}
           cy={pos.y}
           r="1.4"
-          fill="#1A1A1A"
-          stroke="#FAFAF8"
+          fill="#C73E3E"
+          stroke="#1A1A1A"
           strokeWidth="0.2"
           opacity="0.95"
         />

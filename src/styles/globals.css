@@ -11,7 +11,24 @@
   --accent: #1F8B4C;
   --danger: #C73E3E;
   --warning: #D9A93C;
+  --pitch: #1F8B4C;
+  --pitch-line: rgba(255,255,255,0.7);
 }
+
+html.dark {
+  --bg: #0E1014;
+  --surface: #15181F;
+  --text: #F2F2EE;
+  --muted: #8A8E97;
+  --border: #232730;
+  --accent: #2FAE65;
+  --danger: #E26A6A;
+  --warning: #E0B85A;
+  --pitch: #154d2c;
+  --pitch-line: rgba(255,255,255,0.45);
+}
+
+html, body { transition: background-color 400ms ease, color 400ms ease; }
 
 html, body, #root { height: 100%; }
 body {
