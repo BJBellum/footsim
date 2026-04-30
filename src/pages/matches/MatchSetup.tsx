@@ -3,13 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { toast } from '@/components/ui/Toast';
-import type { Formation, Team } from '@/lib/types';
+import type { Formation, Team, TeamTactics, TacticStyle } from '@/lib/types';
+import { TACTIC_STYLE_LABEL } from '@/lib/types';
 import type { Speed } from '@/lib/sim/types';
 import { useTeams } from '@/stores/teams';
 import { useCredentials } from '@/stores/credentials';
 import { useMatch } from '@/stores/match';
 
-const FORMATIONS: Formation[] = ['4-3-3', '4-4-2', '3-5-2', '4-2-3-1'];
+const FORMATIONS: Formation[] = ['4-3-3', '4-4-2', '3-5-2', '4-2-3-1', '5-3-2', '4-1-4-1', '3-4-3', '4-3-2-1'];
 
 export default function MatchSetup() {
   const teams = useTeams((s) => s.teams);
@@ -23,6 +24,8 @@ export default function MatchSetup() {
   const [awaySlug, setAwaySlug] = useState<string>('');
   const [homeFormation, setHomeFormation] = useState<Formation>('4-3-3');
   const [awayFormation, setAwayFormation] = useState<Formation>('4-3-3');
+  const [homeTactics, setHomeTactics] = useState<TeamTactics | null>(null);
+  const [awayTactics, setAwayTactics] = useState<TeamTactics | null>(null);
   const [speed, setSpeed] = useState<Speed>('1');
   const [busy, setBusy] = useState(false);
 
@@ -30,29 +33,36 @@ export default function MatchSetup() {
     if (pat && teams.length === 0) refresh(pat);
   }, [pat, teams.length, refresh]);
 
+  function handleHomeSlug(slug: string) {
+    setHomeSlug(slug);
+    const t = teams.find((x) => x.slug === slug);
+    if (t?.tactics) {
+      setHomeFormation(t.tactics.formation);
+      setHomeTactics(t.tactics);
+    } else {
+      setHomeTactics(null);
+    }
+  }
+
+  function handleAwaySlug(slug: string) {
+    setAwaySlug(slug);
+    const t = teams.find((x) => x.slug === slug);
+    if (t?.tactics) {
+      setAwayFormation(t.tactics.formation);
+      setAwayTactics(t.tactics);
+    } else {
+      setAwayTactics(null);
+    }
+  }
+
   async function launch() {
-    if (!pat) {
-      toast('error', 'Token GitHub manquant.');
-      return;
-    }
-    if (!homeSlug || !awaySlug) {
-      toast('error', 'Choisis deux équipes.');
-      return;
-    }
-    if (homeSlug === awaySlug) {
-      toast('error', 'Les deux équipes doivent être différentes.');
-      return;
-    }
+    if (!pat) { toast('error', 'Token GitHub manquant.'); return; }
+    if (!homeSlug || !awaySlug) { toast('error', 'Choisis deux équipes.'); return; }
+    if (homeSlug === awaySlug) { toast('error', 'Les deux équipes doivent être différentes.'); return; }
     setBusy(true);
     try {
-      const [home, away] = await Promise.all([
-        fetchTeam(homeSlug, pat),
-        fetchTeam(awaySlug, pat),
-      ]);
-      if (!home || !away) {
-        toast('error', 'Impossible de charger les équipes.');
-        return;
-      }
+      const [home, away] = await Promise.all([fetchTeam(homeSlug, pat), fetchTeam(awaySlug, pat)]);
+      if (!home || !away) { toast('error', 'Impossible de charger les équipes.'); return; }
       if (home.players.length < 11 || away.players.length < 11) {
         toast('error', 'Chaque équipe doit avoir au moins 11 joueurs.');
         return;
@@ -60,8 +70,20 @@ export default function MatchSetup() {
       const matchId = crypto.randomUUID();
       start({
         matchId,
-        home: { team: home.team, players: home.players, formation: homeFormation },
-        away: { team: away.team, players: away.players, formation: awayFormation },
+        home: {
+          team: home.team,
+          players: home.players,
+          formation: homeFormation,
+          lineup: homeTactics?.lineup,
+          tacticStyle: homeTactics?.style as TacticStyle | undefined,
+        },
+        away: {
+          team: away.team,
+          players: away.players,
+          formation: awayFormation,
+          lineup: awayTactics?.lineup,
+          tacticStyle: awayTactics?.style as TacticStyle | undefined,
+        },
         speed,
       });
       navigate(`/match/${matchId}`);
@@ -100,17 +122,19 @@ export default function MatchSetup() {
           title="Domicile"
           teams={teams}
           slug={homeSlug}
-          onSlug={setHomeSlug}
+          onSlug={handleHomeSlug}
           formation={homeFormation}
           onFormation={setHomeFormation}
+          savedTactics={homeTactics}
         />
         <SidePicker
           title="Extérieur"
           teams={teams}
           slug={awaySlug}
-          onSlug={setAwaySlug}
+          onSlug={handleAwaySlug}
           formation={awayFormation}
           onFormation={setAwayFormation}
+          savedTactics={awayTactics}
         />
       </div>
 
@@ -119,12 +143,7 @@ export default function MatchSetup() {
           <span className="mb-2 block text-muted">Vitesse de simulation</span>
           <div className="flex flex-wrap gap-2">
             {(['0.5', '1', '2', '5', 'instant'] as Speed[]).map((s) => (
-              <Button
-                key={s}
-                size="sm"
-                variant={speed === s ? 'primary' : 'ghost'}
-                onClick={() => setSpeed(s)}
-              >
+              <Button key={s} size="sm" variant={speed === s ? 'primary' : 'ghost'} onClick={() => setSpeed(s)}>
                 {s === 'instant' ? 'Instant' : `×${s}`}
               </Button>
             ))}
@@ -143,7 +162,7 @@ export default function MatchSetup() {
 }
 
 function SidePicker({
-  title, teams, slug, onSlug, formation, onFormation,
+  title, teams, slug, onSlug, formation, onFormation, savedTactics,
 }: {
   title: string;
   teams: Team[];
@@ -151,6 +170,7 @@ function SidePicker({
   onSlug: (s: string) => void;
   formation: Formation;
   onFormation: (f: Formation) => void;
+  savedTactics: TeamTactics | null;
 }) {
   const team = teams.find((t) => t.slug === slug);
   return (
@@ -175,6 +195,11 @@ function SidePicker({
           </div>
         </div>
       ) : null}
+      {savedTactics && (
+        <div className="rounded border border-accent/30 bg-accent/5 px-3 py-2 text-xs text-accent">
+          ✓ Compo sauvegardée · {TACTIC_STYLE_LABEL[savedTactics.style]}
+        </div>
+      )}
       <label className="block text-sm">
         <span className="mb-1 block text-muted">Formation</span>
         <select
@@ -190,4 +215,3 @@ function SidePicker({
     </section>
   );
 }
-

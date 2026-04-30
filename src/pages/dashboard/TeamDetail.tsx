@@ -28,6 +28,7 @@ export default function TeamDetail() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [tab, setTab] = useState<'roster' | 'tactique'>('roster');
 
   useEffect(() => {
     if (!pat) return;
@@ -85,6 +86,18 @@ export default function TeamDetail() {
       setData({ team, players: merged });
       setEditingId(null);
       toast('success', 'Joueur supprimé.');
+    } catch (err) {
+      toast('error', String(err));
+    }
+  }
+
+  async function saveTactics(tactics: TeamTactics) {
+    if (!data || !pat) return;
+    const team = { ...data.team, tactics };
+    try {
+      await saveTeam(team, data.players, pat);
+      setData({ team, players: data.players });
+      toast('success', 'Tactique sauvegardée.');
     } catch (err) {
       toast('error', String(err));
     }
@@ -159,26 +172,42 @@ export default function TeamDetail() {
         </div>
       </div>
 
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-xl">Roster</h2>
-          <div className="flex items-center gap-2">
-            {ADD_COUNTS.map((n) => (
-              <Button
-                key={n}
-                variant="ghost"
-                size="sm"
-                onClick={() => addPlayers(n)}
-                disabled={adding}
-              >
-                + {n}
-              </Button>
-            ))}
-            {adding ? <Spinner /> : null}
+      {/* Tab bar */}
+      <div className="flex gap-1 border-b border-border">
+        {(['roster', 'tactique'] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-4 py-2 text-sm font-medium capitalize transition-colors ${tab === t ? 'border-b-2 border-accent text-accent' : 'text-muted hover:text-text'}`}
+          >
+            {t === 'roster' ? 'Roster' : 'Tactique'}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'roster' && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-display text-xl">Roster</h2>
+            <div className="flex items-center gap-2">
+              {ADD_COUNTS.map((n) => (
+                <Button key={n} variant="ghost" size="sm" onClick={() => addPlayers(n)} disabled={adding}>
+                  + {n}
+                </Button>
+              ))}
+              {adding ? <Spinner /> : null}
+            </div>
           </div>
-        </div>
-        <RosterTable players={players} onSelect={setEditingId} />
-      </section>
+          <RosterTable players={players} onSelect={setEditingId} />
+        </section>
+      )}
+
+      {tab === 'tactique' && (
+        <section className="space-y-4">
+          <h2 className="font-display text-xl">Tactique</h2>
+          <TacticsPanel team={team} players={players} onSave={saveTactics} />
+        </section>
+      )}
 
       <AnimatePresence>
         {editing ? (
