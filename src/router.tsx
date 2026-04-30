@@ -7,6 +7,8 @@ import Settings from '@/pages/dashboard/Settings';
 import Teams from '@/pages/dashboard/Teams';
 import TeamNew from '@/pages/dashboard/TeamNew';
 import TeamDetail from '@/pages/dashboard/TeamDetail';
+import MatchSetup from '@/pages/matches/MatchSetup';
+import MatchLive from '@/pages/matches/MatchLive';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { RequireAdmin } from '@/components/auth/RequireAdmin';
 
@@ -29,6 +31,22 @@ export const router = createBrowserRouter(
         { path: 'teams/:slug', element: <TeamDetail /> },
         { path: 'settings', element: <Settings /> },
       ],
+    },
+    {
+      path: '/match',
+      element: (
+        <RequireAdmin>
+          <MatchSetup />
+        </RequireAdmin>
+      ),
+    },
+    {
+      path: '/match/:id',
+      element: (
+        <RequireAdmin>
+          <MatchLive />
+        </RequireAdmin>
+      ),
     },
   ],
   { basename: '/footsim' },

@@ -1,0 +1,55 @@
+import { AnimatePresence, motion } from 'framer-motion';
+import type { MatchState } from '@/lib/sim/types';
+import type { Team } from '@/lib/types';
+
+type Props = { state: MatchState; home: Team; away: Team };
+
+function minuteLabel(state: MatchState): string {
+  if (state.status === 'pregame') return '0\'';
+  if (state.status === 'halftime') return 'MT';
+  if (state.status === 'fulltime') return 'FT';
+  if (state.half === 1 && state.minute > 45) return `45+${state.minute - 45}'`;
+  if (state.half === 2 && state.minute > 90) return `90+${state.minute - 90}'`;
+  return `${state.minute}'`;
+}
+
+export function Scoreboard({ state, home, away }: Props) {
+  return (
+    <div className="flex items-center justify-between gap-6 rounded-lg border border-border bg-surface p-5 shadow-subtle-sm">
+      <Side team={home} score={state.score.home} side="left" />
+      <div className="flex flex-col items-center">
+        <AnimatePresence mode="popLayout">
+          <motion.div
+            key={state.score.home + '-' + state.score.away}
+            initial={{ scale: 0.85, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.85, opacity: 0 }}
+            className="font-display text-4xl tabular-nums md:text-5xl"
+          >
+            {state.score.home} – {state.score.away}
+          </motion.div>
+        </AnimatePresence>
+        <div className="mt-1 text-xs uppercase tracking-widest text-muted">
+          {minuteLabel(state)}{state.half === 1 ? ' · 1ʳᵉ MT' : state.half === 2 ? ' · 2ᵉ MT' : ''}
+        </div>
+      </div>
+      <Side team={away} score={state.score.away} side="right" />
+    </div>
+  );
+}
+
+function Side({ team, score, side }: { team: Team; score: number; side: 'left' | 'right' }) {
+  return (
+    <div className={`flex min-w-0 items-center gap-3 ${side === 'right' ? 'flex-row-reverse text-right' : ''}`}>
+      {team.flag ? (
+        <img src={team.flag} alt="" className="h-12 w-12 rounded-md border border-border object-cover" />
+      ) : (
+        <div className="h-12 w-12 rounded-md bg-border" />
+      )}
+      <div className="min-w-0">
+        <div className="truncate font-display text-lg">{team.name}</div>
+        <div className="text-xs text-muted">Score : {score}</div>
+      </div>
+    </div>
+  );
+}
