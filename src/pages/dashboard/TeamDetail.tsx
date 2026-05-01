@@ -8,9 +8,11 @@ import { RosterTable } from '@/components/team/RosterTable';
 import { PlayerEdit } from '@/components/team/PlayerEdit';
 import { TacticsPanel } from '@/components/team/TacticsPanel';
 import type { Player, Team, TeamTactics } from '@/lib/types';
-import { CULTURE_LABEL } from '@/lib/types';
+import { CULTURE_LABEL, CULTURES } from '@/lib/types';
+import type { Culture } from '@/lib/types';
 import { useCredentials } from '@/stores/credentials';
 import { useTeams } from '@/stores/teams';
+import type { CultureWeight } from '@/lib/gen/names';
 
 const ADD_COUNTS = [100, 200, 500, 1000];
 
@@ -29,7 +31,9 @@ export default function TeamDetail() {
   const [deleteCount, setDeleteCount] = useState(1);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [tab, setTab] = useState<'roster' | 'tactique'>('roster');
+  const [tab, setTab] = useState<'roster' | 'tactique' | 'noms'>('roster');
+  const [nameWeights, setNameWeights] = useState<CultureWeight[]>([]);
+  const [renamingAll, setRenamingAll] = useState(false);
 
   useEffect(() => {
     if (!pat) return;
@@ -104,6 +108,27 @@ export default function TeamDetail() {
       toast('success', 'Joueur supprimé.');
     } catch (err) {
       toast('error', String(err));
+    }
+  }
+
+  async function renameAll() {
+    if (!data || !pat || nameWeights.length === 0) return;
+    const total = nameWeights.reduce((s, c) => s + c.weight, 0);
+    if (total === 0) return;
+    setRenamingAll(true);
+    try {
+      const { pickNameMixed } = await import('@/lib/gen/names');
+      const renamed = data.players.map((p) => ({
+        ...p,
+        ...pickNameMixed(nameWeights),
+      }));
+      await saveTeam(data.team, renamed, pat);
+      setData({ team: data.team, players: renamed });
+      toast('success', `${renamed.length} noms régénérés.`);
+    } catch (err) {
+      toast('error', String(err));
+    } finally {
+      setRenamingAll(false);
     }
   }
 
@@ -190,13 +215,13 @@ export default function TeamDetail() {
 
       {/* Tab bar */}
       <div className="flex gap-1 border-b border-border">
-        {(['roster', 'tactique'] as const).map((t) => (
+        {(['roster', 'noms', 'tactique'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium capitalize transition-colors ${tab === t ? 'border-b-2 border-accent text-accent' : 'text-muted hover:text-text'}`}
           >
-            {t === 'roster' ? 'Roster' : 'Tactique'}
+            {t === 'roster' ? 'Roster' : t === 'noms' ? 'Noms' : 'Tactique'}
           </button>
         ))}
       </div>
@@ -236,6 +261,16 @@ export default function TeamDetail() {
         </section>
       )}
 
+      {tab === 'noms' && (
+        <NameMixPanel
+          weights={nameWeights}
+          onChange={setNameWeights}
+          onApply={renameAll}
+          busy={renamingAll}
+          playerCount={players.length}
+        />
+      )}
+
       {tab === 'tactique' && (
         <section className="space-y-4">
           <h2 className="font-display text-xl">Tactique</h2>
@@ -255,5 +290,123 @@ export default function TeamDetail() {
         ) : null}
       </AnimatePresence>
     </div>
+  );
+}
+
+function NameMixPanel({
+  weights,
+  onChange,
+  onApply,
+  busy,
+  playerCount,
+}: {
+  weights: CultureWeight[];
+  onChange: (w: CultureWeight[]) => void;
+  onApply: () => void;
+  busy: boolean;
+  playerCount: number;
+}) {
+  const selected = weights.map((w) => w.culture);
+  const total = weights.reduce((s, c) => s + c.weight, 0);
+
+  function toggleCulture(culture: Culture) {
+    if (selected.includes(culture)) {
+      onChange(weights.filter((w) => w.culture !== culture));
+    } else {
+      onChange([...weights, { culture, weight: 50 }]);
+    }
+  }
+
+  function setWeight(culture: Culture, value: number) {
+    onChange(weights.map((w) => (w.culture === culture ? { ...w, weight: value } : w)));
+  }
+
+  function distribute() {
+    if (weights.length === 0) return;
+    const equal = Math.round(100 / weights.length);
+    onChange(weights.map((w, i) => ({ ...w, weight: i === weights.length - 1 ? 100 - equal * (weights.length - 1) : equal })));
+  }
+
+  return (
+    <section className="space-y-6 max-w-2xl">
+      <div>
+        <h2 className="font-display text-xl mb-1">Régénération des noms</h2>
+        <p className="text-sm text-muted">
+          Sélectionne une ou plusieurs cultures et définis leur part dans l'équipe. Les noms sont remplacés, les stats restent inchangées.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs uppercase tracking-widest text-muted">Cultures sélectionnées ({weights.length})</span>
+          {weights.length > 1 && (
+            <button onClick={distribute} className="text-xs text-accent hover:text-accent/70 transition-colors">
+              Répartir également
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 max-h-60 overflow-y-auto pr-1">
+          {CULTURES.map((c) => {
+            const active = selected.includes(c);
+            return (
+              <button
+                key={c}
+                onClick={() => toggleCulture(c)}
+                className={`rounded-md border px-3 py-2 text-left text-sm transition-colors ${
+                  active ? 'border-accent bg-accent/10 text-accent' : 'border-border hover:border-border/70'
+                }`}
+              >
+                {CULTURE_LABEL[c]}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {weights.length > 0 && (
+        <div className="space-y-3 rounded-lg border border-border bg-surface p-4">
+          <div className="text-xs uppercase tracking-widest text-muted">Proportions</div>
+          {weights.map((cw) => {
+            const pct = total > 0 ? Math.round((cw.weight / total) * 100) : 0;
+            return (
+              <div key={cw.culture} className="space-y-1">
+                <div className="flex items-center justify-between text-sm">
+                  <span>{CULTURE_LABEL[cw.culture]}</span>
+                  <span className="text-accent font-medium tabular-nums">{pct}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={1}
+                  max={200}
+                  value={cw.weight}
+                  onChange={(e) => setWeight(cw.culture, Number(e.target.value))}
+                  className="w-full accent-[var(--accent)]"
+                />
+              </div>
+            );
+          })}
+          <div className="pt-1 text-xs text-muted">
+            {weights.map((cw) => {
+              const pct = total > 0 ? Math.round((cw.weight / total) * 100) : 0;
+              return `${CULTURE_LABEL[cw.culture]} ${pct}%`;
+            }).join(' · ')}
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center gap-3">
+        <Button
+          onClick={onApply}
+          disabled={busy || weights.length === 0 || playerCount === 0}
+          size="lg"
+        >
+          {busy && <Spinner className="mr-2" />}
+          Régénérer les {playerCount} noms
+        </Button>
+        {weights.length === 0 && (
+          <span className="text-sm text-muted">Sélectionne au moins une culture</span>
+        )}
+      </div>
+    </section>
   );
 }

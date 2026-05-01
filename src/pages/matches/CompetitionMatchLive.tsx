@@ -23,6 +23,7 @@ export default function CompetitionMatchLive() {
   const { competitionId, matchId } = useParams<{ competitionId: string; matchId: string }>();
   const load = useCompetition((s) => s.load);
   const save = useCompetition((s) => s.save);
+  const setCurrent = useCompetition((s) => s.setCurrent);
   const current = useCompetition((s) => s.current);
   const teamsStore = useTeams((s) => s.teams);
   const fetchTeam = useTeams((s) => s.fetchTeam);
@@ -124,81 +125,80 @@ export default function CompetitionMatchLive() {
     savedRef.current = true;
 
     async function persist() {
-      try {
-        await saveMatch(matchInput!, matchState!, pat!);
+      const compMatch = current!.matches.find((m) => m.id === matchId);
+      if (!compMatch) return;
 
-        const compMatch = current!.matches.find((m) => m.id === matchId);
-        if (!compMatch) return;
+      let updatedMatches = current!.matches.map((m) =>
+        m.id === matchId
+          ? {
+              ...m,
+              status: 'completed' as const,
+              result: {
+                home: matchState!.score.home,
+                away: matchState!.score.away,
+                penalties: matchState!.penaltyScore,
+              },
+              matchFileId: matchState!.matchId,
+              simulatedAt: new Date().toISOString(),
+            }
+          : m,
+      );
 
-        let updatedMatches = current!.matches.map((m) =>
-          m.id === matchId
-            ? {
-                ...m,
-                status: 'completed' as const,
-                result: {
-                  home: matchState!.score.home,
-                  away: matchState!.score.away,
-                  penalties: matchState!.penaltyScore,
-                },
-                matchFileId: matchState!.matchId,
-                simulatedAt: new Date().toISOString(),
-              }
-            : m,
-        );
-
-        // Advance bracket for knockout matches
-        if (compMatch.phase !== 'group' && compMatch.phase !== 'league') {
-          updatedMatches = advanceBracket(updatedMatches, matchId!);
-        }
-
-        // Update standings for group/league matches
-        let updatedStandings = current!.standings;
-        if ((compMatch.phase === 'group' || compMatch.phase === 'league') && compMatch.homeTeamId && compMatch.awayTeamId) {
-          updatedStandings = applyResultToStandings(
-            updatedStandings,
-            compMatch.homeTeamId,
-            compMatch.awayTeamId,
-            matchState!.score.home,
-            matchState!.score.away,
-          );
-        }
-
-        // Advance current round
-        const nextRound = updatedMatches.every(
-          (m) => m.round <= current!.currentRound ? m.status === 'completed' : true,
-        )
-          ? current!.currentRound + 1
-          : current!.currentRound;
-
-        // Check if competition complete
-        const allDone = updatedMatches.every((m) => m.status === 'completed');
-        let winner: string | undefined;
-        if (allDone) {
-          const finalMatch = updatedMatches.find((m) => m.phase === 'F');
-          if (finalMatch?.result) {
-            winner = finalMatch.result.home > finalMatch.result.away
-              ? finalMatch.homeTeamId ?? undefined
-              : finalMatch.awayTeamId ?? undefined;
-          } else if (current!.format === 'league') {
-            const sorted = Object.values(updatedStandings).sort((a, b) => b.points - a.points);
-            winner = sorted[0]?.teamId;
-          }
-        }
-
-        const updated = {
-          ...current!,
-          matches: updatedMatches,
-          standings: updatedStandings,
-          currentRound: Math.min(nextRound, Math.max(...updatedMatches.map((m) => m.round))),
-          status: allDone ? ('completed' as const) : ('ongoing' as const),
-          winner,
-        };
-
-        await save(updated, pat!);
-        toast('success', 'Résultat enregistré dans la compétition.');
-      } catch (err) {
-        toast('error', `Erreur sauvegarde : ${err}`);
+      if (compMatch.phase !== 'group' && compMatch.phase !== 'league') {
+        updatedMatches = advanceBracket(updatedMatches, matchId!);
       }
+
+      let updatedStandings = current!.standings;
+      if ((compMatch.phase === 'group' || compMatch.phase === 'league') && compMatch.homeTeamId && compMatch.awayTeamId) {
+        updatedStandings = applyResultToStandings(
+          updatedStandings,
+          compMatch.homeTeamId,
+          compMatch.awayTeamId,
+          matchState!.score.home,
+          matchState!.score.away,
+        );
+      }
+
+      const nextRound = updatedMatches.every(
+        (m) => m.round <= current!.currentRound ? m.status === 'completed' : true,
+      )
+        ? current!.currentRound + 1
+        : current!.currentRound;
+
+      const allDone = updatedMatches.every((m) => m.status === 'completed');
+      let winner: string | undefined;
+      if (allDone) {
+        const finalMatch = updatedMatches.find((m) => m.phase === 'F');
+        if (finalMatch?.result) {
+          winner = finalMatch.result.home > finalMatch.result.away
+            ? finalMatch.homeTeamId ?? undefined
+            : finalMatch.awayTeamId ?? undefined;
+        } else if (current!.format === 'league') {
+          const sorted = Object.values(updatedStandings).sort((a, b) => b.points - a.points);
+          winner = sorted[0]?.teamId;
+        }
+      }
+
+      const updated = {
+        ...current!,
+        matches: updatedMatches,
+        standings: updatedStandings,
+        currentRound: Math.min(nextRound, Math.max(...updatedMatches.map((m) => m.round))),
+        status: allDone ? ('completed' as const) : ('ongoing' as const),
+        winner,
+      };
+
+      // Mise à jour immédiate en mémoire — navigation possible sans attendre GitHub
+      setCurrent(updated);
+      toast('success', 'Résultat appliqué. Synchronisation en arrière-plan…');
+
+      // Upload GitHub en arrière-plan
+      saveMatch(matchInput!, matchState!, pat!).catch((err) =>
+        toast('error', `Sauvegarde match : ${err}`),
+      );
+      save(updated, pat!).catch((err) =>
+        toast('error', `Sauvegarde compétition : ${err}`),
+      );
     }
     persist();
   // eslint-disable-next-line react-hooks/exhaustive-deps

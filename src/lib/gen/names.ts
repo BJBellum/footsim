@@ -21,3 +21,16 @@ export function pickName(culture: Culture): { firstName: string; lastName: strin
 export function hasCulture(culture: Culture): boolean {
   return byCulture.has(culture);
 }
+
+export type CultureWeight = { culture: Culture; weight: number };
+
+export function pickNameMixed(weights: CultureWeight[]): { firstName: string; lastName: string } {
+  const total = weights.reduce((s, c) => s + c.weight, 0);
+  if (total === 0) return pickName(weights[0]?.culture ?? 'francais');
+  let r = Math.random() * total;
+  for (const cw of weights) {
+    r -= cw.weight;
+    if (r <= 0) return pickName(cw.culture);
+  }
+  return pickName(weights[weights.length - 1].culture);
+}
