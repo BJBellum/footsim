@@ -113,16 +113,28 @@ function buildSide(
 
 async function appendRecent(team: Team, summary: RecentMatchSummary, token: string): Promise<void> {
   type TeamWithRecent = Team & { recentMatches?: RecentMatchSummary[] };
-  const existing = await readJson<TeamWithRecent>(TEAM_PATH(team.slug), token);
-  if (!existing) return;
-  const recent = existing.data.recentMatches ?? [];
-  const next = [summary, ...recent].slice(0, RECENT_LIMIT);
-  const updated: TeamWithRecent = { ...existing.data, recentMatches: next };
-  await writeJson({
-    path: TEAM_PATH(team.slug),
-    token,
-    data: updated,
-    message: `chore(teams/${team.slug}): append recent match`,
-    sha: existing.sha,
-  });
+  // Retry loop: re-read + recompute on every attempt to avoid SHA conflicts
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const existing = await readJson<TeamWithRecent>(TEAM_PATH(team.slug), token);
+    if (!existing) return;
+    const recent = existing.data.recentMatches ?? [];
+    // Skip if already appended (idempotence guard)
+    if (recent.some((r) => r.matchId === summary.matchId && r.homeAway === summary.homeAway)) return;
+    const next = [summary, ...recent].slice(0, RECENT_LIMIT);
+    const updated: TeamWithRecent = { ...existing.data, recentMatches: next };
+    try {
+      await writeJson({
+        path: TEAM_PATH(team.slug),
+        token,
+        data: updated,
+        message: `chore(teams/${team.slug}): append recent match`,
+        sha: existing.sha,
+      });
+      return;
+    } catch (err) {
+      const msg = String(err);
+      if ((msg.includes('409') || msg.includes('422')) && attempt < 3) continue;
+      throw err;
+    }
+  }
 }
