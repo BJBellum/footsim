@@ -111,14 +111,23 @@ function buildSide(
   };
 }
 
-async function appendRecent(team: Team, summary: RecentMatchSummary, token: string): Promise<void> {
+// Serialize writes per team slug to prevent concurrent SHA conflicts
+const appendQueues = new Map<string, Promise<void>>();
+
+function appendRecent(team: Team, summary: RecentMatchSummary, token: string): Promise<void> {
+  const prev = appendQueues.get(team.slug) ?? Promise.resolve();
+  const next = prev.then(() => doAppendRecent(team, summary, token)).catch(() => doAppendRecent(team, summary, token));
+  // Store only the chain tail so the map doesn't grow forever
+  appendQueues.set(team.slug, next.then(() => {}, () => {}));
+  return next;
+}
+
+async function doAppendRecent(team: Team, summary: RecentMatchSummary, token: string): Promise<void> {
   type TeamWithRecent = Team & { recentMatches?: RecentMatchSummary[] };
-  // Retry loop: re-read + recompute on every attempt to avoid SHA conflicts
   for (let attempt = 0; attempt < 4; attempt++) {
     const existing = await readJson<TeamWithRecent>(TEAM_PATH(team.slug), token);
     if (!existing) return;
     const recent = existing.data.recentMatches ?? [];
-    // Skip if already appended (idempotence guard)
     if (recent.some((r) => r.matchId === summary.matchId && r.homeAway === summary.homeAway)) return;
     const next = [summary, ...recent].slice(0, RECENT_LIMIT);
     const updated: TeamWithRecent = { ...existing.data, recentMatches: next };
