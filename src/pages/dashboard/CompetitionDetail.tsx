@@ -14,8 +14,10 @@ import type { Team } from '@/lib/types';
 export default function CompetitionDetail() {
   const { id } = useParams<{ id: string }>();
   const load = useCompetition((s) => s.load);
+  const save = useCompetition((s) => s.save);
   const remove = useCompetition((s) => s.remove);
   const current = useCompetition((s) => s.current);
+  const dirty = useCompetition((s) => s.dirty);
   const teams = useTeams((s) => s.teams);
   const refreshTeams = useTeams((s) => s.refresh);
   const pat = useCredentials((s) => s.githubPat);
@@ -23,6 +25,7 @@ export default function CompetitionDetail() {
 
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'bracket' | 'rounds'>('overview');
 
   useEffect(() => {
@@ -60,6 +63,19 @@ export default function CompetitionDetail() {
   const isLeague = current.format === 'league';
 
   const allStandings = Object.values(current.standings);
+
+  async function handleSync() {
+    if (!pat || !current) return;
+    setSyncing(true);
+    try {
+      await save(current, pat);
+      toast('success', 'Compétition sauvegardée sur GitHub.');
+    } catch (err) {
+      toast('error', String(err));
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   async function handleDelete() {
     if (!pat || !current) return;
@@ -105,6 +121,11 @@ export default function CompetitionDetail() {
           </p>
         </div>
         <div className="flex gap-2">
+          {dirty && (
+            <Button size="sm" variant="ghost" onClick={handleSync} disabled={syncing}>
+              {syncing ? <Spinner className="h-4 w-4" /> : '↑ Sauvegarder'}
+            </Button>
+          )}
           {current.status !== 'completed' && (
             <Button
               size="sm"

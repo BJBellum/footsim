@@ -7,10 +7,34 @@ import {
   deleteCompetition,
 } from '@/lib/github/competitions';
 
+const LS_KEY = (id: string) => `footsim.competition.${id}`;
+
+function lsRead(id: string): Competition | null {
+  try {
+    const raw = localStorage.getItem(LS_KEY(id));
+    return raw ? (JSON.parse(raw) as Competition) : null;
+  } catch {
+    return null;
+  }
+}
+
+function lsWrite(c: Competition) {
+  try {
+    localStorage.setItem(LS_KEY(c.id), JSON.stringify(c));
+  } catch {}
+}
+
+function lsDelete(id: string) {
+  try {
+    localStorage.removeItem(LS_KEY(id));
+  } catch {}
+}
+
 type State = {
   summaries: CompetitionSummary[];
   current: Competition | null;
   loading: boolean;
+  dirty: boolean;
   refresh: (token: string) => Promise<void>;
   load: (id: string, token: string) => Promise<Competition | null>;
   save: (competition: Competition, token: string) => Promise<void>;
@@ -22,6 +46,7 @@ export const useCompetition = create<State>((set, get) => ({
   summaries: [],
   current: null,
   loading: false,
+  dirty: false,
 
   async refresh(token) {
     set({ loading: true });
@@ -34,14 +59,22 @@ export const useCompetition = create<State>((set, get) => ({
   },
 
   async load(id, token) {
+    // localStorage wins — it holds unsaved match results
+    const local = lsRead(id);
+    if (local) {
+      set({ current: local, dirty: true });
+      return local;
+    }
     const comp = await loadCompetition(id, token);
-    set({ current: comp });
+    if (comp) lsWrite(comp);
+    set({ current: comp, dirty: false });
     return comp;
   },
 
   async save(competition, token) {
     await saveCompetition(competition, token);
-    set({ current: competition });
+    lsWrite(competition);
+    set({ current: competition, dirty: false });
     const summary: CompetitionSummary = {
       id: competition.id,
       name: competition.name,
@@ -60,11 +93,17 @@ export const useCompetition = create<State>((set, get) => ({
 
   async remove(id, token) {
     await deleteCompetition(id, token);
+    lsDelete(id);
     set({ summaries: get().summaries.filter((c) => c.id !== id) });
-    if (get().current?.id === id) set({ current: null });
+    if (get().current?.id === id) set({ current: null, dirty: false });
   },
 
   setCurrent(c) {
-    set({ current: c });
+    if (c) {
+      lsWrite(c);
+      set({ current: c, dirty: true });
+    } else {
+      set({ current: null, dirty: false });
+    }
   },
 }));

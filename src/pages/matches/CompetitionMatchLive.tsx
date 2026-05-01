@@ -16,6 +16,7 @@ import { useTeams } from '@/stores/teams';
 import { useCredentials } from '@/stores/credentials';
 import { saveMatch } from '@/lib/github/matches';
 import { advanceBracket, applyResultToStandings } from '@/lib/competition/scheduler';
+
 import type { Team } from '@/lib/types';
 import type { MatchInput } from '@/lib/sim/types';
 
@@ -41,7 +42,9 @@ export default function CompetitionMatchLive() {
   const stop = useMatch((s) => s.stop);
   const startMatch = useMatch((s) => s.start);
 
+  const dirty = useCompetition((s) => s.dirty);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const savedRef = useRef(false);
   const prevScoreRef = useRef({ home: 0, away: 0 });
   const [celebration, setCelebration] = useState<{ team: Team; score: { home: number; away: number } } | null>(null);
@@ -197,17 +200,9 @@ export default function CompetitionMatchLive() {
         winner,
       };
 
-      // Mise à jour immédiate en mémoire — navigation possible sans attendre GitHub
+      // Résultat appliqué en mémoire + localStorage — sauvegarde GitHub manuelle
       setCurrent(updated);
-      toast('success', 'Résultat appliqué. Synchronisation en arrière-plan…');
-
-      // Upload GitHub en arrière-plan
-      saveMatch(matchInput!, matchState!, pat!).catch((err) =>
-        toast('error', `Sauvegarde match : ${err}`),
-      );
-      save(updated, pat!).catch((err) =>
-        toast('error', `Sauvegarde compétition : ${err}`),
-      );
+      toast('success', 'Résultat enregistré localement.');
     }
     persist();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -290,14 +285,55 @@ export default function CompetitionMatchLive() {
       )}
 
       {finished && (
-        <div className="rounded-lg border border-accent/30 bg-accent/5 p-5 text-center">
+        <div className="rounded-lg border border-accent/30 bg-accent/5 p-5 text-center space-y-4">
           <div className="font-display text-2xl">Fin du match</div>
-          <div className="mt-1 text-sm text-muted">
+          <div className="text-sm text-muted">
             {matchInput.home.team.name} {matchState.score.home} — {matchState.score.away} {matchInput.away.team.name}
           </div>
           {matchState.penaltyScore && (
-            <div className="mt-1 text-sm text-muted">
+            <div className="text-sm text-muted">
               Tirs au but : {matchState.penaltyScore.home} – {matchState.penaltyScore.away}
+            </div>
+          )}
+          {dirty && (
+            <div className="flex flex-wrap justify-center gap-3 pt-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={saving}
+                onClick={async () => {
+                  if (!pat || !current) return;
+                  setSaving(true);
+                  try {
+                    await saveMatch(matchInput, matchState, pat);
+                    toast('success', 'Match sauvegardé sur GitHub.');
+                  } catch (err) {
+                    toast('error', `Match : ${err}`);
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+              >
+                {saving ? <Spinner className="h-4 w-4" /> : 'Sauvegarder le match'}
+              </Button>
+              <Button
+                size="sm"
+                disabled={saving}
+                onClick={async () => {
+                  if (!pat || !current) return;
+                  setSaving(true);
+                  try {
+                    await save(current, pat);
+                    toast('success', 'Compétition sauvegardée sur GitHub.');
+                  } catch (err) {
+                    toast('error', `Compétition : ${err}`);
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+              >
+                {saving ? <Spinner className="h-4 w-4" /> : 'Sauvegarder la compétition'}
+              </Button>
             </div>
           )}
         </div>
