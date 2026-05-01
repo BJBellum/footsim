@@ -18,7 +18,17 @@ export async function loadCompetition(id: string, token: string): Promise<Compet
   return res?.data ?? null;
 }
 
-export async function saveCompetition(competition: Competition, token: string): Promise<void> {
+// Serialize saves per competition id to prevent concurrent SHA conflicts
+const saveQueues = new Map<string, Promise<void>>();
+
+export function saveCompetition(competition: Competition, token: string): Promise<void> {
+  const prev = saveQueues.get(competition.id) ?? Promise.resolve();
+  const next = prev.then(() => doSaveCompetition(competition, token));
+  saveQueues.set(competition.id, next.catch(() => {}));
+  return next;
+}
+
+async function doSaveCompetition(competition: Competition, token: string): Promise<void> {
   const existing = await readJson<Competition>(COMP_PATH(competition.id), token);
   await writeJson({
     path: COMP_PATH(competition.id),
@@ -30,7 +40,6 @@ export async function saveCompetition(competition: Competition, token: string): 
     sha: existing?.sha,
   });
 
-  // Update index
   const idx = await readIndex(token);
   const summary: CompetitionSummary = {
     id: competition.id,

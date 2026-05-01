@@ -47,6 +47,15 @@ export default function CompetitionMatchLive() {
   const [celebration, setCelebration] = useState<{ team: Team; score: { home: number; away: number } } | null>(null);
   const celebTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Reset all per-match state when params change (même composant réutilisé)
+  useEffect(() => {
+    savedRef.current = false;
+    prevScoreRef.current = { home: 0, away: 0 };
+    setCelebration(null);
+    if (celebTimerRef.current) clearTimeout(celebTimerRef.current);
+    setLoading(true);
+  }, [competitionId, matchId]);
+
   useEffect(() => {
     if (!pat || !competitionId || !matchId) return;
     async function setup() {
