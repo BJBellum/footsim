@@ -48,3 +48,9 @@ export async function fetchDiscordUser(accessToken: string): Promise<DiscordUser
 export function isAdminId(id: string): boolean {
   return id === env.adminDiscordId;
 }
+
+export function getAvatarUrl(userId: string, avatarHash: string | null, size = 128): string {
+  if (!avatarHash) return `https://cdn.discordapp.com/embed/avatars/0.png`;
+  const ext = avatarHash.startsWith('a_') ? 'gif' : 'webp';
+  return `https://cdn.discordapp.com/avatars/${userId}/${avatarHash}.${ext}?size=${size}`;
+}

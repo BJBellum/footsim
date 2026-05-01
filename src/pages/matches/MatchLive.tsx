@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
@@ -9,9 +9,11 @@ import { EventFeed } from '@/components/match/EventFeed';
 import { StatsPanel } from '@/components/match/StatsPanel';
 import { SpeedControls } from '@/components/match/SpeedControls';
 import { HalftimeOverlay } from '@/components/match/HalftimeOverlay';
+import { GoalCelebration } from '@/components/match/GoalCelebration';
 import { useMatch } from '@/stores/match';
 import { useCredentials } from '@/stores/credentials';
 import { saveMatch } from '@/lib/github/matches';
+import type { Team } from '@/lib/types';
 
 export default function MatchLive() {
   const state = useMatch((s) => s.state);
@@ -26,6 +28,31 @@ export default function MatchLive() {
   const navigate = useNavigate();
   const savedRef = useRef(false);
 
+  const prevScoreRef = useRef({ home: 0, away: 0 });
+  const [celebration, setCelebration] = useState<{ team: Team; score: { home: number; away: number } } | null>(null);
+  const celebTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Detect goals
+  useEffect(() => {
+    if (!state || !input) return;
+    const prev = prevScoreRef.current;
+    const curr = state.score;
+
+    if (curr.home > prev.home) {
+      triggerCelebration(input.home.team, curr);
+    } else if (curr.away > prev.away) {
+      triggerCelebration(input.away.team, curr);
+    }
+    prevScoreRef.current = { ...curr };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state?.score.home, state?.score.away]);
+
+  function triggerCelebration(team: Team, score: { home: number; away: number }) {
+    if (celebTimerRef.current) clearTimeout(celebTimerRef.current);
+    setCelebration({ team, score });
+    celebTimerRef.current = setTimeout(() => setCelebration(null), 3000);
+  }
+
   // Auto-save on finish
   useEffect(() => {
     if (!finished || !state || !input || !pat || savedRef.current) return;
@@ -37,7 +64,10 @@ export default function MatchLive() {
 
   // Cleanup on unmount
   useEffect(() => {
-    return () => stop();
+    return () => {
+      stop();
+      if (celebTimerRef.current) clearTimeout(celebTimerRef.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -56,6 +86,14 @@ export default function MatchLive() {
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-8 space-y-6">
+      <GoalCelebration
+        visible={celebration !== null}
+        scoringTeam={celebration?.team ?? null}
+        home={input.home.team}
+        away={input.away.team}
+        score={celebration?.score ?? state.score}
+      />
+
       <div className="flex items-center justify-between">
         <Link to="/dashboard" className="text-sm text-muted hover:text-text">← Dashboard</Link>
         {finished ? (
