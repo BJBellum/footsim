@@ -57,11 +57,13 @@ export async function saveMatch(
     finalScore: state.score,
   };
 
+  const existing = await readJson<StoredMatch>(MATCH_PATH(state.matchId), token);
   await writeJson({
     path: MATCH_PATH(state.matchId),
     token,
     data: stored,
     message: `feat(matches): record ${input.home.team.slug} vs ${input.away.team.slug} (${state.score.home}-${state.score.away})`,
+    sha: existing?.sha,
   });
 
   await appendRecent(input.home.team, {
