@@ -12,6 +12,7 @@ type State = {
   pause: () => void;
   resume: () => void;
   stop: () => void;
+  reset: () => void;
 };
 
 export const useMatch = create<State>((set, get) => ({
@@ -51,5 +52,10 @@ export const useMatch = create<State>((set, get) => ({
     const w = get().worker;
     if (w) w.terminate();
     set({ worker: null });
+  },
+  reset() {
+    const w = get().worker;
+    if (w) w.terminate();
+    set({ worker: null, state: null, input: null, finished: false, paused: false });
   },
 }));

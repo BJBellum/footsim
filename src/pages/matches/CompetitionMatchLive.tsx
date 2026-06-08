@@ -39,7 +39,7 @@ export default function CompetitionMatchLive() {
   const setSpeed = useMatch((s) => s.setSpeed);
   const pause = useMatch((s) => s.pause);
   const resume = useMatch((s) => s.resume);
-  const stop = useMatch((s) => s.stop);
+  const resetMatch = useMatch((s) => s.reset);
   const startMatch = useMatch((s) => s.start);
 
   const dirty = useCompetition((s) => s.dirty);
@@ -211,7 +211,7 @@ export default function CompetitionMatchLive() {
 
   useEffect(() => {
     return () => {
-      stop();
+      resetMatch();
       if (celebTimerRef.current) clearTimeout(celebTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

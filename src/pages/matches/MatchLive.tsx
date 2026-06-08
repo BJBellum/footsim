@@ -23,7 +23,7 @@ export default function MatchLive() {
   const setSpeed = useMatch((s) => s.setSpeed);
   const pause = useMatch((s) => s.pause);
   const resume = useMatch((s) => s.resume);
-  const stop = useMatch((s) => s.stop);
+  const resetMatch = useMatch((s) => s.reset);
   const pat = useCredentials((s) => s.githubPat);
   const navigate = useNavigate();
   const savedRef = useRef(false);
@@ -65,7 +65,7 @@ export default function MatchLive() {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      stop();
+      resetMatch();
       if (celebTimerRef.current) clearTimeout(celebTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
