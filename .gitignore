@@ -14,3 +14,4 @@ dist-ssr
 coverage
 *.tsbuildinfo
 dist-tsc-node
+graphify-out
