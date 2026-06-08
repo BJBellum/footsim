@@ -26,8 +26,8 @@ export default function Competitions() {
   const pat = useCredentials((s) => s.githubPat);
 
   useEffect(() => {
-    if (pat) refresh(pat);
-  }, [pat, refresh]);
+    if (pat && summaries.length === 0) refresh(pat);
+  }, [pat, refresh, summaries.length]);
 
   return (
     <div className="space-y-8">
