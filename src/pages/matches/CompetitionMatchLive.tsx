@@ -232,6 +232,7 @@ export default function CompetitionMatchLive() {
   return (
     <main className="mx-auto max-w-6xl px-6 py-8 space-y-6">
       <GoalCelebration
+        key={matchId}
         visible={celebration !== null}
         scoringTeam={celebration?.team ?? null}
         home={matchInput.home.team}
