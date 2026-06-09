@@ -13,6 +13,7 @@ import { GoalCelebration } from '@/components/match/GoalCelebration';
 import { useMatch } from '@/stores/match';
 import { useCredentials } from '@/stores/credentials';
 import { saveMatch } from '@/lib/github/matches';
+import { computeMotm } from '@/lib/competition/statsAccumulator';
 import type { Team } from '@/lib/types';
 
 export default function MatchLive() {
@@ -31,6 +32,14 @@ export default function MatchLive() {
   const prevScoreRef = useRef({ home: 0, away: 0 });
   const [celebration, setCelebration] = useState<{ team: Team; score: { home: number; away: number } } | null>(null);
   const celebTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const motm = finished && state && input
+    ? computeMotm(
+        state,
+        { team: input.home.team, players: input.home.players },
+        { team: input.away.team, players: input.away.players },
+      )
+    : null;
 
   // Detect goals
   useEffect(() => {
@@ -137,14 +146,22 @@ export default function MatchLive() {
       )}
 
       {finished ? (
-        <div className="rounded-lg border border-accent/30 bg-accent/5 p-5 text-center">
+        <div className="rounded-lg border border-accent/30 bg-accent/5 p-5 text-center space-y-4">
           <div className="font-display text-2xl">Fin du match</div>
-          <div className="mt-1 text-sm text-muted">
+          <div className="text-sm text-muted">
             {input.home.team.name} {state.score.home} — {state.score.away} {input.away.team.name}
           </div>
           {state.penaltyScore && (
-            <div className="mt-1 text-sm text-muted">
+            <div className="text-sm text-muted">
               Tirs au but : {state.penaltyScore.home} – {state.penaltyScore.away}
+            </div>
+          )}
+          {motm && (
+            <div className="inline-flex flex-col items-center gap-1 rounded-md border border-warning/30 bg-warning/5 px-5 py-3">
+              <div className="text-xs uppercase tracking-widest text-muted">🏅 Homme du match</div>
+              <div className="font-display text-lg">{motm.playerName}</div>
+              <div className="text-xs text-muted">{motm.teamName}</div>
+              <div className="text-sm font-medium text-warning">{motm.rating.toFixed(1)} / 10</div>
             </div>
           )}
         </div>
