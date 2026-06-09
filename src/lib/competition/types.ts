@@ -59,6 +59,15 @@ export type PlayerCompStats = {
   cleanSheets: number;
   yellowCards: number;
   redCards: number;
+  matchRatings: number[];
+  avgRating: number;
+};
+
+export type CompetitionAwards = {
+  topScorer: string | null;
+  topAssister: string | null;
+  bestGK: string | null;
+  bestPlayer: string | null;
 };
 
 export type Competition = {
@@ -70,6 +79,7 @@ export type Competition = {
   groups?: CompGroup[];
   standings: Record<string, Standing>;
   playerStats: Record<string, PlayerCompStats>;
+  awards?: CompetitionAwards;
   config: CompetitionConfig;
   currentRound: number;
   status: CompetitionStatus;

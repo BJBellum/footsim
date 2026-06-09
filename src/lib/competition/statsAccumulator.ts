@@ -1,6 +1,55 @@
-import type { Player, Team } from '@/lib/types';
+import type { Player, Position, Team } from '@/lib/types';
 import type { MatchState } from '@/lib/sim/types';
 import type { PlayerCompStats } from './types';
+
+function clamp(n: number, lo: number, hi: number) { return n < lo ? lo : n > hi ? hi : n; }
+
+function isDefensive(pos: Position): boolean {
+  return ['GK', 'CB', 'LB', 'RB', 'DM'].includes(pos);
+}
+
+function computeMatchRating(
+  player: Player,
+  side: 'home' | 'away',
+  state: MatchState,
+  playerGoals: number,
+  playerAssists: number,
+  playerYellows: number,
+  playerReds: number,
+  isSub: boolean,
+): number {
+  const opp: 'home' | 'away' = side === 'home' ? 'away' : 'home';
+  const conceded = state.score[opp];
+  const shotsBlocked = Math.max(0, state.shotsOnTarget[opp] - conceded);
+
+  let rating = 6.0;
+
+  rating += playerGoals * 1.5;
+  rating += playerAssists * 1.0;
+  rating -= playerYellows * 0.5;
+  rating -= playerReds * 1.5;
+
+  if (player.position === 'GK') {
+    // +0.25 par arrêt estimé
+    rating += shotsBlocked * 0.25;
+    if (conceded === 0) rating += 0.8;
+    if (conceded >= 3) rating -= 0.6;
+  } else if (isDefensive(player.position)) {
+    if (conceded === 0) rating += 0.4;
+    if (conceded >= 3) rating -= 0.3;
+  }
+
+  // Légère pénalité si remplaçant (moins de minutes)
+  if (isSub) rating -= 0.3;
+
+  return clamp(Math.round(rating * 10) / 10, 1, 10);
+}
+
+export function computeAvgRating(matchRatings: number[]): number {
+  if (matchRatings.length === 0) return 0;
+  const sum = matchRatings.reduce((a, b) => a + b, 0);
+  return Math.round((sum / matchRatings.length) * 10) / 10;
+}
 
 export function accumulateMatchStats(
   prev: Record<string, PlayerCompStats>,
@@ -8,16 +57,19 @@ export function accumulateMatchStats(
   home: { team: Team; players: Player[] },
   away: { team: Team; players: Player[] },
 ): Record<string, PlayerCompStats> {
-  const stats = { ...prev };
+  const stats: Record<string, PlayerCompStats> = {};
+  for (const [k, v] of Object.entries(prev)) {
+    stats[k] = { ...v, matchRatings: [...(v.matchRatings ?? [])] };
+  }
 
   const homeMap = new Map(home.players.map((p) => [p.id, p]));
   const awayMap = new Map(away.players.map((p) => [p.id, p]));
 
-  function resolvePlayer(id: string): [Player, Team] | null {
+  function resolvePlayer(id: string): [Player, Team, 'home' | 'away'] | null {
     const hp = homeMap.get(id);
-    if (hp) return [hp, home.team];
+    if (hp) return [hp, home.team, 'home'];
     const ap = awayMap.get(id);
-    if (ap) return [ap, away.team];
+    if (ap) return [ap, away.team, 'away'];
     return null;
   }
 
@@ -33,10 +85,20 @@ export function accumulateMatchStats(
         cleanSheets: 0,
         yellowCards: 0,
         redCards: 0,
+        matchRatings: [],
+        avgRating: 0,
       };
     }
     return stats[p.id];
   }
+
+  // Per-player counters for this match
+  const matchGoals = new Map<string, number>();
+  const matchAssists = new Map<string, number>();
+  const matchYellows = new Map<string, number>();
+  const matchReds = new Map<string, number>();
+
+  const inc = (map: Map<string, number>, id: string) => map.set(id, (map.get(id) ?? 0) + 1);
 
   const events = state.events;
   for (let i = 0; i < events.length; i++) {
@@ -44,14 +106,13 @@ export function accumulateMatchStats(
 
     if (ev.type === 'goal' && ev.playerId) {
       const r = resolvePlayer(ev.playerId);
-      if (r) ensure(r[0], r[1]).goals++;
+      if (r) { ensure(r[0], r[1]).goals++; inc(matchGoals, ev.playerId); }
 
-      // assist = last keyPass on same side before this goal (within 3 prior events)
       for (let j = i - 1; j >= Math.max(0, i - 3); j--) {
         const prior = events[j];
         if (prior.type === 'keyPass' && prior.side === ev.side && prior.playerId) {
           const ra = resolvePlayer(prior.playerId);
-          if (ra) ensure(ra[0], ra[1]).assists++;
+          if (ra) { ensure(ra[0], ra[1]).assists++; inc(matchAssists, prior.playerId); }
           break;
         }
         if (prior.type === 'goal') break;
@@ -60,16 +121,16 @@ export function accumulateMatchStats(
 
     if (ev.type === 'yellow' && ev.playerId) {
       const r = resolvePlayer(ev.playerId);
-      if (r) ensure(r[0], r[1]).yellowCards++;
+      if (r) { ensure(r[0], r[1]).yellowCards++; inc(matchYellows, ev.playerId); }
     }
 
     if (ev.type === 'red' && ev.playerId) {
       const r = resolvePlayer(ev.playerId);
-      if (r) ensure(r[0], r[1]).redCards++;
+      if (r) { ensure(r[0], r[1]).redCards++; inc(matchReds, ev.playerId); }
     }
   }
 
-  // Clean sheets: GK of the side that conceded 0 goals
+  // Clean sheets
   function findGk(players: Map<string, Player>, onPitch: string[]): Player | undefined {
     for (const id of onPitch) {
       const p = players.get(id);
@@ -77,7 +138,6 @@ export function accumulateMatchStats(
     }
     return undefined;
   }
-
   if (state.score.away === 0) {
     const gk = findGk(homeMap, state.homeOnPitch);
     if (gk) ensure(gk, home.team).cleanSheets++;
@@ -87,5 +147,68 @@ export function accumulateMatchStats(
     if (gk) ensure(gk, away.team).cleanSheets++;
   }
 
+  // Collect all participants: starters (lineup) + subs (players who entered)
+  const subEventIds = new Set(
+    state.events.filter((e) => e.type === 'substitution' && e.playerId).map((e) => e.playerId!),
+  );
+
+  function participatedIds(side: 'home' | 'away'): Set<string> {
+    const initial = side === 'home' ? state.homeOnPitch : state.awayOnPitch;
+    // homeOnPitch/awayOnPitch at end contains current players; subs who entered are in sub events
+    const ids = new Set(initial);
+    for (const ev of state.events) {
+      if (ev.type === 'substitution' && ev.side === side && ev.playerId) ids.add(ev.playerId);
+    }
+    return ids;
+  }
+
+  for (const [side, sideData] of [['home', home], ['away', away]] as const) {
+    const ids = participatedIds(side);
+    for (const pid of ids) {
+      const playerData = side === 'home' ? homeMap.get(pid) : awayMap.get(pid);
+      if (!playerData) continue;
+      const entry = ensure(playerData, sideData.team);
+      const isSub = subEventIds.has(pid) && !state.homeOnPitch.includes(pid) && !state.awayOnPitch.includes(pid)
+        ? false // entered as sub and still on pitch
+        : subEventIds.has(pid);
+      const rating = computeMatchRating(
+        playerData,
+        side,
+        state,
+        matchGoals.get(pid) ?? 0,
+        matchAssists.get(pid) ?? 0,
+        matchYellows.get(pid) ?? 0,
+        matchReds.get(pid) ?? 0,
+        isSub,
+      );
+      entry.matchRatings.push(rating);
+      entry.avgRating = computeAvgRating(entry.matchRatings);
+    }
+  }
+
   return stats;
+}
+
+export function computeAwards(
+  playerStats: Record<string, PlayerCompStats>,
+): { topScorer: string | null; topAssister: string | null; bestGK: string | null; bestPlayer: string | null } {
+  const all = Object.values(playerStats).filter((p) => p.matchRatings.length > 0);
+  if (all.length === 0) return { topScorer: null, topAssister: null, bestGK: null, bestPlayer: null };
+
+  const byGoals = [...all].sort((a, b) => b.goals - a.goals || b.avgRating - a.avgRating);
+  const topScorer = byGoals[0]?.goals > 0 ? byGoals[0].playerId : null;
+
+  const byAssists = [...all].sort((a, b) => b.assists - a.assists || b.avgRating - a.avgRating);
+  const topAssister = byAssists[0]?.assists > 0 ? byAssists[0].playerId : null;
+
+  // PlayerCompStats lacks position — bestGK = most cleanSheets (tiebreak avgRating)
+  const byCS = [...all].sort((a, b) => b.cleanSheets - a.cleanSheets || b.avgRating - a.avgRating);
+  const bestGK = byCS[0]?.cleanSheets > 0 ? byCS[0].playerId : null;
+
+  const byRating = [...all]
+    .filter((p) => p.matchRatings.length >= 1)
+    .sort((a, b) => b.avgRating - a.avgRating || b.goals - a.goals);
+  const bestPlayer = byRating[0]?.playerId ?? null;
+
+  return { topScorer, topAssister, bestGK, bestPlayer };
 }

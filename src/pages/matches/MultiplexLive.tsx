@@ -9,7 +9,7 @@ import { useCompetition } from '@/stores/competition';
 import { useTeams } from '@/stores/teams';
 import { useCredentials } from '@/stores/credentials';
 import { advanceBracket, applyResultToStandings } from '@/lib/competition/scheduler';
-import { accumulateMatchStats } from '@/lib/competition/statsAccumulator';
+import { accumulateMatchStats, computeAwards } from '@/lib/competition/statsAccumulator';
 import type { MatchInput, Speed } from '@/lib/sim/types';
 import type { Team } from '@/lib/types';
 
@@ -179,6 +179,7 @@ export default function MultiplexLive() {
           matches: updatedMatches,
           standings: updatedStandings,
           playerStats: updatedPlayerStats,
+          awards: allDone ? computeAwards(updatedPlayerStats) : current!.awards,
           currentRound: Math.min(nextRound, Math.max(...updatedMatches.map((m) => m.round))),
           status: allDone ? ('completed' as const) : ('ongoing' as const),
           winner,

@@ -9,7 +9,7 @@ import { CompetitionStats } from '@/components/competition/CompetitionStats';
 import { useCompetition } from '@/stores/competition';
 import { useTeams } from '@/stores/teams';
 import { useCredentials } from '@/stores/credentials';
-import type { Competition, CompMatch } from '@/lib/competition/types';
+import type { Competition, CompMatch, PlayerCompStats } from '@/lib/competition/types';
 import type { Team } from '@/lib/types';
 
 export default function CompetitionDetail() {
@@ -145,14 +145,41 @@ export default function CompetitionDetail() {
       </div>
 
       {current.status === 'completed' && current.winner && (
-        <div className="rounded-lg border border-warning/40 bg-warning/5 p-5 text-center space-y-2">
-          <div className="text-xs uppercase tracking-widest text-muted">Vainqueur</div>
-          <div className="flex items-center justify-center gap-3">
-            {teamMap[current.winner]?.flag && (
-              <img src={teamMap[current.winner].flag} alt="" className="h-12 w-12 object-cover rounded" />
-            )}
-            <div className="font-display text-3xl">{teamMap[current.winner]?.name ?? current.winner}</div>
+        <div className="rounded-lg border border-warning/40 bg-warning/5 p-5 space-y-4">
+          <div className="text-center space-y-2">
+            <div className="text-xs uppercase tracking-widest text-muted">Vainqueur</div>
+            <div className="flex items-center justify-center gap-3">
+              {teamMap[current.winner]?.flag && (
+                <img src={teamMap[current.winner].flag} alt="" className="h-12 w-12 object-cover rounded" />
+              )}
+              <div className="font-display text-3xl">{teamMap[current.winner]?.name ?? current.winner}</div>
+            </div>
           </div>
+          {current.awards && (
+            <div className="border-t border-warning/20 pt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <AwardCard
+                emoji="⚽"
+                label="Meilleur buteur"
+                stats={current.awards.topScorer ? current.playerStats?.[current.awards.topScorer] : null}
+              />
+              <AwardCard
+                emoji="🎯"
+                label="Meilleur passeur"
+                stats={current.awards.topAssister ? current.playerStats?.[current.awards.topAssister] : null}
+              />
+              <AwardCard
+                emoji="🧤"
+                label="Meilleur gardien"
+                stats={current.awards.bestGK ? current.playerStats?.[current.awards.bestGK] : null}
+              />
+              <AwardCard
+                emoji="🏆"
+                label="Meilleur joueur"
+                stats={current.awards.bestPlayer ? current.playerStats?.[current.awards.bestPlayer] : null}
+                showRating
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -335,6 +362,39 @@ function RoundMatchRow({
       {!match.homeTeamId && !match.awayTeamId && (
         <span className="ml-2 shrink-0 text-xs text-muted">À définir</span>
       )}
+    </div>
+  );
+}
+
+function AwardCard({ emoji, label, stats, showRating }: {
+  emoji: string;
+  label: string;
+  stats: PlayerCompStats | null | undefined;
+  showRating?: boolean;
+}) {
+  if (!stats) return (
+    <div className="rounded-md bg-warning/5 border border-warning/20 p-3 text-center space-y-1 opacity-40">
+      <div className="text-lg">{emoji}</div>
+      <div className="text-xs text-muted uppercase tracking-wide">{label}</div>
+      <div className="text-xs text-muted">—</div>
+    </div>
+  );
+
+  const sub = showRating
+    ? `Note moy. ${stats.avgRating.toFixed(1)}`
+    : stats.goals > 0 && label.includes('buteur')
+    ? `${stats.goals} but${stats.goals > 1 ? 's' : ''}`
+    : stats.assists > 0 && label.includes('passeur')
+    ? `${stats.assists} passe${stats.assists > 1 ? 's' : ''}`
+    : `${stats.cleanSheets} clean sheet${stats.cleanSheets > 1 ? 's' : ''}`;
+
+  return (
+    <div className="rounded-md bg-warning/5 border border-warning/20 p-3 text-center space-y-1">
+      <div className="text-lg">{emoji}</div>
+      <div className="text-xs text-muted uppercase tracking-wide">{label}</div>
+      <div className="text-sm font-medium truncate">{stats.playerName}</div>
+      <div className="text-xs text-muted">{stats.teamName}</div>
+      <div className="text-xs text-accent font-medium">{sub}</div>
     </div>
   );
 }

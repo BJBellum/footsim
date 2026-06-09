@@ -19,7 +19,7 @@ import { advanceBracket, applyResultToStandings } from '@/lib/competition/schedu
 
 import type { Team } from '@/lib/types';
 import type { MatchInput } from '@/lib/sim/types';
-import { accumulateMatchStats } from '@/lib/competition/statsAccumulator';
+import { accumulateMatchStats, computeAwards } from '@/lib/competition/statsAccumulator';
 
 export default function CompetitionMatchLive() {
   const { competitionId, matchId } = useParams<{ competitionId: string; matchId: string }>();
@@ -205,6 +205,7 @@ export default function CompetitionMatchLive() {
         matches: updatedMatches,
         standings: updatedStandings,
         playerStats: updatedPlayerStats,
+        awards: allDone ? computeAwards(updatedPlayerStats) : current!.awards,
         currentRound: Math.min(nextRound, Math.max(...updatedMatches.map((m) => m.round))),
         status: allDone ? ('completed' as const) : ('ongoing' as const),
         winner,
