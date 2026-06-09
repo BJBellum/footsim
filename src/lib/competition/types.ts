@@ -49,6 +49,18 @@ export type CompetitionConfig = {
   matchRules: MatchRules;
 };
 
+export type PlayerCompStats = {
+  playerId: string;
+  playerName: string;
+  teamId: string;
+  teamName: string;
+  goals: number;
+  assists: number;
+  cleanSheets: number;
+  yellowCards: number;
+  redCards: number;
+};
+
 export type Competition = {
   id: string;
   name: string;
@@ -57,6 +69,7 @@ export type Competition = {
   matches: CompMatch[];
   groups?: CompGroup[];
   standings: Record<string, Standing>;
+  playerStats: Record<string, PlayerCompStats>;
   config: CompetitionConfig;
   currentRound: number;
   status: CompetitionStatus;

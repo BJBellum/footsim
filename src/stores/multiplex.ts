@@ -1,12 +1,14 @@
 import { create } from 'zustand';
 import type { MatchInput, MatchState, Speed } from '@/lib/sim/types';
-import type { Team } from '@/lib/types';
+import type { Player, Team } from '@/lib/types';
 
 export type MultiplexSlot = {
   matchId: string;
   compMatchId: string;
   home: Team;
   away: Team;
+  homePlayers: Player[];
+  awayPlayers: Player[];
   state: MatchState | null;
   finished: boolean;
   worker: Worker | null;
@@ -39,6 +41,8 @@ export const useMultiplex = create<State>((set, get) => ({
         compMatchId,
         home: input.home.team,
         away: input.away.team,
+        homePlayers: input.home.players,
+        awayPlayers: input.away.players,
         state: null,
         finished: false,
         worker,

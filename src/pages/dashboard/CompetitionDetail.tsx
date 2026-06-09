@@ -5,6 +5,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { toast } from '@/components/ui/Toast';
 import { StandingsTable } from '@/components/competition/StandingsTable';
 import { BracketView } from '@/components/competition/BracketView';
+import { CompetitionStats } from '@/components/competition/CompetitionStats';
 import { useCompetition } from '@/stores/competition';
 import { useTeams } from '@/stores/teams';
 import { useCredentials } from '@/stores/credentials';
@@ -26,7 +27,7 @@ export default function CompetitionDetail() {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'bracket' | 'rounds'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'bracket' | 'rounds' | 'stats'>('overview');
 
   useEffect(() => {
     if (!pat || !id) return;
@@ -156,7 +157,7 @@ export default function CompetitionDetail() {
       )}
 
       <div className="flex gap-1 border-b border-border">
-        {(['overview', 'bracket', 'rounds'] as const).map((tab) => (
+        {(['overview', 'bracket', 'rounds', 'stats'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -166,7 +167,7 @@ export default function CompetitionDetail() {
                 : 'border-transparent text-muted hover:text-text'
             }`}
           >
-            {tab === 'overview' ? 'Classement' : tab === 'bracket' ? 'Tableau' : 'Journées'}
+            {tab === 'overview' ? 'Classement' : tab === 'bracket' ? 'Tableau' : tab === 'rounds' ? 'Journées' : 'Statistiques'}
           </button>
         ))}
       </div>
@@ -220,6 +221,13 @@ export default function CompetitionDetail() {
           teamMap={teamMap}
           onSimulateRound={simulateRound}
           onSimulateMatch={(matchId) => navigate(`/competition/${current.id}/match/${matchId}`)}
+        />
+      )}
+
+      {activeTab === 'stats' && (
+        <CompetitionStats
+          playerStats={current.playerStats ?? {}}
+          teams={teamMap}
         />
       )}
     </div>

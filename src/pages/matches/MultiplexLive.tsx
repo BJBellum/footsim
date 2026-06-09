@@ -9,6 +9,7 @@ import { useCompetition } from '@/stores/competition';
 import { useTeams } from '@/stores/teams';
 import { useCredentials } from '@/stores/credentials';
 import { advanceBracket, applyResultToStandings } from '@/lib/competition/scheduler';
+import { accumulateMatchStats } from '@/lib/competition/statsAccumulator';
 import type { MatchInput, Speed } from '@/lib/sim/types';
 import type { Team } from '@/lib/types';
 
@@ -111,6 +112,7 @@ export default function MultiplexLive() {
 
         let updatedMatches = current!.matches;
         let updatedStandings = current!.standings;
+        let updatedPlayerStats = current!.playerStats ?? {};
 
         for (const slot of slots) {
           if (!slot.state || slot.state.status !== 'fulltime') continue;
@@ -130,6 +132,13 @@ export default function MultiplexLive() {
                   simulatedAt: new Date().toISOString(),
                 }
               : m,
+          );
+
+          updatedPlayerStats = accumulateMatchStats(
+            updatedPlayerStats,
+            slot.state,
+            { team: slot.home, players: slot.homePlayers },
+            { team: slot.away, players: slot.awayPlayers },
           );
 
           if ((compMatch.phase === 'group' || compMatch.phase === 'league') && compMatch.homeTeamId && compMatch.awayTeamId) {
@@ -169,6 +178,7 @@ export default function MultiplexLive() {
           ...current!,
           matches: updatedMatches,
           standings: updatedStandings,
+          playerStats: updatedPlayerStats,
           currentRound: Math.min(nextRound, Math.max(...updatedMatches.map((m) => m.round))),
           status: allDone ? ('completed' as const) : ('ongoing' as const),
           winner,

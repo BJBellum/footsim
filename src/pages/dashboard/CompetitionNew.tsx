@@ -84,6 +84,7 @@ export default function CompetitionNew() {
         matches,
         groups,
         standings: buildInitialStandings(selectedTeams),
+        playerStats: {},
         config,
         currentRound: 1,
         status: 'ongoing',
