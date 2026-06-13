@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import type { Player, Position } from '@/lib/types';
-import { POSITIONS } from '@/lib/types';
+import { POSITIONS, POSITION_LABEL, POSITION_FULL } from '@/lib/types';
 import { computeOverall } from '@/lib/gen/overall';
 import { clamp } from '@/lib/rng';
 
@@ -97,7 +97,7 @@ export function PlayerEdit({ player, onClose, onSave, onDelete }: Props) {
                 onChange={(e) => setDraft({ ...draft, position: e.target.value as Position })}
               >
                 {POSITIONS.map((p) => (
-                  <option key={p} value={p}>{p}</option>
+                  <option key={p} value={p}>{POSITION_LABEL[p]} — {POSITION_FULL[p]}</option>
                 ))}
               </select>
               <Input

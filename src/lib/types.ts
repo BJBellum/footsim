@@ -124,6 +124,27 @@ export type Position = 'GK' | 'CB' | 'LB' | 'RB' | 'DM' | 'CM' | 'AM' | 'LM' | '
 
 export const POSITIONS: Position[] = ['GK','CB','LB','RB','DM','CM','AM','LM','RM','LW','RW','ST'];
 
+export const POSITION_LABEL: Record<Position, string> = {
+  GK: 'GB', CB: 'DC', LB: 'DG', RB: 'DD',
+  DM: 'MDF', CM: 'MC', AM: 'MAO', LM: 'MG', RM: 'MD',
+  LW: 'AG', RW: 'AD', ST: 'BU',
+};
+
+export const POSITION_FULL: Record<Position, string> = {
+  GK: 'Gardien de but',
+  CB: 'Défenseur central',
+  LB: 'Défenseur gauche',
+  RB: 'Défenseur droit',
+  DM: 'Milieu défensif',
+  CM: 'Milieu central',
+  AM: 'Milieu offensif',
+  LM: 'Milieu gauche',
+  RM: 'Milieu droit',
+  LW: 'Ailier gauche',
+  RW: 'Ailier droit',
+  ST: 'Buteur',
+};
+
 export type Formation = '4-3-3' | '4-4-2' | '3-5-2' | '4-2-3-1' | '5-3-2' | '4-1-4-1' | '3-4-3' | '4-3-2-1';
 
 export type TacticStyle = 'possession' | 'contre-attaque' | 'direct' | 'pressing';
