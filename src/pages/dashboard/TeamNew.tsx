@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/Input';
 import { Spinner } from '@/components/ui/Spinner';
 import { toast } from '@/components/ui/Toast';
 import { FlagUpload } from '@/components/team/FlagUpload';
-import { CULTURES, CULTURE_LABEL, type Culture, type Player, type Team } from '@/lib/types';
+import { CULTURE_LABEL, CONTINENT_LABEL, CULTURES_BY_CONTINENT, type Culture, type Continent, type Player, type Team } from '@/lib/types';
 import { slugify } from '@/lib/slug';
 import { useCredentials } from '@/stores/credentials';
 import { useSession } from '@/stores/session';
@@ -96,10 +96,12 @@ export default function TeamNew() {
             value={culture}
             onChange={(e) => setCulture(e.target.value as Culture)}
           >
-            {CULTURES.map((c) => (
-              <option key={c} value={c}>
-                {CULTURE_LABEL[c]}
-              </option>
+            {(Object.keys(CULTURES_BY_CONTINENT) as Continent[]).map((continent) => (
+              <optgroup key={continent} label={CONTINENT_LABEL[continent]}>
+                {CULTURES_BY_CONTINENT[continent].map((c) => (
+                  <option key={c} value={c}>{CULTURE_LABEL[c]}</option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </label>

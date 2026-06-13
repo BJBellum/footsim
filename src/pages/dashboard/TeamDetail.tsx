@@ -7,9 +7,8 @@ import { toast } from '@/components/ui/Toast';
 import { RosterTable } from '@/components/team/RosterTable';
 import { PlayerEdit } from '@/components/team/PlayerEdit';
 import { TacticsPanel } from '@/components/team/TacticsPanel';
-import type { Player, Team, TeamTactics } from '@/lib/types';
-import { CULTURE_LABEL, CULTURES } from '@/lib/types';
-import type { Culture } from '@/lib/types';
+import type { Player, Team, TeamTactics, Culture, Continent } from '@/lib/types';
+import { CULTURE_LABEL, CONTINENT_LABEL, CULTURES_BY_CONTINENT } from '@/lib/types';
 import { useCredentials } from '@/stores/credentials';
 import { useTeams } from '@/stores/teams';
 import type { CultureWeight } from '@/lib/gen/names';
@@ -345,21 +344,30 @@ function NameMixPanel({
             </button>
           )}
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 max-h-60 overflow-y-auto pr-1">
-          {CULTURES.map((c) => {
-            const active = selected.includes(c);
-            return (
-              <button
-                key={c}
-                onClick={() => toggleCulture(c)}
-                className={`rounded-md border px-3 py-2 text-left text-sm transition-colors ${
-                  active ? 'border-accent bg-accent/10 text-accent' : 'border-border hover:border-border/70'
-                }`}
-              >
-                {CULTURE_LABEL[c]}
-              </button>
-            );
-          })}
+        <div className="max-h-80 overflow-y-auto pr-1 space-y-3">
+          {(Object.keys(CULTURES_BY_CONTINENT) as Continent[]).map((continent) => (
+            <div key={continent}>
+              <div className="text-xs uppercase tracking-widest text-muted mb-1 px-1">
+                {CONTINENT_LABEL[continent]}
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {CULTURES_BY_CONTINENT[continent].map((c) => {
+                  const active = selected.includes(c);
+                  return (
+                    <button
+                      key={c}
+                      onClick={() => toggleCulture(c)}
+                      className={`rounded-md border px-3 py-2 text-left text-sm transition-colors ${
+                        active ? 'border-accent bg-accent/10 text-accent' : 'border-border hover:border-border/70'
+                      }`}
+                    >
+                      {CULTURE_LABEL[c]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

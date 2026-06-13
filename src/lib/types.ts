@@ -2,13 +2,23 @@ export type Culture =
   | 'francais' | 'anglais' | 'allemand' | 'italien' | 'espagnol' | 'portugais'
   | 'grec' | 'hongrois' | 'tcheque' | 'polonais' | 'russe' | 'ukrainien'
   | 'suedois' | 'neerlandais' | 'roumain' | 'serbe' | 'croate' | 'turc'
-  | 'arabe' | 'japonais' | 'coreen';
+  | 'arabe' | 'japonais' | 'coreen'
+  | 'chinois' | 'vietnamien' | 'thai' | 'indonesien' | 'persan' | 'indien' | 'israelien'
+  | 'bresilien' | 'argentin' | 'mexicain' | 'anglo-americain' | 'quebecois'
+  | 'maghrebin' | 'egyptien' | 'levantin' | 'golfe' | 'soudanais'
+  | 'cambodgien' | 'birman' | 'philippin' | 'malaisien'
+  | 'nigerian' | 'ethiopien';
 
 export const CULTURES: Culture[] = [
   'francais','anglais','allemand','italien','espagnol','portugais',
   'grec','hongrois','tcheque','polonais','russe','ukrainien',
   'suedois','neerlandais','roumain','serbe','croate','turc',
   'arabe','japonais','coreen',
+  'chinois','vietnamien','thai','indonesien','persan','indien','israelien',
+  'bresilien','argentin','mexicain','anglo-americain','quebecois',
+  'maghrebin','egyptien','levantin','golfe','soudanais',
+  'cambodgien','birman','philippin','malaisien',
+  'nigerian','ethiopien',
 ];
 
 export const CULTURE_LABEL: Record<Culture, string> = {
@@ -17,7 +27,49 @@ export const CULTURE_LABEL: Record<Culture, string> = {
   tcheque: 'Tchèque', polonais: 'Polonais', russe: 'Russe', ukrainien: 'Ukrainien',
   suedois: 'Suédois', neerlandais: 'Néerlandais', roumain: 'Roumain', serbe: 'Serbe',
   croate: 'Croate', turc: 'Turc',
-  arabe: 'Arabe', japonais: 'Japonais', coreen: 'Coréen',
+  arabe: 'Arabe (générique)', japonais: 'Japonais', coreen: 'Coréen',
+  chinois: 'Chinois', vietnamien: 'Vietnamien', thai: 'Thaï', indonesien: 'Indonésien',
+  persan: 'Persan', indien: 'Indien', israelien: 'Israélien',
+  bresilien: 'Brésilien', argentin: 'Argentin', mexicain: 'Mexicain',
+  'anglo-americain': 'Anglo-Américain', quebecois: 'Québécois',
+  maghrebin: 'Maghrébin', egyptien: 'Égyptien', levantin: 'Levantin', golfe: 'Golfe Persique', soudanais: 'Soudanais',
+  cambodgien: 'Cambodgien', birman: 'Birman', philippin: 'Philippin', malaisien: 'Malaisien',
+  nigerian: 'Nigérian', ethiopien: 'Éthiopien',
+};
+
+export type Continent = 'europe' | 'asie' | 'amerique' | 'moyenorient' | 'afrique';
+
+export const CONTINENT_LABEL: Record<Continent, string> = {
+  europe: 'Europe',
+  asie: 'Asie',
+  amerique: 'Amérique',
+  moyenorient: 'Moyen-Orient',
+  afrique: 'Afrique',
+};
+
+export const CULTURE_CONTINENT: Record<Culture, Continent> = {
+  francais: 'europe', anglais: 'europe', allemand: 'europe', italien: 'europe',
+  espagnol: 'europe', portugais: 'europe', grec: 'europe', hongrois: 'europe',
+  tcheque: 'europe', polonais: 'europe', russe: 'europe', ukrainien: 'europe',
+  suedois: 'europe', neerlandais: 'europe', roumain: 'europe', serbe: 'europe',
+  croate: 'europe', turc: 'europe',
+  japonais: 'asie', coreen: 'asie', chinois: 'asie', vietnamien: 'asie',
+  thai: 'asie', indonesien: 'asie', indien: 'asie', cambodgien: 'asie',
+  birman: 'asie', philippin: 'asie', malaisien: 'asie',
+  arabe: 'moyenorient', persan: 'moyenorient', israelien: 'moyenorient',
+  maghrebin: 'moyenorient', egyptien: 'moyenorient', levantin: 'moyenorient',
+  golfe: 'moyenorient', soudanais: 'afrique',
+  bresilien: 'amerique', argentin: 'amerique', mexicain: 'amerique',
+  'anglo-americain': 'amerique', quebecois: 'amerique',
+  nigerian: 'afrique', ethiopien: 'afrique',
+};
+
+export const CULTURES_BY_CONTINENT: Record<Continent, Culture[]> = {
+  europe: ['francais','anglais','allemand','italien','espagnol','portugais','grec','hongrois','tcheque','polonais','russe','ukrainien','suedois','neerlandais','roumain','serbe','croate','turc'],
+  asie: ['japonais','coreen','chinois','vietnamien','thai','indonesien','indien','cambodgien','birman','philippin','malaisien'],
+  moyenorient: ['arabe','maghrebin','egyptien','levantin','golfe','persan','israelien'],
+  afrique: ['soudanais','nigerian','ethiopien'],
+  amerique: ['bresilien','argentin','mexicain','anglo-americain','quebecois'],
 };
 
 export type Position = 'GK' | 'CB' | 'LB' | 'RB' | 'DM' | 'CM' | 'AM' | 'LM' | 'RM' | 'LW' | 'RW' | 'ST';
