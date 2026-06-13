@@ -7,15 +7,15 @@ import { toast } from '@/components/ui/Toast';
 import { FlagUpload } from '@/components/team/FlagUpload';
 import { CULTURE_LABEL, CONTINENT_LABEL, CULTURES_BY_CONTINENT, type Culture, type Continent, type Player, type Team } from '@/lib/types';
 import { slugify } from '@/lib/slug';
-import { useCredentials } from '@/stores/credentials';
 import { useSession } from '@/stores/session';
 import { useTeams } from '@/stores/teams';
+import { useBackendArgs } from '@/hooks/useBackendArgs';
 
 const COUNTS = [100, 200, 500, 1000, 2000, 3000, 4000, 5000];
 
 export default function TeamNew() {
-  const pat = useCredentials((s) => s.githubPat);
   const session = useSession((s) => s.session);
+  const { pat } = useBackendArgs();
   const saveTeam = useTeams((s) => s.saveTeam);
   const navigate = useNavigate();
 
@@ -26,19 +26,20 @@ export default function TeamNew() {
   const [count, setCount] = useState(500);
 
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+
+  // draft generated locally, not yet published
+  const [draft, setDraft] = useState<{ team: Team; players: Player[] } | null>(null);
 
   async function generate() {
-    if (!pat) {
-      toast('error', 'Token GitHub manquant.');
-      return;
-    }
     if (!name.trim() || !flag) {
       toast('error', 'Nom et drapeau requis.');
       return;
     }
-    setBusy(true);
+    setGenerating(true);
     setProgress({ done: 0, total: count });
+    setDraft(null);
 
     try {
       const players = await runWorker({ count, culture, globalStrength: strength }, (p) =>
@@ -46,6 +47,7 @@ export default function TeamNew() {
       );
 
       const slug = slugify(name);
+      const ownerId = session?.id ?? 'unknown';
       const team: Team = {
         id: crypto.randomUUID(),
         slug,
@@ -54,19 +56,33 @@ export default function TeamNew() {
         culture,
         globalStrength: strength,
         createdAt: new Date().toISOString(),
-        createdBy: session?.id ?? 'unknown',
+        createdBy: ownerId,
+        ownerId,
         playerCount: players.length,
         formation: '4-3-3',
       };
 
-      await saveTeam(team, players, pat);
-      toast('success', `${team.name} créée avec ${players.length} joueurs.`);
-      navigate(`/dashboard/teams/${slug}`);
+      setDraft({ team, players });
+      toast('success', `${players.length} joueurs générés. Vérifie puis publie.`);
     } catch (err) {
       toast('error', String(err));
     } finally {
-      setBusy(false);
+      setGenerating(false);
       setProgress(null);
+    }
+  }
+
+  async function publish() {
+    if (!draft) return;
+    setPublishing(true);
+    try {
+      await saveTeam(draft.team, draft.players, pat);
+      toast('success', `${draft.team.name} publiée avec ${draft.players.length} joueurs.`);
+      navigate(`/dashboard/teams/${draft.team.slug}`);
+    } catch (err) {
+      toast('error', String(err));
+    } finally {
+      setPublishing(false);
     }
   }
 
@@ -111,10 +127,7 @@ export default function TeamNew() {
             Force globale : <span className="text-text">{strength}</span>
           </span>
           <input
-            type="range"
-            min={1}
-            max={100}
-            value={strength}
+            type="range" min={1} max={100} value={strength}
             onChange={(e) => setStrength(Number(e.target.value))}
             className="w-full accent-[--accent]"
           />
@@ -128,34 +141,44 @@ export default function TeamNew() {
             onChange={(e) => setCount(Number(e.target.value))}
           >
             {COUNTS.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
+              <option key={n} value={n}>{n}</option>
             ))}
           </select>
         </label>
       </section>
 
       <div className="flex items-center gap-3">
-        <Button onClick={generate} disabled={busy} size="lg">
-          {busy ? <Spinner className="mr-2" /> : null}
-          {busy ? 'Génération…' : 'Générer l’équipe'}
+        <Button onClick={generate} disabled={generating || publishing} size="lg">
+          {generating ? <Spinner className="mr-2" /> : null}
+          {generating ? 'Génération…' : draft ? 'Regénérer' : 'Générer'}
         </Button>
-        {progress ? (
-          <span className="text-sm text-muted">
-            {progress.done} / {progress.total}
-          </span>
-        ) : null}
+
+        {draft && (
+          <Button onClick={publish} disabled={publishing || generating} size="lg">
+            {publishing ? <Spinner className="mr-2" /> : null}
+            {publishing ? 'Publication…' : `Publier ${draft.players.length} joueurs`}
+          </Button>
+        )}
+
+        {progress && (
+          <span className="text-sm text-muted">{progress.done} / {progress.total}</span>
+        )}
       </div>
 
-      {progress ? (
+      {progress && (
         <div className="h-2 w-full overflow-hidden rounded-full bg-border">
           <div
             className="h-full bg-accent transition-[width] duration-150"
             style={{ width: `${(progress.done / progress.total) * 100}%` }}
           />
         </div>
-      ) : null}
+      )}
+
+      {draft && !generating && (
+        <div className="rounded-lg border border-accent/30 bg-accent/5 px-4 py-3 text-sm text-accent">
+          {draft.players.length} joueurs générés localement — non encore publiés.
+        </div>
+      )}
     </div>
   );
 }
@@ -165,27 +188,17 @@ function runWorker(
   onProgress: (p: { done: number; total: number }) => void,
 ): Promise<Player[]> {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL('@/lib/gen/worker.ts', import.meta.url), {
-      type: 'module',
-    });
+    const worker = new Worker(new URL('@/lib/gen/worker.ts', import.meta.url), { type: 'module' });
     worker.onmessage = (ev: MessageEvent) => {
       const data = ev.data as
         | { type: 'progress'; done: number; total: number }
         | { type: 'done'; players: Player[] }
         | { type: 'error'; message: string };
       if (data.type === 'progress') onProgress({ done: data.done, total: data.total });
-      else if (data.type === 'done') {
-        worker.terminate();
-        resolve(data.players);
-      } else if (data.type === 'error') {
-        worker.terminate();
-        reject(new Error(data.message));
-      }
+      else if (data.type === 'done') { worker.terminate(); resolve(data.players); }
+      else if (data.type === 'error') { worker.terminate(); reject(new Error(data.message)); }
     };
-    worker.onerror = (e) => {
-      worker.terminate();
-      reject(new Error(e.message));
-    };
+    worker.onerror = (e) => { worker.terminate(); reject(new Error(e.message)); };
     worker.postMessage({ id: 1, opts });
   });
 }

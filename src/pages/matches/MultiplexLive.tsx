@@ -8,6 +8,7 @@ import { useMultiplex } from '@/stores/multiplex';
 import { useCompetition } from '@/stores/competition';
 import { useTeams } from '@/stores/teams';
 import { useCredentials } from '@/stores/credentials';
+import { useBackendArgs } from '@/hooks/useBackendArgs';
 import { advanceBracket, applyResultToStandings } from '@/lib/competition/scheduler';
 import { accumulateMatchStats, computeAwards } from '@/lib/competition/statsAccumulator';
 import type { MatchInput, Speed } from '@/lib/sim/types';
@@ -25,6 +26,7 @@ export default function MultiplexLive() {
   const refreshTeams = useTeams((s) => s.refresh);
   const pat = useCredentials((s) => s.githubPat);
   const navigate = useNavigate();
+  const { ownerId, pat: effectivePat } = useBackendArgs();
 
   const slots = useMultiplex((s) => s.slots);
   const allFinished = useMultiplex((s) => s.allFinished);
@@ -47,7 +49,7 @@ export default function MultiplexLive() {
         const comp = await load(competitionId!, pat!);
         if (!comp) { toast('error', 'Compétition introuvable.'); return; }
 
-        if (teamsStore.length === 0) await refreshTeams(pat!);
+        if (teamsStore.length === 0) await refreshTeams(ownerId, effectivePat);
 
         const roundMatches = comp.matches.filter(
           (m) => m.round === roundNum && m.status === 'pending' && m.homeTeamId && m.awayTeamId,
@@ -62,8 +64,8 @@ export default function MultiplexLive() {
           if (!homeSlug || !awaySlug) continue;
 
           const [homeData, awayData] = await Promise.all([
-            fetchTeam(homeSlug, pat!),
-            fetchTeam(awaySlug, pat!),
+            fetchTeam(homeSlug, ownerId, effectivePat),
+            fetchTeam(awaySlug, ownerId, effectivePat),
           ]);
           if (!homeData || !awayData) continue;
 

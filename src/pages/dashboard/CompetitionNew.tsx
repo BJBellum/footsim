@@ -7,6 +7,7 @@ import { toast } from '@/components/ui/Toast';
 import { useTeams } from '@/stores/teams';
 import { useCredentials } from '@/stores/credentials';
 import { useCompetition } from '@/stores/competition';
+import { useBackendArgs } from '@/hooks/useBackendArgs';
 import {
   generateLeagueMatches,
   generateCupBracket,
@@ -23,6 +24,7 @@ export default function CompetitionNew() {
   const refresh = useTeams((s) => s.refresh);
   const save = useCompetition((s) => s.save);
   const pat = useCredentials((s) => s.githubPat);
+  const { ownerId, pat: effectivePat } = useBackendArgs();
   const navigate = useNavigate();
 
   const [name, setName] = useState('');
@@ -36,7 +38,7 @@ export default function CompetitionNew() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (pat && teams.length === 0) refresh(pat);
+    if (ownerId && teams.length === 0) refresh(ownerId, effectivePat);
   }, [pat, teams.length, refresh]);
 
   function toggleTeam(id: string) {

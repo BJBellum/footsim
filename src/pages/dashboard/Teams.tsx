@@ -4,18 +4,20 @@ import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { TeamCard } from '@/components/team/TeamCard';
 import { useTeams } from '@/stores/teams';
-import { useCredentials } from '@/stores/credentials';
+import { useSession } from '@/stores/session';
+import { useBackendArgs } from '@/hooks/useBackendArgs';
 
 export default function Teams() {
   const teams = useTeams((s) => s.teams);
   const loading = useTeams((s) => s.loading);
   const error = useTeams((s) => s.error);
   const refresh = useTeams((s) => s.refresh);
-  const pat = useCredentials((s) => s.githubPat);
+  const isAdmin = useSession((s) => s.isAdmin());
+  const { ownerId, pat: effectivePat } = useBackendArgs();
 
   useEffect(() => {
-    if (pat) refresh(pat);
-  }, [pat, refresh]);
+    if (ownerId) refresh(ownerId, effectivePat);
+  }, [ownerId, effectivePat, refresh]);
 
   return (
     <div className="space-y-6">
@@ -26,7 +28,7 @@ export default function Teams() {
         </Link>
       </div>
 
-      {!pat ? (
+      {isAdmin && !effectivePat ? (
         <p className="text-muted">
           Configure ton token GitHub dans{' '}
           <Link to="/dashboard/settings" className="text-accent underline">

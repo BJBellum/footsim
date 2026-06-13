@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { useCompetition } from '@/stores/competition';
 import { useCredentials } from '@/stores/credentials';
+import { useSession } from '@/stores/session';
 import { FORMAT_LABEL } from '@/lib/competition/types';
 import type { CompetitionSummary } from '@/lib/competition/types';
 
@@ -24,10 +25,37 @@ export default function Competitions() {
   const loading = useCompetition((s) => s.loading);
   const refresh = useCompetition((s) => s.refresh);
   const pat = useCredentials((s) => s.githubPat);
+  const isAdmin = useSession((s) => s.isAdmin());
 
   useEffect(() => {
     if (pat && summaries.length === 0) refresh(pat);
   }, [pat, refresh, summaries.length]);
+
+  if (!isAdmin) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="mb-1 font-display text-4xl">Compétitions</h1>
+          <p className="text-muted">Ligues, coupes, tournois administrés par l'organisateur.</p>
+        </div>
+        {!pat ? (
+          <p className="text-muted text-sm">Les compétitions sont gérées par l'administrateur.</p>
+        ) : loading ? (
+          <div className="flex justify-center py-12"><Spinner className="h-6 w-6" /></div>
+        ) : summaries.length === 0 ? (
+          <div className="rounded-lg border border-border bg-surface p-12 text-center text-muted">
+            Aucune compétition en cours.
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {summaries.map((s) => (
+              <CompetitionCard key={s.id} summary={s} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

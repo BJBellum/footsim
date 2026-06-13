@@ -208,6 +208,7 @@ export type Team = {
   globalStrength: number;
   createdAt: string;
   createdBy: string;
+  ownerId: string;
   playerCount: number;
   formation: Formation;
   tactics?: TeamTactics;

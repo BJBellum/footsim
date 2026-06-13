@@ -5,7 +5,7 @@ import { buildDiscordAuthUrl } from '@/lib/auth/discord';
 import { useSession } from '@/stores/session';
 
 export default function Home() {
-  const isAdmin = useSession((s) => s.isAdmin());
+  const isLoggedIn = useSession((s) => s.isLoggedIn());
   const navigate = useNavigate();
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center gap-8 px-6 text-center">
@@ -24,7 +24,7 @@ export default function Home() {
         transition={{ delay: 0.2, duration: 0.6 }}
       >
         Simulez le football du Projet Résurgence. Créez vos équipes, générez vos rosters,
-        faites s’affronter les nations.
+        faites s'affronter les nations.
       </motion.p>
       <motion.div
         className="flex gap-3"
@@ -32,7 +32,7 @@ export default function Home() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.35, duration: 0.5 }}
       >
-        {isAdmin ? (
+        {isLoggedIn ? (
           <>
             <Button onClick={() => navigate('/dashboard')}>Dashboard</Button>
             <Link to="/match">

@@ -9,6 +9,8 @@ import { CompetitionStats } from '@/components/competition/CompetitionStats';
 import { useCompetition } from '@/stores/competition';
 import { useTeams } from '@/stores/teams';
 import { useCredentials } from '@/stores/credentials';
+import { useBackendArgs } from '@/hooks/useBackendArgs';
+import { useSession } from '@/stores/session';
 import type { Competition, CompMatch, PlayerCompStats } from '@/lib/competition/types';
 import type { Team } from '@/lib/types';
 
@@ -23,6 +25,8 @@ export default function CompetitionDetail() {
   const refreshTeams = useTeams((s) => s.refresh);
   const pat = useCredentials((s) => s.githubPat);
   const navigate = useNavigate();
+  const { ownerId, pat: effectivePat } = useBackendArgs();
+  const isAdmin = useSession((s) => s.isAdmin());
 
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
@@ -32,7 +36,7 @@ export default function CompetitionDetail() {
   useEffect(() => {
     if (!pat || !id) return;
 
-    const teamLoad = teams.length === 0 ? refreshTeams(pat) : Promise.resolve();
+    const teamLoad = teams.length === 0 ? refreshTeams(ownerId, effectivePat) : Promise.resolve();
 
     // Si la compétition est déjà en mémoire (mise à jour optimiste), on ne recharge pas depuis GitHub
     if (current?.id === id) {
@@ -121,27 +125,29 @@ export default function CompetitionDetail() {
             {current.teamIds.length} équipes
           </p>
         </div>
-        <div className="flex gap-2">
-          {dirty && (
-            <Button size="sm" variant="ghost" onClick={handleSync} disabled={syncing}>
-              {syncing ? <Spinner className="h-4 w-4" /> : '↑ Sauvegarder'}
+        {isAdmin && (
+          <div className="flex gap-2">
+            {dirty && (
+              <Button size="sm" variant="ghost" onClick={handleSync} disabled={syncing}>
+                {syncing ? <Spinner className="h-4 w-4" /> : '↑ Sauvegarder'}
+              </Button>
+            )}
+            {current.status !== 'completed' && (
+              <Button
+                size="sm"
+                onClick={() => simulateRound(currentRound)}
+                disabled={!current.matches.some(
+                  (m) => m.round === currentRound && m.status === 'pending' && m.homeTeamId && m.awayTeamId,
+                )}
+              >
+                ▶ Journée {currentRound}
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" onClick={handleDelete} disabled={deleting}>
+              {deleting ? <Spinner className="h-4 w-4" /> : 'Supprimer'}
             </Button>
-          )}
-          {current.status !== 'completed' && (
-            <Button
-              size="sm"
-              onClick={() => simulateRound(currentRound)}
-              disabled={!current.matches.some(
-                (m) => m.round === currentRound && m.status === 'pending' && m.homeTeamId && m.awayTeamId,
-              )}
-            >
-              ▶ Journée {currentRound}
-            </Button>
-          )}
-          <Button size="sm" variant="ghost" onClick={handleDelete} disabled={deleting}>
-            {deleting ? <Spinner className="h-4 w-4" /> : 'Supprimer'}
-          </Button>
-        </div>
+          </div>
+        )}
       </div>
 
       {current.status === 'completed' && current.winner && (
@@ -234,9 +240,9 @@ export default function CompetitionDetail() {
             <BracketView
               matches={current.matches.filter((m) => m.phase !== 'group')}
               teams={teamMap}
-              onSimulate={(matchId) => {
+              onSimulate={isAdmin ? (matchId) => {
                 navigate(`/competition/${current.id}/match/${matchId}`);
-              }}
+              } : undefined}
             />
           )}
         </div>
@@ -246,6 +252,7 @@ export default function CompetitionDetail() {
         <RoundsView
           competition={current}
           teamMap={teamMap}
+          canSimulate={isAdmin}
           onSimulateRound={simulateRound}
           onSimulateMatch={(matchId) => navigate(`/competition/${current.id}/match/${matchId}`)}
         />
@@ -264,11 +271,13 @@ export default function CompetitionDetail() {
 function RoundsView({
   competition,
   teamMap,
+  canSimulate,
   onSimulateRound,
   onSimulateMatch,
 }: {
   competition: Competition;
   teamMap: Record<string, Team>;
+  canSimulate: boolean;
   onSimulateRound: (round: number) => void;
   onSimulateMatch: (matchId: string) => void;
 }) {
@@ -293,7 +302,7 @@ function RoundsView({
           <div key={round} className="space-y-2">
             <div className="flex items-center justify-between">
               <div className="text-sm font-medium text-muted uppercase tracking-wide">{label}</div>
-              {hasPending && roundMatches.filter((m) => m.homeTeamId && m.awayTeamId).length > 1 && (
+              {canSimulate && hasPending && roundMatches.filter((m) => m.homeTeamId && m.awayTeamId).length > 1 && (
                 <button
                   onClick={() => onSimulateRound(round)}
                   className="text-xs text-accent hover:text-accent/70 transition-colors"
@@ -308,6 +317,7 @@ function RoundsView({
                   key={m.id}
                   match={m}
                   teamMap={teamMap}
+                  canSimulate={canSimulate}
                   onSimulate={() => onSimulateMatch(m.id)}
                 />
               ))}
@@ -322,16 +332,18 @@ function RoundsView({
 function RoundMatchRow({
   match,
   teamMap,
+  canSimulate,
   onSimulate,
 }: {
   match: CompMatch;
   teamMap: Record<string, Team>;
+  canSimulate: boolean;
   onSimulate: () => void;
 }) {
   const home = match.homeTeamId ? teamMap[match.homeTeamId] : null;
   const away = match.awayTeamId ? teamMap[match.awayTeamId] : null;
   const done = match.status === 'completed';
-  const canSim = match.status === 'pending' && match.homeTeamId && match.awayTeamId;
+  const canSim = canSimulate && match.status === 'pending' && match.homeTeamId && match.awayTeamId;
 
   return (
     <div className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-sm ${done ? 'border-border/50 bg-surface/50' : 'border-border bg-surface'}`}>

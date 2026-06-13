@@ -3,28 +3,28 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { useTeams } from '@/stores/teams';
-import { useCredentials } from '@/stores/credentials';
+import { useBackendArgs } from '@/hooks/useBackendArgs';
 
 export default function Dashboard() {
   const teams = useTeams((s) => s.teams);
   const loading = useTeams((s) => s.loading);
   const refresh = useTeams((s) => s.refresh);
-  const pat = useCredentials((s) => s.githubPat);
+  const { ownerId, pat, isAdmin } = useBackendArgs();
 
   useEffect(() => {
-    if (pat) refresh(pat);
-  }, [pat, refresh]);
+    if (ownerId) refresh(ownerId, pat);
+  }, [ownerId, pat, refresh]);
 
   const totalPlayers = teams.reduce((sum, t) => sum + t.playerCount, 0);
 
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="mb-2 font-display text-4xl">Vue d’ensemble</h1>
+        <h1 className="mb-2 font-display text-4xl">Vue d'ensemble</h1>
         <p className="text-muted">Bienvenue dans FootSim.</p>
       </div>
 
-      {!pat ? (
+      {isAdmin && !pat ? (
         <p className="text-muted">
           Configure ton token GitHub dans{' '}
           <Link to="/dashboard/settings" className="text-accent underline">

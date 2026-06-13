@@ -10,6 +10,7 @@ import { DEFAULT_RULES } from '@/lib/sim/types';
 import { useTeams } from '@/stores/teams';
 import { useCredentials } from '@/stores/credentials';
 import { useMatch } from '@/stores/match';
+import { useBackendArgs } from '@/hooks/useBackendArgs';
 
 const FORMATIONS: Formation[] = ['4-3-3', '4-4-2', '3-5-2', '4-2-3-1', '5-3-2', '4-1-4-1', '3-4-3', '4-3-2-1'];
 
@@ -20,6 +21,7 @@ export default function MatchSetup() {
   const pat = useCredentials((s) => s.githubPat);
   const start = useMatch((s) => s.start);
   const navigate = useNavigate();
+  const { ownerId, pat: effectivePat } = useBackendArgs();
 
   const [homeSlug, setHomeSlug] = useState<string>('');
   const [awaySlug, setAwaySlug] = useState<string>('');
@@ -32,7 +34,7 @@ export default function MatchSetup() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (pat && teams.length === 0) refresh(pat);
+    if (ownerId && teams.length === 0) refresh(ownerId, effectivePat);
   }, [pat, teams.length, refresh]);
 
   function handleHomeSlug(slug: string) {
@@ -58,12 +60,11 @@ export default function MatchSetup() {
   }
 
   async function launch() {
-    if (!pat) { toast('error', 'Token GitHub manquant.'); return; }
     if (!homeSlug || !awaySlug) { toast('error', 'Choisis deux équipes.'); return; }
     if (homeSlug === awaySlug) { toast('error', 'Les deux équipes doivent être différentes.'); return; }
     setBusy(true);
     try {
-      const [home, away] = await Promise.all([fetchTeam(homeSlug, pat), fetchTeam(awaySlug, pat)]);
+      const [home, away] = await Promise.all([fetchTeam(homeSlug, ownerId, effectivePat), fetchTeam(awaySlug, ownerId, effectivePat)]);
       if (!home || !away) { toast('error', 'Impossible de charger les équipes.'); return; }
       if (home.players.length < 11 || away.players.length < 11) {
         toast('error', 'Chaque équipe doit avoir au moins 11 joueurs.');
@@ -95,17 +96,6 @@ export default function MatchSetup() {
     } finally {
       setBusy(false);
     }
-  }
-
-  if (!pat) {
-    return (
-      <div className="flex min-h-screen items-center justify-center px-6 text-center">
-        <div className="space-y-3">
-          <h1 className="font-display text-3xl">Configurer le token GitHub</h1>
-          <p className="text-muted">Va dans Réglages pour ajouter ton PAT.</p>
-        </div>
-      </div>
-    );
   }
 
   return (

@@ -34,7 +34,7 @@ beforeEach(() => {
 const makeTeam = (overrides: Partial<Team> = {}): Team => ({
   id: 'tid', slug: 'fr', name: 'France', flag: 'data:image/png;base64,xx',
   culture: 'francais', globalStrength: 70, createdAt: '2026-04-29',
-  createdBy: 'ADMIN', playerCount: 1, formation: '4-3-3',
+  createdBy: 'ADMIN', ownerId: 'ADMIN', playerCount: 1, formation: '4-3-3',
   ...overrides,
 });
 

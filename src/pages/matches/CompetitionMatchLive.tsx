@@ -14,6 +14,7 @@ import { useMatch } from '@/stores/match';
 import { useCompetition } from '@/stores/competition';
 import { useTeams } from '@/stores/teams';
 import { useCredentials } from '@/stores/credentials';
+import { useBackendArgs } from '@/hooks/useBackendArgs';
 import { saveMatch } from '@/lib/github/matches';
 import { advanceBracket, applyResultToStandings } from '@/lib/competition/scheduler';
 
@@ -32,6 +33,7 @@ export default function CompetitionMatchLive() {
   const refreshTeams = useTeams((s) => s.refresh);
   const pat = useCredentials((s) => s.githubPat);
   const navigate = useNavigate();
+  const { ownerId, pat: effectivePat } = useBackendArgs();
 
   const matchState = useMatch((s) => s.state);
   const matchInput = useMatch((s) => s.input);
@@ -76,7 +78,7 @@ export default function CompetitionMatchLive() {
           return;
         }
 
-        if (teamsStore.length === 0) await refreshTeams(pat!);
+        if (teamsStore.length === 0) await refreshTeams(ownerId, effectivePat);
 
         const homeSlug = teamsStore.find((t) => t.id === compMatch.homeTeamId)?.slug;
         const awaySlug = teamsStore.find((t) => t.id === compMatch.awayTeamId)?.slug;
@@ -84,8 +86,8 @@ export default function CompetitionMatchLive() {
         if (!homeSlug || !awaySlug) { toast('error', 'Équipes introuvables.'); return; }
 
         const [homeData, awayData] = await Promise.all([
-          fetchTeam(homeSlug, pat!),
-          fetchTeam(awaySlug, pat!),
+          fetchTeam(homeSlug, ownerId, effectivePat),
+          fetchTeam(awaySlug, ownerId, effectivePat),
         ]);
 
         if (!homeData || !awayData) { toast('error', 'Données équipes introuvables.'); return; }

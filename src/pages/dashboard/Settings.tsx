@@ -11,6 +11,7 @@ import { validatePat } from '@/lib/github/api';
 export default function Settings() {
   const session = useSession((s) => s.session);
   const logout = useSession((s) => s.logout);
+  const isAdmin = useSession((s) => s.isAdmin());
   const githubPat = useCredentials((s) => s.githubPat);
   const setPat = useCredentials((s) => s.setPat);
   const navigate = useNavigate();
@@ -22,10 +23,7 @@ export default function Settings() {
     setBusy(true);
     try {
       const ok = await validatePat(draft.trim());
-      if (!ok) {
-        toast('error', 'Token GitHub invalide.');
-        return;
-      }
+      if (!ok) { toast('error', 'Token GitHub invalide.'); return; }
       setPat(draft.trim());
       toast('success', 'Token GitHub enregistré.');
     } catch (err) {
@@ -51,11 +49,14 @@ export default function Settings() {
     <div className="max-w-2xl space-y-10">
       <div>
         <h1 className="mb-6 font-display text-4xl">Réglages</h1>
-        <p className="text-muted">
-          Configure les credentials nécessaires à la persistance des données.
-        </p>
+        {!isAdmin && (
+          <p className="text-sm text-muted">
+            Configure un token GitHub pour synchroniser tes équipes et tactiques avec l'admin.
+          </p>
+        )}
       </div>
 
+      {/* Profil Discord */}
       <section className="space-y-3 rounded-lg border border-border bg-surface p-6">
         <div className="flex items-center gap-3">
           {session?.avatar ? (
@@ -70,6 +71,7 @@ export default function Settings() {
           <div>
             <div className="font-medium">{session?.username}</div>
             <div className="text-xs text-muted">Discord ID {session?.id}</div>
+            {isAdmin && <div className="text-xs text-accent">Administrateur</div>}
           </div>
         </div>
         <Button variant="ghost" onClick={disconnect}>
@@ -77,11 +79,15 @@ export default function Settings() {
         </Button>
       </section>
 
+      {/* Token GitHub */}
       <section className="space-y-3 rounded-lg border border-border bg-surface p-6">
         <h2 className="font-display text-xl">Token GitHub</h2>
         <p className="text-sm text-muted">
-          Personal Access Token avec scope <code className="rounded bg-border/40 px-1">repo</code>.
-          Stocké uniquement dans ton navigateur.
+          {isAdmin
+            ? <>Personal Access Token avec scope <code className="rounded bg-border/40 px-1">repo</code>. Requis pour gérer les données.</>
+            : <>Optionnel. Avec un PAT scope <code className="rounded bg-border/40 px-1">repo</code> sur le dépôt footsim-data, tes équipes et tactiques sont visibles par l'admin.</>
+          }
+          {' '}Stocké uniquement dans ton navigateur.
         </p>
         <div className="flex gap-2">
           <Input
@@ -103,7 +109,10 @@ export default function Settings() {
             Effacer
           </Button>
         </div>
-        {githubPat ? <p className="text-xs text-accent">Token enregistré et validé.</p> : null}
+        {githubPat
+          ? <p className="text-xs text-accent">Token enregistré — données sur GitHub.</p>
+          : <p className="text-xs text-muted">Sans token — données en local (IndexedDB).</p>
+        }
       </section>
     </div>
   );

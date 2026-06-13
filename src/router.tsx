@@ -17,7 +17,7 @@ import MatchLive from '@/pages/matches/MatchLive';
 import CompetitionMatchLive from '@/pages/matches/CompetitionMatchLive';
 import MultiplexLive from '@/pages/matches/MultiplexLive';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { RequireAdmin } from '@/components/auth/RequireAdmin';
+import { RequireAuth } from '@/components/auth/RequireAuth';
 
 export const router = createBrowserRouter(
   [
@@ -27,9 +27,9 @@ export const router = createBrowserRouter(
     {
       path: '/dashboard',
       element: (
-        <RequireAdmin>
+        <RequireAuth>
           <DashboardLayout />
-        </RequireAdmin>
+        </RequireAuth>
       ),
       children: [
         { index: true, element: <Dashboard /> },
@@ -47,33 +47,33 @@ export const router = createBrowserRouter(
     {
       path: '/match',
       element: (
-        <RequireAdmin>
+        <RequireAuth>
           <MatchSetup />
-        </RequireAdmin>
+        </RequireAuth>
       ),
     },
     {
       path: '/match/:id',
       element: (
-        <RequireAdmin>
+        <RequireAuth>
           <MatchLive />
-        </RequireAdmin>
+        </RequireAuth>
       ),
     },
     {
       path: '/competition/:competitionId/match/:matchId',
       element: (
-        <RequireAdmin>
+        <RequireAuth>
           <CompetitionMatchLive />
-        </RequireAdmin>
+        </RequireAuth>
       ),
     },
     {
       path: '/competition/:competitionId/round/:round',
       element: (
-        <RequireAdmin>
+        <RequireAuth>
           <MultiplexLive />
-        </RequireAdmin>
+        </RequireAuth>
       ),
     },
   ],
