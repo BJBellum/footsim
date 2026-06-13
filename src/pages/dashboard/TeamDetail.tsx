@@ -33,6 +33,8 @@ export default function TeamDetail() {
   const [tab, setTab] = useState<'roster' | 'tactique' | 'noms'>('roster');
   const [nameWeights, setNameWeights] = useState<CultureWeight[]>([]);
   const [renamingAll, setRenamingAll] = useState(false);
+  const [regenStrength, setRegenStrength] = useState(false);
+  const [newStrength, setNewStrength] = useState<number | null>(null);
 
   useEffect(() => {
     if (!pat) return;
@@ -131,6 +133,37 @@ export default function TeamDetail() {
     }
   }
 
+  async function applyNewStrength(strength: number) {
+    if (!data || !pat) return;
+    setRegenStrength(true);
+    try {
+      const { generatePlayers } = await import('@/lib/gen/players');
+      const regen = generatePlayers({
+        count: data.players.length,
+        culture: data.team.culture,
+        globalStrength: strength,
+      });
+      // keep names + ids from existing players, regenerate stats
+      const merged = data.players.map((p, i) => ({
+        ...regen[i % regen.length],
+        id: p.id,
+        firstName: p.firstName,
+        lastName: p.lastName,
+        age: p.age,
+        preferredFoot: p.preferredFoot,
+      }));
+      const team = { ...data.team, globalStrength: strength };
+      await saveTeam(team, merged, pat);
+      setData({ team, players: merged });
+      setNewStrength(null);
+      toast('success', `Force mise à jour : ${strength}.`);
+    } catch (err) {
+      toast('error', String(err));
+    } finally {
+      setRegenStrength(false);
+    }
+  }
+
   async function saveTactics(tactics: TeamTactics) {
     if (!data || !pat) return;
     const team = { ...data.team, tactics };
@@ -186,12 +219,43 @@ export default function TeamDetail() {
           alt=""
           className="h-24 w-24 object-cover"
         />
-        <div className="space-y-1 flex-1">
+        <div className="space-y-2 flex-1">
           <h1 className="font-display text-4xl">{team.name}</h1>
           <p className="text-sm text-muted">
             {CULTURE_LABEL[team.culture]} · Force {team.globalStrength} ·{' '}
             {team.playerCount} joueurs · Formation {team.formation}
           </p>
+          {newStrength === null ? (
+            <button
+              onClick={() => setNewStrength(team.globalStrength)}
+              className="text-xs text-accent hover:text-accent/70 transition-colors"
+            >
+              Regénérer la note…
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min={1}
+                max={100}
+                value={newStrength}
+                onChange={(e) => setNewStrength(Number(e.target.value))}
+                className="w-32 accent-[var(--accent)]"
+              />
+              <span className="w-6 text-sm font-medium tabular-nums">{newStrength}</span>
+              <Button
+                size="sm"
+                onClick={() => applyNewStrength(newStrength)}
+                disabled={regenStrength}
+              >
+                {regenStrength ? <Spinner className="mr-1" /> : null}
+                Appliquer
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setNewStrength(null)} disabled={regenStrength}>
+                Annuler
+              </Button>
+            </div>
+          )}
         </div>
         <div>
           {confirmingDelete ? (
