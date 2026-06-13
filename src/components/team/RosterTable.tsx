@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import type { Player, Position } from '@/lib/types';
 import { POSITIONS, POSITION_LABEL, POSITION_FULL } from '@/lib/types';
 
@@ -9,41 +9,10 @@ type RosterProps = {
   onSelect?: (id: string) => void;
 };
 
-function PostesPopover({ onClose }: { onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    function handle(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    }
-    document.addEventListener('mousedown', handle);
-    return () => document.removeEventListener('mousedown', handle);
-  }, [onClose]);
-
-  return (
-    <div
-      ref={ref}
-      className="absolute left-0 top-full z-50 mt-1 w-52 rounded-lg border border-border bg-surface p-3 shadow-lg"
-    >
-      <div className="mb-2 text-xs uppercase tracking-widest text-muted">Postes</div>
-      <div className="space-y-1">
-        {POSITIONS.map((p) => (
-          <div key={p} className="flex items-center gap-2 text-sm">
-            <span className="w-10 rounded bg-border/40 px-1.5 py-0.5 text-center text-xs font-mono font-medium">
-              {POSITION_LABEL[p]}
-            </span>
-            <span className="text-text/80">{POSITION_FULL[p]}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export function RosterTable({ players, onSelect }: RosterProps) {
   const [filter, setFilter] = useState<Position | 'ALL'>('ALL');
   const [sort, setSort] = useState<SortKey>('overall');
   const [dir, setDir] = useState<'asc' | 'desc'>('desc');
-  const [showPostes, setShowPostes] = useState(false);
 
   const rows = useMemo(() => {
     const base = filter === 'ALL' ? players : players.filter((p) => p.position === filter);
@@ -72,15 +41,6 @@ export function RosterTable({ players, onSelect }: RosterProps) {
           ))}
         </select>
         <span className="text-sm text-muted">{rows.length} joueurs</span>
-        <div className="relative ml-auto">
-          <button
-            onClick={() => setShowPostes((v) => !v)}
-            className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-muted hover:border-accent hover:text-accent transition-colors"
-          >
-            Postes
-          </button>
-          {showPostes && <PostesPopover onClose={() => setShowPostes(false)} />}
-        </div>
       </div>
 
       <div className="overflow-hidden rounded-lg border border-border bg-surface">
