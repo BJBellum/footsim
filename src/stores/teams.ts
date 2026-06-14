@@ -29,9 +29,20 @@ export const useTeams = create<State>((set, get) => ({
   async refresh(ownerId, pat) {
     set({ loading: true, error: null });
     try {
-      const backend = getBackend(pat);
-      const teams = await backend.listTeams(ownerId);
-      set({ teams, loading: false });
+      if (pat) {
+        // Merge: IDB local (unpublished) + GitHub (published source of truth)
+        const [idbTeams, ghTeams] = await Promise.all([
+          idbBackend.listTeams(ownerId),
+          new GithubTeamBackend(pat).listTeams(ownerId),
+        ]);
+        const ghSlugs = new Set(ghTeams.map((t) => t.slug));
+        // IDB teams not yet on GitHub → keep as unpublished
+        const localOnly = idbTeams.filter((t) => !ghSlugs.has(t.slug)).map((t) => ({ ...t, publishedAt: undefined }));
+        set({ teams: [...ghTeams, ...localOnly], loading: false });
+      } else {
+        const teams = await idbBackend.listTeams(ownerId);
+        set({ teams, loading: false });
+      }
     } catch (err) {
       set({ error: String(err), loading: false });
     }

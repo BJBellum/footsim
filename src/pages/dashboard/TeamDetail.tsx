@@ -459,7 +459,16 @@ function CultureEditPanel({
         <select
           className="h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
           value={continent ?? ''}
-          onChange={(e) => onChangeContinent(e.target.value as Continent || null)}
+          onChange={(e) => {
+            const c = e.target.value as Continent || null;
+            onChangeContinent(c);
+            // if new continent selected, drop cultures not belonging to it
+            if (c) {
+              const valid = CULTURES_BY_CONTINENT[c];
+              const kept = cultures.filter((w) => valid.includes(w.culture));
+              onChange(kept.length > 0 ? kept : [{ culture: valid[0], weight: 50 }]);
+            }
+          }}
         >
           <option value="">— Non défini —</option>
           {(Object.keys(CULTURES_BY_CONTINENT) as Continent[]).map((ct) => (
@@ -468,11 +477,12 @@ function CultureEditPanel({
         </select>
       </label>
 
-      {/* Culture grid — all continents shown */}
+      {/* Culture grid — filtered by selected continent, all continents fallback */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-xs uppercase tracking-widest text-muted">
             Cultures sélectionnées ({cultures.length})
+            {continent && ` · ${CONTINENT_LABEL[continent]}`}
           </span>
           {cultures.length > 1 && (
             <button onClick={distribute} className="text-xs text-accent transition-colors hover:text-accent/70">
@@ -481,11 +491,16 @@ function CultureEditPanel({
           )}
         </div>
         <div className="max-h-80 space-y-3 overflow-y-auto pr-1">
-          {(Object.keys(CULTURES_BY_CONTINENT) as Continent[]).map((ct) => (
+          {(continent
+            ? [continent]
+            : (Object.keys(CULTURES_BY_CONTINENT) as Continent[])
+          ).map((ct) => (
             <div key={ct}>
-              <div className="mb-1 px-1 text-xs uppercase tracking-widest text-muted">
-                {CONTINENT_LABEL[ct]}
-              </div>
+              {!continent && (
+                <div className="mb-1 px-1 text-xs uppercase tracking-widest text-muted">
+                  {CONTINENT_LABEL[ct]}
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
                 {CULTURES_BY_CONTINENT[ct].map((c) => {
                   const active = cultures.some((w) => w.culture === c);
