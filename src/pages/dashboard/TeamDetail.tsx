@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
@@ -10,7 +10,6 @@ import { TacticsPanel } from '@/components/team/TacticsPanel';
 import type { Player, Team, TeamTactics, Culture, Continent } from '@/lib/types';
 import { CULTURE_LABEL, CONTINENT_LABEL, CULTURES_BY_CONTINENT } from '@/lib/types';
 import { useTeams } from '@/stores/teams';
-import { useLeagues as useLeaguesStore } from '@/stores/leagues';
 import { useBackendArgs } from '@/hooks/useBackendArgs';
 import type { CultureWeight } from '@/lib/gen/names';
 
@@ -33,7 +32,7 @@ export default function TeamDetail() {
   const [deleteCount, setDeleteCount] = useState(1);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [tab, setTab] = useState<'roster' | 'tactique' | 'noms' | 'infos' | 'leagues'>('roster');
+  const [tab, setTab] = useState<'roster' | 'tactique' | 'noms' | 'infos'>('roster');
   const [nameWeights, setNameWeights] = useState<CultureWeight[]>([]);
   const [renamingAll, setRenamingAll] = useState(false);
   const [regenStrength, setRegenStrength] = useState(false);
@@ -309,16 +308,29 @@ export default function TeamDetail() {
       )}
 
       {/* Tab bar */}
-      <div className="flex gap-1 border-b border-border">
-        {(['roster', 'noms', 'tactique', 'infos', 'leagues'] as const).map((t) => (
+      <div className="flex items-center gap-1 border-b border-border">
+        {(['roster', 'noms', 'tactique'] as const).map((t) => (
           <button
             key={t}
-            onClick={() => t === 'infos' ? openInfos() : setTab(t)}
+            onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium transition-colors ${tab === t ? 'border-b-2 border-accent text-accent' : 'text-muted hover:text-text'}`}
           >
-            {t === 'roster' ? 'Roster' : t === 'noms' ? 'Noms' : t === 'tactique' ? 'Tactique' : t === 'infos' ? 'Cultures' : 'Championnats'}
+            {t === 'roster' ? 'Roster' : t === 'noms' ? 'Noms' : 'Tactique'}
           </button>
         ))}
+        <div className="ml-auto">
+          <button
+            onClick={openInfos}
+            className={`flex items-center gap-1.5 px-3 py-2 text-sm transition-colors ${tab === 'infos' ? 'text-accent' : 'text-muted hover:text-text'}`}
+            title="Paramètres de l'équipe"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
+              <path d="M12 2v2m0 16v2M2 12h2m16 0h2"/>
+            </svg>
+            Paramètres
+          </button>
+        </div>
       </div>
 
       {tab === 'roster' && (
@@ -383,17 +395,6 @@ export default function TeamDetail() {
         />
       )}
 
-      {tab === 'leagues' && (
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="font-display text-xl">Championnats</h2>
-            <Link to={`/dashboard/teams/${team.slug}/leagues/new`}>
-              <Button size="sm">+ Nouveau championnat</Button>
-            </Link>
-          </div>
-          <LeagueListInline nationSlug={team.slug} pat={effectivePat} />
-        </section>
-      )}
 
       <AnimatePresence>
         {editing ? (
@@ -698,30 +699,3 @@ function NameMixPanel({
   );
 }
 
-function LeagueListInline({ nationSlug, pat }: { nationSlug: string; pat: string | null }) {
-  const fetchLeagues = useLeaguesStore((s) => s.fetchLeagues);
-  const leagues = useLeaguesStore((s) => s.leagues);
-  const loading = useLeaguesStore((s) => s.loading);
-
-  useEffect(() => {
-    fetchLeagues(nationSlug, pat);
-  }, [nationSlug, pat, fetchLeagues]);
-
-  if (loading) return <div className="flex items-center gap-2 text-muted"><Spinner /> Chargement…</div>;
-  if (leagues.length === 0) return <p className="text-muted">Aucun championnat. Crée-en un.</p>;
-
-  return (
-    <div className="space-y-2">
-      {leagues.map((l) => (
-        <Link
-          key={l.id}
-          to={`/dashboard/leagues/${encodeURIComponent(l.nationSlug + '/' + l.id)}`}
-          className="flex items-center justify-between rounded-lg border border-border bg-surface px-4 py-3 text-sm transition-colors hover:border-accent/40"
-        >
-          <span className="font-medium">{l.name}</span>
-          <span className="text-muted">{l.divisions.length} division{l.divisions.length > 1 ? 's' : ''} · {l.divisions.reduce((s, d) => s + d.clubs.length, 0)} clubs</span>
-        </Link>
-      ))}
-    </div>
-  );
-}
