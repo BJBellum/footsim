@@ -352,28 +352,42 @@ export function tick(state: MatchState, ctx: EngineCtx): MatchState {
     tryShot(state, ctx, possessing, opp, teamName, oppName);
 
   } else if (r < wShot + wFoul) {
-    state.fouls[opp]++;
-    const fouler = pickFouler(opp, ctx, state);
-    if (chance(0.15) && fouler) {
+    // Corruption bias: if ref is bought and honoring the deal,
+    // fouls are called against the victim side more often, cards too
+    const corr = state.corruption;
+    const corrActive = corr?.accepted && corr?.honored;
+    // foulSide = who the foul is called against
+    // normally = opp (the defending team fouled the attacker)
+    // with corruption against opp of briber: bias keeps same direction but increases card chance
+    const victimSide: 'home' | 'away' = corrActive
+      ? (corr!.side === possessing ? opp : possessing)
+      : opp;
+    state.fouls[victimSide]++;
+    const fouler = pickFouler(victimSide, ctx, state);
+    const penChance = corrActive && corr!.side === possessing ? 0.25 : 0.15;
+    if (chance(penChance) && fouler) {
       const pz = possessing === 'home' ? ZONE.awayBox : ZONE.homeBox;
       const penTaker = pickAttacker(possessing, ctx, state);
       pushEvent(state, ctx, { type: 'penalty', side: possessing, playerId: penTaker?.id, ballPos: pz },
         teamName, penTaker ? `${penTaker.firstName} ${penTaker.lastName}` : undefined);
       tryShot(state, ctx, possessing, opp, teamName, oppName, 1.4, pz);
     } else {
-      pushEvent(state, ctx, { type: 'foul', side: opp, playerId: fouler?.id, ballPos: ZONE.centre },
-        oppName, fouler ? `${fouler.firstName} ${fouler.lastName}` : undefined);
+      const victimName = victimSide === 'home' ? ctx.home.team.name : ctx.away.team.name;
+      pushEvent(state, ctx, { type: 'foul', side: victimSide, playerId: fouler?.id, ballPos: ZONE.centre },
+        victimName, fouler ? `${fouler.firstName} ${fouler.lastName}` : undefined);
       if (fouler) {
         const ag = fouler.stats.mental.aggression / 20;
-        if (chance(0.005 + 0.005 * ag)) {
-          applyRed(state, ctx, opp, fouler);
-        } else if (chance(0.13 + 0.06 * ag)) {
-          if (state.cards[opp].yellow.includes(fouler.id)) {
-            applyRed(state, ctx, opp, fouler);
+        // Corruption increases card rate against victim by 2×
+        const cardMult = (corrActive && victimSide !== corr!.side) ? 2.0 : 1.0;
+        if (chance((0.005 + 0.005 * ag) * cardMult)) {
+          applyRed(state, ctx, victimSide, fouler);
+        } else if (chance((0.13 + 0.06 * ag) * cardMult)) {
+          if (state.cards[victimSide].yellow.includes(fouler.id)) {
+            applyRed(state, ctx, victimSide, fouler);
           } else {
-            state.cards[opp].yellow.push(fouler.id);
-            pushEvent(state, ctx, { type: 'yellow', side: opp, playerId: fouler.id, ballPos: ZONE.centre },
-              oppName, `${fouler.firstName} ${fouler.lastName}`);
+            state.cards[victimSide].yellow.push(fouler.id);
+            pushEvent(state, ctx, { type: 'yellow', side: victimSide, playerId: fouler.id, ballPos: ZONE.centre },
+              victimName, `${fouler.firstName} ${fouler.lastName}`);
           }
         }
       }

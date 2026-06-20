@@ -14,6 +14,7 @@ import { useMatch } from '@/stores/match';
 import { useCredentials } from '@/stores/credentials';
 import { saveMatch } from '@/lib/github/matches';
 import { computeMotm } from '@/lib/competition/statsAccumulator';
+import { isRevealed } from '@/lib/sim/corruption';
 import type { Team } from '@/lib/types';
 
 export default function MatchLive() {
@@ -28,6 +29,7 @@ export default function MatchLive() {
   const pat = useCredentials((s) => s.githubPat);
   const navigate = useNavigate();
   const savedRef = useRef(false);
+  const [corruptionRevealed, setCorruptionRevealed] = useState(false);
 
   const prevScoreRef = useRef({ home: 0, away: 0 });
   const [celebration, setCelebration] = useState<{ team: Team; score: { home: number; away: number } } | null>(null);
@@ -62,13 +64,18 @@ export default function MatchLive() {
     celebTimerRef.current = setTimeout(() => setCelebration(null), 3000);
   }
 
-  // Auto-save on finish
+  // Auto-save on finish + corruption reveal check
   useEffect(() => {
-    if (!finished || !state || !input || !pat || savedRef.current) return;
+    if (!finished || !state || !input || savedRef.current) return;
     savedRef.current = true;
-    saveMatch(input, state, pat)
-      .then(() => toast('success', 'Match enregistré.'))
-      .catch((err) => toast('error', `Sauvegarde : ${err}`));
+    if (state.corruption?.accepted && isRevealed()) {
+      setCorruptionRevealed(true);
+    }
+    if (pat) {
+      saveMatch(input, state, pat)
+        .then(() => toast('success', 'Match enregistré.'))
+        .catch((err) => toast('error', `Sauvegarde : ${err}`));
+    }
   }, [finished, state, input, pat]);
 
   // Cleanup on unmount
@@ -166,6 +173,22 @@ export default function MatchLive() {
           )}
         </div>
       ) : null}
+
+      {corruptionRevealed && state.corruption && (
+        <div className="rounded-lg border border-danger bg-danger/10 p-5 text-center space-y-2">
+          <div className="font-display text-2xl text-danger">🚨 Scandale révélé !</div>
+          <div className="text-sm">
+            La corruption de{' '}
+            <span className="font-medium">
+              {state.corruption.side === 'home' ? input.home.team.name : input.away.team.name}
+            </span>{' '}
+            ({state.corruption.bribe}M€) a été découverte par les autorités.
+          </div>
+          <div className="text-sm text-danger font-medium">
+            Le match est annulé. L'équipe est disqualifiée.
+          </div>
+        </div>
+      )}
     </main>
   );
 }

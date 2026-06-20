@@ -100,55 +100,75 @@ export function buildKnockoutPots(qualifiersByRank: string[][]): Pot[] {
 }
 
 /**
- * Draw for knockout: pair teams from pot 1 vs pot 2, etc.
- * Pot 1 teams are home, matched against shuffled pot 2 teams.
- * Returns order (animated) + pairs as "groups" with 2 teams each.
+ * Draw for knockout: each pot-1 team (group winner) faces a pot-2 team (runner-up)
+ * from a DIFFERENT group. No same-group clash guaranteed.
+ * qualifiersByRank[i] lists teams in rank order matching group order.
+ * Returns order (animated reveal) + pairs as "groups" with 2 teams each.
  */
-export function conductKnockoutDraw(pots: Pot[]): DrawResult {
-  if (pots.length < 2) {
-    // Only one pot (e.g. qualifyPerGroup=1) — just shuffle and pair
-    const shuffled = rng(pots[0]?.teamIds ?? []);
+export function conductKnockoutDraw(
+  pots: Pot[],
+  qualifiersByRank?: string[][],
+): DrawResult {
+  // Build group index map: teamId → groupIndex (position in its rank array)
+  // pot 1 = winners (index 0..N-1), pot 2 = runners-up (same index = same group)
+  const groupCount = pots[0]?.teamIds.length ?? 0;
+
+  if (pots.length < 2 || !qualifiersByRank || qualifiersByRank.length < 2) {
+    // Fallback: just shuffle all and pair sequentially
+    const all = pots.flatMap((p) => rng(p.teamIds));
     const groups: Record<string, string[]> = {};
     const order: string[] = [];
-    for (let i = 0; i < shuffled.length; i += 2) {
-      const key = `match_${i / 2}`;
-      groups[key] = [shuffled[i], shuffled[i + 1]].filter(Boolean);
+    for (let i = 0; i < all.length; i += 2) {
+      const key = `ko_${i / 2}`;
+      groups[key] = [all[i], all[i + 1]].filter(Boolean);
       order.push(...groups[key]);
     }
     return { pots, order, groups };
   }
 
-  // Pair pot 1 vs pot 2, pot 3 vs pot 4 (if exist)
-  const result: DrawResult = { pots, order: [], groups: {} };
-  const pot1 = rng(pots[0].teamIds);
-  const pot2 = rng(pots[1].teamIds);
+  // winners[i] = group i winner, runnersUp[i] = group i runner-up
+  const winners = [...qualifiersByRank[0]];
+  const runnersUp = [...qualifiersByRank[1]];
 
-  // Pair each winner (pot1) with a runner-up (pot2) — no same-group constraint for now
-  for (let i = 0; i < Math.min(pot1.length, pot2.length); i++) {
+  // Shuffle runners-up, then match each winner with a runner-up from a different group
+  // using backtracking if needed
+  const shuffledRU = rng(runnersUp);
+  const assignment: string[] = new Array(groupCount).fill('');
+
+  const rankWinners = qualifiersByRank!;
+  function assign(wi: number, available: string[]): boolean {
+    if (wi === groupCount) return true;
+    const winner = winners[wi];
+    const winnerGroupIdx = rankWinners[0].indexOf(winner);
+    for (let j = 0; j < available.length; j++) {
+      const ru = available[j];
+      const ruGroupIdx = rankWinners[1].indexOf(ru);
+      if (ruGroupIdx !== winnerGroupIdx) {
+        assignment[wi] = ru;
+        const next = [...available.slice(0, j), ...available.slice(j + 1)];
+        if (assign(wi + 1, next)) return true;
+      }
+    }
+    // No valid assignment without same-group clash — allow same group as fallback
+    if (available.length > 0) {
+      assignment[wi] = available[0];
+      return assign(wi + 1, available.slice(1));
+    }
+    return false;
+  }
+
+  assign(0, shuffledRU);
+
+  const groups: Record<string, string[]> = {};
+  const order: string[] = [];
+  for (let i = 0; i < groupCount; i++) {
     const key = `ko_${i}`;
-    result.groups[key] = [pot1[i], pot2[i]];
-    result.order.push(pot1[i], pot2[i]);
+    groups[key] = [winners[i], assignment[i]].filter(Boolean);
+    order.push(winners[i]);
+    if (assignment[i]) order.push(assignment[i]);
   }
 
-  // Additional pots (3, 4) if qualifyPerGroup > 2 — same pairing
-  if (pots.length >= 4) {
-    const pot3 = rng(pots[2].teamIds);
-    const pot4 = rng(pots[3].teamIds);
-    for (let i = 0; i < Math.min(pot3.length, pot4.length); i++) {
-      const key = `ko_extra_${i}`;
-      result.groups[key] = [pot3[i], pot4[i]];
-      result.order.push(pot3[i], pot4[i]);
-    }
-  } else if (pots.length === 3) {
-    const pot3 = rng(pots[2].teamIds);
-    for (const t of pot3) {
-      const key = `ko_3rd_${t}`;
-      result.groups[key] = [t];
-      result.order.push(t);
-    }
-  }
-
-  return result;
+  return { pots, order, groups };
 }
 
 export const POT_COLORS: Record<1 | 2 | 3 | 4, string> = {

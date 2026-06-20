@@ -61,7 +61,8 @@ export default function CompetitionNew() {
     if (!valid) return;
     const selectedTeamObjs = teams.filter((t) => selectedTeams.includes(t.id));
     const pots = buildPots(selectedTeamObjs);
-    const result = conductDraw(pots, groupsCount);
+    const gc = format === 'cup' ? Math.ceil(selectedTeams.length / 2) : groupsCount;
+    const result = conductDraw(pots, gc);
     setDrawResult(result);
   }
 
@@ -87,7 +88,10 @@ export default function CompetitionNew() {
         matches = generateLeagueMatches(teamIds, legs);
         groups = undefined;
       } else if (format === 'cup') {
-        teamIds = [...selectedTeams];
+        // drawnGroups from cup draw = ordered pairs; flatten gives seeded order
+        teamIds = Object.keys(drawnGroups).length > 0
+          ? Object.values(drawnGroups).flat()
+          : [...selectedTeams];
         matches = generateCupBracket(teamIds, legs, thirdPlace);
         groups = undefined;
       } else {
@@ -130,7 +134,7 @@ export default function CompetitionNew() {
 
   async function create() {
     if (!valid || !pat) return;
-    if (format === 'groups_knockout') {
+    if (format === 'groups_knockout' || format === 'cup') {
       startDraw();
       return;
     }
@@ -138,6 +142,7 @@ export default function CompetitionNew() {
   }
 
   if (drawResult) {
+    const isCupDraw = format === 'cup';
     return (
       <div className="max-w-4xl space-y-6">
         <div>
@@ -147,8 +152,9 @@ export default function CompetitionNew() {
         <DrawCeremony
           result={drawResult}
           teams={teams.filter((t) => selectedTeams.includes(t.id))}
-          groupCount={groupsCount}
+          groupCount={isCupDraw ? Math.ceil(selectedTeams.length / 2) : groupsCount}
           onConfirm={createWithGroups}
+          knockoutMode={isCupDraw}
         />
         {busy && <div className="flex items-center gap-2 text-muted text-sm"><span className="animate-spin">⏳</span> Création…</div>}
       </div>
@@ -309,7 +315,7 @@ export default function CompetitionNew() {
       <div className="flex items-center gap-3">
         <Button onClick={create} size="lg" disabled={!valid || busy}>
           {busy && <Spinner className="mr-2" />}
-          {format === 'groups_knockout' ? 'Lancer le tirage' : 'Créer la compétition'}
+          {format === 'groups_knockout' || format === 'cup' ? 'Lancer le tirage' : 'Créer la compétition'}
         </Button>
         {selectedTeams.length < minTeams && (
           <span className="text-sm text-muted">

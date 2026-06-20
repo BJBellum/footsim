@@ -22,6 +22,7 @@ import { rulesForPhase } from '@/lib/competition/types';
 import type { Team } from '@/lib/types';
 import type { MatchInput } from '@/lib/sim/types';
 import { accumulateMatchStats, computeAwards, computeMotm, type MotmResult } from '@/lib/competition/statsAccumulator';
+import { isRevealed } from '@/lib/sim/corruption';
 
 export default function CompetitionMatchLive() {
   const { competitionId, matchId } = useParams<{ competitionId: string; matchId: string }>();
@@ -50,6 +51,7 @@ export default function CompetitionMatchLive() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [motm, setMotm] = useState<MotmResult | null>(null);
+  const [corruptionRevealed, setCorruptionRevealed] = useState(false);
   const savedRef = useRef(false);
   const prevScoreRef = useRef({ home: 0, away: 0 });
   const [celebration, setCelebration] = useState<{ team: Team; score: { home: number; away: number } } | null>(null);
@@ -94,20 +96,29 @@ export default function CompetitionMatchLive() {
         if (!homeData || !awayData) { toast('error', 'Données équipes introuvables.'); return; }
 
         const mid = `comp-${competitionId}-${matchId}`;
+        const storedCorruption = sessionStorage.getItem(`footsim.corruption.${matchId}`);
+        const corruption = storedCorruption ? JSON.parse(storedCorruption) : undefined;
+        sessionStorage.removeItem(`footsim.corruption.${matchId}`);
+
         const input: MatchInput = {
           matchId: mid,
           home: {
             team: homeData.team,
             players: homeData.players,
-            formation: homeData.team.formation,
+            formation: homeData.team.tactics?.formation ?? homeData.team.formation,
+            lineup: homeData.team.tactics?.lineup,
+            tacticStyle: homeData.team.tactics?.style,
           },
           away: {
             team: awayData.team,
             players: awayData.players,
-            formation: awayData.team.formation,
+            formation: awayData.team.tactics?.formation ?? awayData.team.formation,
+            lineup: awayData.team.tactics?.lineup,
+            tacticStyle: awayData.team.tactics?.style,
           },
           speed: '1',
           rules: rulesForPhase(comp.config, compMatch.phase),
+          corruption,
         };
         startMatch(input);
       } catch (err) {
@@ -224,6 +235,9 @@ export default function CompetitionMatchLive() {
 
       // Résultat appliqué en mémoire + localStorage — sauvegarde GitHub manuelle
       setCurrent(updated);
+      if (matchState!.corruption?.accepted && isRevealed()) {
+        setCorruptionRevealed(true);
+      }
       toast('success', 'Résultat enregistré localement.');
     }
     persist();
@@ -367,6 +381,19 @@ export default function CompetitionMatchLive() {
               </Button>
             </div>
           )}
+        </div>
+      )}
+
+      {corruptionRevealed && matchState?.corruption && (
+        <div className="rounded-lg border border-danger bg-danger/10 p-5 text-center space-y-2">
+          <div className="font-display text-2xl text-danger">🚨 Scandale révélé !</div>
+          <div className="text-sm">
+            La corruption de{' '}
+            <span className="font-medium">
+              {matchState.corruption.side === 'home' ? matchInput?.home.team.name : matchInput?.away.team.name}
+            </span>{' '}
+            ({matchState.corruption.bribe}M€) a été découverte. Match annulé — équipe disqualifiée.
+          </div>
         </div>
       )}
     </main>

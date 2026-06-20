@@ -55,12 +55,24 @@ export type MatchEvent = {
   ballPos?: { x: number; y: number };
 };
 
+export type CorruptionDeal = {
+  /** Which side paid the bribe */
+  side: 'home' | 'away';
+  /** Amount in millions */
+  bribe: number;
+  /** Referee accepted the offer */
+  accepted: boolean;
+  /** Referee actually honors it in-game (can renege) */
+  honored: boolean;
+};
+
 export type MatchInput = {
   matchId: string;
   home: { team: Team; players: Player[]; formation: Formation; lineup?: string[]; tacticStyle?: TacticStyle };
   away: { team: Team; players: Player[]; formation: Formation; lineup?: string[]; tacticStyle?: TacticStyle };
   speed: Speed;
   rules: MatchRules;
+  corruption?: CorruptionDeal;
 };
 
 export type MatchState = {
@@ -68,6 +80,7 @@ export type MatchState = {
   status: 'pregame' | 'firstHalf' | 'halftime' | 'secondHalf'
     | 'extraTimeFirst' | 'extraTimeHalfTime' | 'extraTimeSecond'
     | 'penalties' | 'fulltime';
+  corruption?: CorruptionDeal;
   minute: number;
   half: 1 | 2;
   addedTime: number;

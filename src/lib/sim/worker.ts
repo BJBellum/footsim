@@ -86,6 +86,7 @@ self.onmessage = (ev: MessageEvent<Inbound>) => {
       state = initialState(msg.input.matchId, msg.input.speed, msg.input.rules);
       state.homeOnPitch = [...ctx.home.ratings.lineup];
       state.awayOnPitch = [...ctx.away.ratings.lineup];
+      if (msg.input.corruption) state.corruption = msg.input.corruption;
       tick(state, ctx); // kickoff
       send({ type: 'state', state });
       startLoop();

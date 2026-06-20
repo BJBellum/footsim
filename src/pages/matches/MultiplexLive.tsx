@@ -77,8 +77,20 @@ export default function MultiplexLive() {
             compMatchId: m.id,
             input: {
               matchId: mid,
-              home: { team: homeData.team, players: homeData.players, formation: homeData.team.formation },
-              away: { team: awayData.team, players: awayData.players, formation: awayData.team.formation },
+              home: {
+                team: homeData.team,
+                players: homeData.players,
+                formation: homeData.team.tactics?.formation ?? homeData.team.formation,
+                lineup: homeData.team.tactics?.lineup,
+                tacticStyle: homeData.team.tactics?.style,
+              },
+              away: {
+                team: awayData.team,
+                players: awayData.players,
+                formation: awayData.team.tactics?.formation ?? awayData.team.formation,
+                lineup: awayData.team.tactics?.lineup,
+                tacticStyle: awayData.team.tactics?.style,
+              },
               speed: '1',
               rules: rulesForPhase(comp.config, m.phase),
             },
@@ -245,6 +257,15 @@ export default function MultiplexLive() {
         </div>
       </div>
 
+      {!allFinished && slots.some((s) => s.state?.status === 'halftime') && (
+        <div className="rounded-lg border border-warning/30 bg-warning/5 p-4 flex items-center justify-between gap-3">
+          <span className="text-sm font-medium">⏸ Mi-temps — {slots.filter((s) => s.state?.status === 'halftime').length} match(s) en pause</span>
+          <Button size="sm" onClick={() => { resumeAll(); setPaused(false); }}>
+            ▶ Reprendre la 2e mi-temps
+          </Button>
+        </div>
+      )}
+
       {allFinished && (
         <div className="rounded-lg border border-accent/30 bg-accent/5 p-4 flex items-center justify-between gap-3 flex-wrap">
           <span className="font-medium">Tous les matchs sont terminés.</span>
@@ -343,6 +364,15 @@ function MatchCard({ slot }: { slot: import('@/stores/multiplex').MultiplexSlot 
         <TeamMini team={away} right />
       </div>
 
+      {/* Mini stats bar */}
+      {state && (state.shots.home + state.shots.away) > 0 && (
+        <div className="border-t border-border/50 pt-2 space-y-1">
+          <StatBar label="Possession" home={state.possession.home} away={state.possession.away} percent />
+          <StatBar label="Tirs" home={state.shots.home} away={state.shots.away} />
+          <StatBar label="Cadrés" home={state.shotsOnTarget.home} away={state.shotsOnTarget.away} />
+        </div>
+      )}
+
       {/* Recent events */}
       {notableEvents.length > 0 && (
         <div className="space-y-1 border-t border-border/50 pt-2">
@@ -370,6 +400,29 @@ function TeamMini({ team, right }: { team: Team; right?: boolean }) {
         <div className="h-8 w-8 rounded-sm bg-border" />
       )}
       <span className="text-xs text-muted truncate max-w-[80px]">{team.name}</span>
+    </div>
+  );
+}
+
+function StatBar({ label, home, away, percent }: { label: string; home: number; away: number; percent?: boolean }) {
+  const total = home + away || 1;
+  const homePct = Math.round((home / total) * 100);
+  const awayPct = 100 - homePct;
+  const homeVal = percent ? `${homePct}%` : String(home);
+  const awayVal = percent ? `${awayPct}%` : String(away);
+  const barHome = percent ? homePct : homePct;
+
+  return (
+    <div className="text-xs">
+      <div className="flex justify-between text-muted mb-0.5">
+        <span>{homeVal}</span>
+        <span className="text-[10px] text-muted/60">{label}</span>
+        <span>{awayVal}</span>
+      </div>
+      <div className="flex h-1 rounded-full overflow-hidden bg-border/40">
+        <div className="bg-accent/60 transition-all" style={{ width: `${barHome}%` }} />
+        <div className="bg-danger/50 flex-1 transition-all" />
+      </div>
     </div>
   );
 }

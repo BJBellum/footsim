@@ -7,6 +7,7 @@ import { StandingsTable } from '@/components/competition/StandingsTable';
 import { BracketView } from '@/components/competition/BracketView';
 import { CompetitionStats } from '@/components/competition/CompetitionStats';
 import { DrawCeremony } from '@/components/competition/DrawCeremony';
+import { PreMatchModal } from '@/components/competition/PreMatchModal';
 import { useCompetition } from '@/stores/competition';
 import { useTeams } from '@/stores/teams';
 import { useCredentials } from '@/stores/credentials';
@@ -16,6 +17,7 @@ import { needsKnockoutDraw, getQualifiersByRank, seedKnockoutWithOrder } from '@
 import { buildKnockoutPots, conductKnockoutDraw } from '@/lib/competition/draw';
 import type { DrawResult } from '@/lib/competition/draw';
 import type { Competition, CompMatch, PlayerCompStats } from '@/lib/competition/types';
+import type { CorruptionDeal } from '@/lib/sim/types';
 import type { Team } from '@/lib/types';
 
 export default function CompetitionDetail() {
@@ -38,6 +40,7 @@ export default function CompetitionDetail() {
   const [syncing, setSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'bracket' | 'rounds' | 'stats'>('overview');
   const [knockoutDraw, setKnockoutDraw] = useState<DrawResult | null>(null);
+  const [preMatchModal, setPreMatchModal] = useState<{ matchId: string; home: Team; away: Team } | null>(null);
 
   useEffect(() => {
     if (!pat || !id) return;
@@ -113,7 +116,7 @@ export default function CompetitionDetail() {
     if (!current || !current.groups || !current.config.qualifyPerGroup) return;
     const byRank = getQualifiersByRank(current.groups, current.standings, current.config.qualifyPerGroup);
     const pots = buildKnockoutPots(byRank);
-    const result = conductKnockoutDraw(pots);
+    const result = conductKnockoutDraw(pots, byRank);
     setKnockoutDraw(result);
   }
 
@@ -127,6 +130,28 @@ export default function CompetitionDetail() {
     toast('success', 'Tirage phase finale effectué. Sauvegardez pour conserver.');
   }
 
+  function openMatchModal(matchId: string) {
+    if (!current) return;
+    const m = current.matches.find((x) => x.id === matchId);
+    if (!m?.homeTeamId || !m?.awayTeamId) return;
+    const home = teamMap[m.homeTeamId];
+    const away = teamMap[m.awayTeamId];
+    if (!home || !away) return;
+    setPreMatchModal({ matchId, home, away });
+  }
+
+  function launchMatch(matchId: string, corruption: CorruptionDeal | null) {
+    if (!current) return;
+    // Store corruption in sessionStorage so CompetitionMatchLive can pick it up
+    if (corruption) {
+      sessionStorage.setItem(`footsim.corruption.${matchId}`, JSON.stringify(corruption));
+    } else {
+      sessionStorage.removeItem(`footsim.corruption.${matchId}`);
+    }
+    setPreMatchModal(null);
+    navigate(`/competition/${current.id}/match/${matchId}`);
+  }
+
   async function simulateRound(round: number) {
     if (!pat || !current) return;
     const roundMatches = current.matches.filter(
@@ -135,10 +160,8 @@ export default function CompetitionDetail() {
     if (roundMatches.length === 0) return;
 
     if (roundMatches.length === 1) {
-      // Single match — navigate to live
-      navigate(`/competition/${current.id}/match/${roundMatches[0].id}`);
+      openMatchModal(roundMatches[0].id);
     } else {
-      // Multiplex
       navigate(`/competition/${current.id}/round/${round}`);
     }
   }
@@ -187,7 +210,7 @@ export default function CompetitionDetail() {
             {current.status !== 'completed' && (
               <Button
                 size="sm"
-                onClick={() => simulateRound(currentRound)}
+                onClick={async () => simulateRound(currentRound)}
                 disabled={!current.matches.some(
                   (m) => m.round === currentRound && m.status === 'pending' && m.homeTeamId && m.awayTeamId,
                 )}
@@ -304,9 +327,7 @@ export default function CompetitionDetail() {
             <BracketView
               matches={current.matches.filter((m) => m.phase !== 'group')}
               teams={teamMap}
-              onSimulate={isAdmin ? (matchId) => {
-                navigate(`/competition/${current.id}/match/${matchId}`);
-              } : undefined}
+              onSimulate={isAdmin ? openMatchModal : undefined}
             />
           )}
         </div>
@@ -318,7 +339,7 @@ export default function CompetitionDetail() {
           teamMap={teamMap}
           canSimulate={isAdmin}
           onSimulateRound={simulateRound}
-          onSimulateMatch={(matchId) => navigate(`/competition/${current.id}/match/${matchId}`)}
+          onSimulateMatch={openMatchModal}
         />
       )}
 
@@ -326,6 +347,15 @@ export default function CompetitionDetail() {
         <CompetitionStats
           playerStats={current.playerStats ?? {}}
           teams={teamMap}
+        />
+      )}
+
+      {preMatchModal && (
+        <PreMatchModal
+          home={preMatchModal.home}
+          away={preMatchModal.away}
+          onConfirm={(corruption) => launchMatch(preMatchModal.matchId, corruption)}
+          onCancel={() => setPreMatchModal(null)}
         />
       )}
     </div>

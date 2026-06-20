@@ -5,8 +5,9 @@ import { Spinner } from '@/components/ui/Spinner';
 import { toast } from '@/components/ui/Toast';
 import type { Formation, Team, TeamTactics, TacticStyle } from '@/lib/types';
 import { TACTIC_STYLE_LABEL } from '@/lib/types';
-import type { MatchRules, Speed } from '@/lib/sim/types';
+import type { CorruptionDeal, MatchRules, Speed } from '@/lib/sim/types';
 import { DEFAULT_RULES } from '@/lib/sim/types';
+import { CorruptionPanel } from '@/components/match/CorruptionPanel';
 import { useTeams } from '@/stores/teams';
 import { useCredentials } from '@/stores/credentials';
 import { useMatch } from '@/stores/match';
@@ -31,6 +32,7 @@ export default function MatchSetup() {
   const [awayTactics, setAwayTactics] = useState<TeamTactics | null>(null);
   const [speed, setSpeed] = useState<Speed>('1');
   const [rules, setRules] = useState<MatchRules>(DEFAULT_RULES);
+  const [corruption, setCorruption] = useState<CorruptionDeal | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -89,6 +91,7 @@ export default function MatchSetup() {
         },
         speed,
         rules,
+        corruption: corruption ?? undefined,
       });
       navigate(`/match/${matchId}`);
     } catch (err) {
@@ -196,6 +199,13 @@ export default function MatchSetup() {
           Tirs au but {rules.extraTime ? 'si toujours à égalité après les prolongations' : 'si égalité à 90\''}
         </label>
       </section>
+
+      <CorruptionPanel
+        homeTeamName={teams.find((t) => t.slug === homeSlug)?.name ?? 'Domicile'}
+        awayTeamName={teams.find((t) => t.slug === awaySlug)?.name ?? 'Extérieur'}
+        deal={corruption}
+        onDeal={setCorruption}
+      />
 
       <div className="flex items-center gap-3">
         <Button onClick={launch} size="lg" disabled={busy}>
