@@ -23,7 +23,8 @@ self.onmessage = (ev: MessageEvent<Request>) => {
     const msg: Done = { type: 'done', id, players };
     (self as unknown as Worker).postMessage(msg);
   } catch (err) {
-    const msg: ErrorMsg = { type: 'error', id, message: String(err) };
+    console.error('[worker] crash:', err);
+    const msg: ErrorMsg = { type: 'error', id, message: String(err) + (err instanceof Error && err.stack ? '\n' + err.stack : '') };
     (self as unknown as Worker).postMessage(msg);
   }
 };

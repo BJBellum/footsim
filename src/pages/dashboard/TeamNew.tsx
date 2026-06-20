@@ -117,6 +117,7 @@ export default function TeamNew() {
       setDraft({ team, players });
       toast('success', `${players.length} joueurs générés. Vérifie puis publie.`);
     } catch (err) {
+      console.error('[generate] error:', err);
       toast('error', String(err));
     } finally {
       setGenerating(false);
