@@ -225,6 +225,46 @@ export function generateGroupsKnockout(
   return { matches: [...allGroupMatches, ...knockoutMatches], groups };
 }
 
+/** Like generateGroupsKnockout but accepts pre-drawn groups. */
+export function generateGroupsKnockoutFromGroups(
+  groups: CompGroup[],
+  qualifyPerGroup: number,
+  legs: 1 | 2,
+  thirdPlace: boolean,
+): { matches: CompMatch[]; groups: CompGroup[] } {
+  const allGroupMatches: CompMatch[] = [];
+  let maxGroupRound = 0;
+
+  for (const group of groups) {
+    const rounds = roundRobin(group.teamIds.length);
+    maxGroupRound = Math.max(maxGroupRound, rounds.length);
+    rounds.forEach((round, ri) => {
+      round.forEach(([hi, ai]) => {
+        allGroupMatches.push({
+          id: makeId(),
+          homeTeamId: group.teamIds[hi],
+          awayTeamId: group.teamIds[ai],
+          round: ri + 1,
+          phase: 'group',
+          groupId: group.id,
+          leg: 1,
+          status: 'pending',
+        });
+      });
+    });
+  }
+
+  const qualifiedCount = groups.length * qualifyPerGroup;
+  const qualifiedPlaceholders = Array.from({ length: qualifiedCount }, (_, i) => `qualified:${i}`);
+  const knockoutMatches = generateCupBracket(qualifiedPlaceholders, legs, thirdPlace, maxGroupRound + 1).map((m) => ({
+    ...m,
+    homeTeamId: m.homeTeamId?.startsWith('qualified:') ? null : m.homeTeamId,
+    awayTeamId: m.awayTeamId?.startsWith('qualified:') ? null : m.awayTeamId,
+  }));
+
+  return { matches: [...allGroupMatches, ...knockoutMatches], groups };
+}
+
 export function buildInitialStandings(teamIds: string[]): Record<string, Standing> {
   const s: Record<string, Standing> = {};
   for (const id of teamIds) {

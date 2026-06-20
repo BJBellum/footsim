@@ -12,12 +12,15 @@ import {
   generateLeagueMatches,
   generateCupBracket,
   generateGroupsKnockout,
+  generateGroupsKnockoutFromGroups,
   buildInitialStandings,
 } from '@/lib/competition/scheduler';
 import { FORMAT_LABEL, FORMAT_DESCRIPTION } from '@/lib/competition/types';
 import type { CompetitionFormat, CompetitionConfig, Competition } from '@/lib/competition/types';
 import type { MatchRules } from '@/lib/sim/types';
 import { DEFAULT_RULES } from '@/lib/sim/types';
+import { buildPots, conductDraw, isEvenTeamCount } from '@/lib/competition/draw';
+import { DrawCeremony } from '@/components/competition/DrawCeremony';
 
 export default function CompetitionNew() {
   const teams = useTeams((s) => s.teams);
@@ -35,6 +38,8 @@ export default function CompetitionNew() {
   const [groupsCount, setGroupsCount] = useState(4);
   const [qualifyPerGroup, setQualifyPerGroup] = useState(2);
   const [rules, setRules] = useState<MatchRules>(DEFAULT_RULES);
+  const [suspenseDraw, setSuspenseDraw] = useState(false);
+  const [drawResult, setDrawResult] = useState<ReturnType<typeof conductDraw> | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -48,10 +53,20 @@ export default function CompetitionNew() {
   }
 
   const minTeams = format === 'league' ? 3 : format === 'cup' ? 2 : groupsCount * 2;
-  const valid = name.trim().length > 0 && selectedTeams.length >= minTeams && !!pat;
+  const needsEven = format === 'groups_knockout';
+  const evenOk = !needsEven || isEvenTeamCount(selectedTeams.length);
+  const valid = name.trim().length > 0 && selectedTeams.length >= minTeams && evenOk && !!pat;
 
-  async function create() {
-    if (!valid || !pat) return;
+  function startDraw() {
+    if (!valid) return;
+    const selectedTeamObjs = teams.filter((t) => selectedTeams.includes(t.id));
+    const pots = buildPots(selectedTeamObjs);
+    const result = conductDraw(pots, groupsCount);
+    setDrawResult(result);
+  }
+
+  async function createWithGroups(drawnGroups: Record<string, string[]>) {
+    if (!pat) return;
     setBusy(true);
     try {
       const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -63,29 +78,53 @@ export default function CompetitionNew() {
         matchRules: rules,
       };
 
+      // rebuild ordered teamIds from drawn groups
+      const orderedTeams = Object.values(drawnGroups).flat();
+
       let matches, groups;
       if (format === 'league') {
-        matches = generateLeagueMatches(selectedTeams, legs);
+        matches = generateLeagueMatches(orderedTeams, legs);
         groups = undefined;
       } else if (format === 'cup') {
-        matches = generateCupBracket(selectedTeams, legs, thirdPlace);
+        matches = generateCupBracket(orderedTeams, legs, thirdPlace);
         groups = undefined;
       } else {
+        // use drawn group assignments directly
+        const groupList = Object.entries(drawnGroups).map(([key, tids], i) => ({
+          id: key,
+          name: `Groupe ${'ABCDEFGHIJKLMNOP'[i]}`,
+          teamIds: tids,
+        }));
         const result = generateGroupsKnockout(
-          selectedTeams, groupsCount, qualifyPerGroup, legs, thirdPlace,
+          orderedTeams, groupsCount, qualifyPerGroup, legs, thirdPlace,
         );
+        // override generated groups with drawn ones
         matches = result.matches;
-        groups = result.groups;
+        groups = groupList;
+        // re-assign group matches to drawn groups
+        let gMatchIdx = 0;
+        matches = matches.map((m) => {
+          if (m.phase !== 'group') return m;
+          const gi = Math.floor(gMatchIdx / (groupList[0]?.teamIds.length ?? 1));
+          gMatchIdx++;
+          return { ...m, groupId: groupList[Math.min(gi, groupList.length - 1)]?.id ?? m.groupId };
+        });
+        // regenerate group matches properly from drawn groups
+        const { matches: properMatches, groups: _ } = generateGroupsKnockoutFromGroups(
+          groupList, qualifyPerGroup, legs, thirdPlace,
+        );
+        matches = properMatches;
+        groups = groupList;
       }
 
       const comp: Competition = {
         id,
         name: name.trim(),
         format,
-        teamIds: selectedTeams,
+        teamIds: orderedTeams,
         matches,
         groups,
-        standings: buildInitialStandings(selectedTeams),
+        standings: buildInitialStandings(orderedTeams),
         playerStats: {},
         config,
         currentRound: 1,
@@ -101,6 +140,34 @@ export default function CompetitionNew() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function create() {
+    if (!valid || !pat) return;
+    if (format === 'groups_knockout') {
+      startDraw();
+      return;
+    }
+    await createWithGroups({});
+  }
+
+  if (drawResult) {
+    return (
+      <div className="max-w-4xl space-y-6">
+        <div>
+          <h1 className="mb-1 font-display text-4xl">Tirage au sort</h1>
+          <p className="text-muted text-sm">{name}</p>
+        </div>
+        <DrawCeremony
+          result={drawResult}
+          teams={teams.filter((t) => selectedTeams.includes(t.id))}
+          groupCount={groupsCount}
+          suspense={suspenseDraw}
+          onConfirm={createWithGroups}
+        />
+        {busy && <div className="flex items-center gap-2 text-muted text-sm"><span className="animate-spin">⏳</span> Création…</div>}
+      </div>
+    );
   }
 
   return (
@@ -170,6 +237,15 @@ export default function CompetitionNew() {
         )}
         {format === 'groups_knockout' && (
           <>
+            <label className="flex items-center gap-3 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={suspenseDraw}
+                onChange={(e) => setSuspenseDraw(e.target.checked)}
+                className="h-4 w-4 rounded border-border"
+              />
+              Tirage au sort avec suspens
+            </label>
             <label className="block text-sm">
               <span className="mb-1 block text-muted">Nombre de groupes</span>
               <select
@@ -282,10 +358,16 @@ export default function CompetitionNew() {
         </div>
       </section>
 
+      {needsEven && selectedTeams.length > 0 && !evenOk && (
+        <p className="text-sm text-warning">
+          Les poules requièrent un nombre pair d'équipes ({selectedTeams.length} sélectionnée{selectedTeams.length > 1 ? 's' : ''}).
+        </p>
+      )}
+
       <div className="flex items-center gap-3">
         <Button onClick={create} size="lg" disabled={!valid || busy}>
           {busy && <Spinner className="mr-2" />}
-          Créer la compétition
+          {format === 'groups_knockout' ? 'Lancer le tirage' : 'Créer la compétition'}
         </Button>
         {selectedTeams.length < minTeams && (
           <span className="text-sm text-muted">

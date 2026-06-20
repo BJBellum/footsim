@@ -9,6 +9,8 @@ import { PlayerEdit } from '@/components/team/PlayerEdit';
 import { TacticsPanel } from '@/components/team/TacticsPanel';
 import type { Player, Team, TeamTactics, Culture, Continent } from '@/lib/types';
 import { CULTURE_LABEL, CONTINENT_LABEL, CULTURES_BY_CONTINENT } from '@/lib/types';
+import { FlagUpload } from '@/components/team/FlagUpload';
+import { Input } from '@/components/ui/Input';
 import { useTeams } from '@/stores/teams';
 import { useBackendArgs } from '@/hooks/useBackendArgs';
 import type { CultureWeight } from '@/lib/gen/names';
@@ -39,6 +41,9 @@ export default function TeamDetail() {
   const [newStrength, setNewStrength] = useState<number | null>(null);
   const [editCultures, setEditCultures] = useState<CultureWeight[] | null>(null);
   const [editContinent, setEditContinent] = useState<Continent[]>([]);
+  const [editName, setEditName] = useState('');
+  const [editFlag, setEditFlag] = useState<string | null>(null);
+  const [editStrength, setEditStrength] = useState(60);
 
   useEffect(() => {
     if (!ownerId) return;
@@ -207,14 +212,27 @@ export default function TeamDetail() {
   function openInfos() {
     setEditCultures(team.cultures ?? [{ culture: team.culture, weight: 50 }]);
     setEditContinent(team.continents ?? (team.continent ? [team.continent] : []));
+    setEditName(team.name);
+    setEditFlag(team.flag);
+    setEditStrength(team.globalStrength);
     setTab('infos');
   }
 
   function saveInfos() {
     if (!editCultures || editCultures.length === 0) return;
+    if (!editName.trim()) { toast('error', 'Nom requis.'); return; }
     const primary = editCultures[0].culture;
     mutate({
-      team: { ...team, culture: primary, cultures: editCultures, continent: editContinent[0] ?? team.continent, continents: editContinent.length > 0 ? editContinent : undefined },
+      team: {
+        ...team,
+        name: editName.trim(),
+        flag: editFlag ?? team.flag,
+        globalStrength: editStrength,
+        culture: primary,
+        cultures: editCultures,
+        continent: editContinent[0] ?? team.continent,
+        continents: editContinent.length > 0 ? editContinent : undefined,
+      },
       players,
     });
   }
@@ -387,6 +405,12 @@ export default function TeamDetail() {
 
       {tab === 'infos' && editCultures !== null && (
         <CultureEditPanel
+          name={editName}
+          onName={setEditName}
+          flag={editFlag}
+          onFlag={setEditFlag}
+          strength={editStrength}
+          onStrength={setEditStrength}
           cultures={editCultures}
           continents={editContinent}
           onChange={setEditCultures}
@@ -412,12 +436,15 @@ export default function TeamDetail() {
 }
 
 function CultureEditPanel({
-  cultures,
-  continents,
-  onChange,
-  onChangeContinents,
-  onSave,
+  name, onName, flag, onFlag, strength, onStrength,
+  cultures, continents, onChange, onChangeContinents, onSave,
 }: {
+  name: string;
+  onName: (v: string) => void;
+  flag: string | null;
+  onFlag: (v: string | null) => void;
+  strength: number;
+  onStrength: (v: number) => void;
   cultures: CultureWeight[];
   continents: Continent[];
   onChange: (w: CultureWeight[]) => void;
@@ -465,15 +492,38 @@ function CultureEditPanel({
 
   return (
     <section className="max-w-2xl space-y-6">
-      <div>
-        <h2 className="mb-1 font-display text-xl">Cultures & Continents</h2>
-        <p className="text-sm text-muted">
-          Modifie les cultures de cette équipe. Les changements n'affectent pas les noms existants — utilise l'onglet Noms pour régénérer.
-        </p>
+      <h2 className="font-display text-xl">Paramètres</h2>
+
+      {/* Nom */}
+      <label className="block text-sm">
+        <span className="mb-1 block text-muted">Nom du pays</span>
+        <Input value={name} onChange={(e) => onName(e.target.value)} placeholder="Nom de l'équipe" />
+      </label>
+
+      {/* Drapeau */}
+      <div className="block text-sm">
+        <span className="mb-1 block text-muted">Drapeau (150×150)</span>
+        <FlagUpload value={flag} onChange={(v) => onFlag(v || null)} />
       </div>
+
+      {/* Force globale */}
+      <label className="block text-sm">
+        <span className="mb-1 block text-muted">
+          Force globale : <span className="text-text">{strength}</span>
+        </span>
+        <input
+          type="range" min={1} max={100} value={strength}
+          onChange={(e) => onStrength(Number(e.target.value))}
+          className="w-full accent-[var(--accent)]"
+        />
+      </label>
+
+      <hr className="border-border" />
 
       {/* Continents (max 2) */}
       <div className="block text-sm">
+        <span className="mb-2 block font-medium">Cultures & Continents</span>
+        <p className="mb-3 text-xs text-muted">Les changements n'affectent pas les noms existants — utilise l'onglet Noms pour régénérer.</p>
         <span className="mb-1 block text-muted">Continents <span className="text-xs opacity-60">(1 ou 2)</span></span>
         <div className="flex flex-wrap gap-2">
           {(Object.keys(CULTURES_BY_CONTINENT) as Continent[]).map((ct) => {
