@@ -192,6 +192,34 @@ export function DrawCeremony({ result, teams, groupCount, onConfirm, knockoutMod
           </Button>
         )}
       </div>
+
+      {/* Pots reference */}
+      <div className="border-t border-border pt-4 space-y-3">
+        <div className="text-xs uppercase tracking-widest text-muted">Chapeaux</div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {result.pots.map((p) => (
+            <div key={p.number} className="rounded-lg border border-border bg-surface p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: POT_COLORS[p.number] }} />
+                <span className="text-xs font-semibold">Chapeau {p.number}</span>
+              </div>
+              <div className="space-y-1">
+                {p.teamIds.map((tid) => {
+                  const t = teamMap.get(tid);
+                  const isRevealed = revealed.has(tid);
+                  return (
+                    <div key={tid} className={`flex items-center gap-2 text-xs ${isRevealed ? 'opacity-40' : ''}`}>
+                      {t?.flag && <img src={t.flag} alt="" className="h-4 w-4 rounded-sm object-cover shrink-0" />}
+                      <span className="truncate">{t?.name ?? tid}</span>
+                      <span className="ml-auto text-muted tabular-nums">{t?.globalStrength}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
