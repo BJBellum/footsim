@@ -16,7 +16,7 @@ import { useTeams } from '@/stores/teams';
 import { useCredentials } from '@/stores/credentials';
 import { useBackendArgs } from '@/hooks/useBackendArgs';
 import { saveMatch } from '@/lib/github/matches';
-import { advanceBracket, applyResultToStandings } from '@/lib/competition/scheduler';
+import { advanceBracket, applyResultToStandings, applyCorruptionDisqualification } from '@/lib/competition/scheduler';
 import { rulesForPhase } from '@/lib/competition/types';
 
 import type { Team } from '@/lib/types';
@@ -158,6 +158,10 @@ export default function CompetitionMatchLive() {
       const compMatch = current!.matches.find((m) => m.id === matchId);
       if (!compMatch) return;
 
+      // Check corruption revelation before applying result
+      const corruptionActive = matchState!.corruption?.accepted;
+      const revealed = corruptionActive && isRevealed();
+
       let updatedMatches = current!.matches.map((m) =>
         m.id === matchId
           ? {
@@ -174,12 +178,27 @@ export default function CompetitionMatchLive() {
           : m,
       );
 
+      let disqualifiedTeamIds = current!.disqualifiedTeamIds ?? [];
+
+      if (revealed && compMatch.homeTeamId && compMatch.awayTeamId) {
+        // Identify cheating team
+        const cheatingTeamId = matchState!.corruption!.side === 'home'
+          ? compMatch.homeTeamId
+          : compMatch.awayTeamId;
+
+        // Override result + walkover all pending matches
+        updatedMatches = applyCorruptionDisqualification(updatedMatches, matchId!, cheatingTeamId);
+        disqualifiedTeamIds = [...new Set([...disqualifiedTeamIds, cheatingTeamId])];
+        setCorruptionRevealed(true);
+      }
+
       if (compMatch.phase !== 'group' && compMatch.phase !== 'league') {
         updatedMatches = advanceBracket(updatedMatches, matchId!);
       }
 
       let updatedStandings = current!.standings;
-      if ((compMatch.phase === 'group' || compMatch.phase === 'league') && compMatch.homeTeamId && compMatch.awayTeamId) {
+
+      if (!revealed && (compMatch.phase === 'group' || compMatch.phase === 'league') && compMatch.homeTeamId && compMatch.awayTeamId) {
         updatedStandings = applyResultToStandings(
           updatedStandings,
           compMatch.homeTeamId,
@@ -187,6 +206,29 @@ export default function CompetitionMatchLive() {
           matchState!.score.home,
           matchState!.score.away,
         );
+      } else if (revealed) {
+        // Recompute standings from scratch for all group/league matches
+        // (walkovers have replaced the real results in updatedMatches)
+        const affectedTeamIds = new Set(
+          updatedMatches
+            .filter((m) => (m.phase === 'group' || m.phase === 'league') && m.homeTeamId && m.awayTeamId)
+            .flatMap((m) => [m.homeTeamId!, m.awayTeamId!]),
+        );
+        // Reset only affected standings entries
+        updatedStandings = { ...current!.standings };
+        for (const tid of affectedTeamIds) {
+          updatedStandings[tid] = { teamId: tid, played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0, points: 0 };
+        }
+        for (const m of updatedMatches) {
+          if ((m.phase !== 'group' && m.phase !== 'league') || !m.homeTeamId || !m.awayTeamId || !m.result) continue;
+          updatedStandings = applyResultToStandings(
+            updatedStandings,
+            m.homeTeamId,
+            m.awayTeamId,
+            m.result.home,
+            m.result.away,
+          );
+        }
       }
 
       const nextRound = updatedMatches.every(
@@ -231,14 +273,12 @@ export default function CompetitionMatchLive() {
         currentRound: Math.min(nextRound, Math.max(...updatedMatches.map((m) => m.round))),
         status: allDone ? ('completed' as const) : ('ongoing' as const),
         winner,
+        disqualifiedTeamIds: disqualifiedTeamIds.length > 0 ? disqualifiedTeamIds : undefined,
       };
 
       // Résultat appliqué en mémoire + localStorage — sauvegarde GitHub manuelle
       setCurrent(updated);
-      if (matchState!.corruption?.accepted && isRevealed()) {
-        setCorruptionRevealed(true);
-      }
-      toast('success', 'Résultat enregistré localement.');
+      toast('success', revealed ? 'Scandale ! Résultats mis à jour.' : 'Résultat enregistré localement.');
     }
     persist();
   // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -346,6 +346,45 @@ export function advanceBracket(matches: CompMatch[], completedMatchId: string): 
   });
 }
 
+/**
+ * Apply corruption disqualification: force 3-0 walkover for the opponent on this match,
+ * then set all remaining (pending) matches of the disqualified team to walkovers too.
+ * Returns updated matches + list of modified match ids.
+ */
+export function applyCorruptionDisqualification(
+  matches: CompMatch[],
+  matchId: string,
+  cheatingTeamId: string,
+): CompMatch[] {
+  return matches.map((m) => {
+    if (m.id === matchId) {
+      // Override result: cheater forfeits 0-3
+      const cheaterIsHome = m.homeTeamId === cheatingTeamId;
+      return {
+        ...m,
+        status: 'completed' as const,
+        result: {
+          home: cheaterIsHome ? 0 : 3,
+          away: cheaterIsHome ? 3 : 0,
+        },
+      };
+    }
+    // All remaining pending matches involving cheater → walkover for opponent
+    if (m.status === 'pending' && (m.homeTeamId === cheatingTeamId || m.awayTeamId === cheatingTeamId)) {
+      const cheaterIsHome = m.homeTeamId === cheatingTeamId;
+      return {
+        ...m,
+        status: 'completed' as const,
+        result: {
+          home: cheaterIsHome ? 0 : 3,
+          away: cheaterIsHome ? 3 : 0,
+        },
+      };
+    }
+    return m;
+  });
+}
+
 /** True if all group-phase matches are done and knockout has no teams yet. */
 export function needsKnockoutDraw(matches: import('./types').CompMatch[]): boolean {
   const groupMatches = matches.filter((m) => m.phase === 'group');

@@ -88,6 +88,7 @@ export type Competition = {
   status: CompetitionStatus;
   createdAt: string;
   winner?: string;
+  disqualifiedTeamIds?: string[];
 };
 
 export type CompetitionSummary = {

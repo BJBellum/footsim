@@ -42,7 +42,7 @@ export function eventText(
     case 'offside':
       return `${minute}' — Hors-jeu signalé contre ${team}.`;
     case 'keyPass':
-      return `${minute}' — Passe décisive de ${playerName ?? team}.`;
+      return `${minute}' — Passe clé de ${playerName ?? team}.`;
     case 'penalty':
       return `🔴 ${minute}' — Penalty pour ${team} ! ${playerName ?? ''} s'élance.`.trim();
     case 'freeKick':
