@@ -64,13 +64,27 @@ export default function TeamDetail() {
     setDirty(true);
   }
 
+  async function saveLocal() {
+    if (!data) return;
+    setPublishing(true);
+    try {
+      await saveTeam(data.team, data.players, null);
+      setDirty(false);
+      toast('success', 'Enregistré localement.');
+    } catch (err) {
+      toast('error', String(err));
+    } finally {
+      setPublishing(false);
+    }
+  }
+
   async function publish() {
     if (!data) return;
     setPublishing(true);
     try {
       await saveTeam(data.team, data.players, effectivePat);
       setDirty(false);
-      toast('success', 'Publié.');
+      toast('success', 'Publié sur GitHub.');
     } catch (err) {
       toast('error', String(err));
     } finally {
@@ -290,10 +304,14 @@ export default function TeamDetail() {
         <div className="flex flex-col items-end gap-2">
           {dirty && (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-warning">Modifications non publiées</span>
+              <span className="text-xs text-warning">Non enregistré</span>
+              <Button size="sm" variant="ghost" onClick={saveLocal} disabled={publishing}>
+                {publishing ? <Spinner className="mr-1" /> : null}
+                Enregistrer
+              </Button>
               <Button size="sm" onClick={publish} disabled={publishing}>
                 {publishing ? <Spinner className="mr-1" /> : null}
-                Publier
+                ↑ GitHub
               </Button>
             </div>
           )}
@@ -315,16 +333,22 @@ export default function TeamDetail() {
         </div>
       </div>
 
-      {/* Sticky publish bar when dirty */}
+      {/* Sticky save/publish bar when dirty */}
       {dirty && (
         <div className="sticky top-0 z-20 flex items-center justify-between rounded-lg border border-warning/30 bg-warning/10 px-4 py-2">
           <span className="text-sm text-warning">
-            Modifications non publiées — les changements n'existent que localement.
+            Modifications non enregistrées.
           </span>
-          <Button size="sm" onClick={publish} disabled={publishing}>
-            {publishing ? <Spinner className="mr-1" /> : null}
-            Publier
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="ghost" onClick={saveLocal} disabled={publishing}>
+              {publishing ? <Spinner className="mr-1" /> : null}
+              Enregistrer
+            </Button>
+            <Button size="sm" onClick={publish} disabled={publishing}>
+              {publishing ? <Spinner className="mr-1" /> : null}
+              ↑ GitHub
+            </Button>
+          </div>
         </div>
       )}
 
