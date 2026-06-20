@@ -14,7 +14,8 @@ import { rulesForPhase } from '@/lib/competition/types';
 import { accumulateMatchStats, computeAwards } from '@/lib/competition/statsAccumulator';
 import { generateRefOffer, acceptOffer } from '@/lib/sim/corruption';
 import { loadLocalTactics } from '@/lib/localTactics';
-import type { MatchInput, Speed, CorruptionDeal } from '@/lib/sim/types';
+import { PenaltyShootout } from '@/components/match/PenaltyShootout';
+import type { MatchInput, MatchState, Speed, CorruptionDeal } from '@/lib/sim/types';
 import type { CorruptionOffer } from '@/lib/sim/corruption';
 import type { Team } from '@/lib/types';
 
@@ -56,6 +57,11 @@ export default function MultiplexLive() {
     refOffer: CorruptionOffer | null; // null = refused
   };
   const [pendingInputs, setPendingInputs] = useState<PendingSlot[] | null>(null);
+
+  // TAB replay queue
+  type TabSlot = { state: MatchState; home: Team; away: Team };
+  const [tabQueue, setTabQueue] = useState<TabSlot[]>([]);
+  const [tabIndex, setTabIndex] = useState(0);
   const [corruptionModal, setCorruptionModal] = useState<{
     slotIdx: number;
     side: 'home' | 'away';
@@ -197,6 +203,15 @@ export default function MultiplexLive() {
         const sorted = Object.values(updatedStandings).sort((a, b) => b.points - a.points);
         winner = sorted[0]?.teamId;
       }
+    }
+
+    // Queue TAB animations for slots with penalty shootouts
+    const tabSlots: TabSlot[] = slots
+      .filter((s) => s.state?.penaltyScore)
+      .map((s) => ({ state: s.state!, home: s.home, away: s.away }));
+    if (tabSlots.length > 0) {
+      setTabQueue(tabSlots);
+      setTabIndex(0);
     }
 
     setPendingUpdate({
@@ -381,6 +396,26 @@ export default function MultiplexLive() {
           })()}
         </AnimatePresence>
       </main>
+    );
+  }
+
+  // TAB replay overlay
+  if (tabQueue.length > 0 && tabIndex < tabQueue.length) {
+    const tab = tabQueue[tabIndex];
+    return (
+      <PenaltyShootout
+        state={tab.state}
+        home={tab.home}
+        away={tab.away}
+        onDone={() => {
+          const next = tabIndex + 1;
+          if (next >= tabQueue.length) {
+            setTabQueue([]);
+          } else {
+            setTabIndex(next);
+          }
+        }}
+      />
     );
   }
 

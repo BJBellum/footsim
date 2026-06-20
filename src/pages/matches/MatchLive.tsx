@@ -10,6 +10,7 @@ import { StatsPanel } from '@/components/match/StatsPanel';
 import { SpeedControls } from '@/components/match/SpeedControls';
 import { HalftimeOverlay } from '@/components/match/HalftimeOverlay';
 import { GoalCelebration } from '@/components/match/GoalCelebration';
+import { PenaltyShootout } from '@/components/match/PenaltyShootout';
 import { useMatch } from '@/stores/match';
 
 
@@ -29,6 +30,8 @@ export default function MatchLive() {
   const navigate = useNavigate();
   const savedRef = useRef(false);
   const [corruptionRevealed, setCorruptionRevealed] = useState(false);
+  const [showPenalties, setShowPenalties] = useState(false);
+  const [penaltiesDone, setPenaltiesDone] = useState(false);
 
   const prevScoreRef = useRef({ home: 0, away: 0 });
   const [celebration, setCelebration] = useState<{ team: Team; score: { home: number; away: number } } | null>(null);
@@ -63,14 +66,22 @@ export default function MatchLive() {
     celebTimerRef.current = setTimeout(() => setCelebration(null), 3000);
   }
 
-  // Corruption reveal check on finish
+  // On finish: trigger penalty replay or corruption reveal
   useEffect(() => {
     if (!finished || !state || !input || savedRef.current) return;
     savedRef.current = true;
-    if (state.corruption?.accepted && isRevealed()) {
-      setCorruptionRevealed(true);
+    if (state.penaltyScore) {
+      setShowPenalties(true);
+    } else {
+      if (state.corruption?.accepted && isRevealed()) setCorruptionRevealed(true);
     }
   }, [finished, state, input]);
+
+  function handlePenaltiesDone() {
+    setShowPenalties(false);
+    setPenaltiesDone(true);
+    if (state?.corruption?.accepted && isRevealed()) setCorruptionRevealed(true);
+  }
 
   // Cleanup on unmount
   useEffect(() => {
@@ -146,7 +157,16 @@ export default function MatchLive() {
         </div>
       )}
 
-      {finished ? (
+      {showPenalties && state && (
+        <PenaltyShootout
+          state={state}
+          home={input.home.team}
+          away={input.away.team}
+          onDone={handlePenaltiesDone}
+        />
+      )}
+
+      {finished && (!state?.penaltyScore || penaltiesDone) ? (
         <div className="rounded-lg border border-accent/30 bg-accent/5 p-5 text-center space-y-4">
           <div className="font-display text-2xl">Fin du match</div>
           <div className="text-sm text-muted">
