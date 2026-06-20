@@ -18,6 +18,7 @@ import { useBackendArgs } from '@/hooks/useBackendArgs';
 import { saveMatch } from '@/lib/github/matches';
 import { advanceBracket, applyResultToStandings, applyCorruptionDisqualification } from '@/lib/competition/scheduler';
 import { rulesForPhase } from '@/lib/competition/types';
+import { loadLocalTactics } from '@/lib/localTactics';
 
 import type { Team } from '@/lib/types';
 import type { MatchInput } from '@/lib/sim/types';
@@ -100,21 +101,24 @@ export default function CompetitionMatchLive() {
         const corruption = storedCorruption ? JSON.parse(storedCorruption) : undefined;
         sessionStorage.removeItem(`footsim.corruption.${matchId}`);
 
+        const homeTactics = loadLocalTactics(homeData.team.id) ?? homeData.team.tactics;
+        const awayTactics = loadLocalTactics(awayData.team.id) ?? awayData.team.tactics;
+
         const input: MatchInput = {
           matchId: mid,
           home: {
             team: homeData.team,
             players: homeData.players,
-            formation: homeData.team.tactics?.formation ?? homeData.team.formation,
-            lineup: homeData.team.tactics?.lineup,
-            tacticStyle: homeData.team.tactics?.style,
+            formation: homeTactics?.formation ?? homeData.team.formation,
+            lineup: homeTactics?.lineup,
+            tacticStyle: homeTactics?.style,
           },
           away: {
             team: awayData.team,
             players: awayData.players,
-            formation: awayData.team.tactics?.formation ?? awayData.team.formation,
-            lineup: awayData.team.tactics?.lineup,
-            tacticStyle: awayData.team.tactics?.style,
+            formation: awayTactics?.formation ?? awayData.team.formation,
+            lineup: awayTactics?.lineup,
+            tacticStyle: awayTactics?.style,
           },
           speed: '1',
           rules: rulesForPhase(comp.config, compMatch.phase),

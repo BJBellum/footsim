@@ -13,6 +13,7 @@ import { advanceBracket, applyResultToStandings } from '@/lib/competition/schedu
 import { rulesForPhase } from '@/lib/competition/types';
 import { accumulateMatchStats, computeAwards } from '@/lib/competition/statsAccumulator';
 import { generateRefOffer, acceptOffer } from '@/lib/sim/corruption';
+import { loadLocalTactics } from '@/lib/localTactics';
 import type { MatchInput, Speed, CorruptionDeal } from '@/lib/sim/types';
 import type { CorruptionOffer } from '@/lib/sim/corruption';
 import type { Team } from '@/lib/types';
@@ -89,6 +90,8 @@ export default function MultiplexLive() {
           ]);
           if (!homeData || !awayData) continue;
 
+          const homeTactics = loadLocalTactics(homeData.team.id) ?? homeData.team.tactics;
+          const awayTactics = loadLocalTactics(awayData.team.id) ?? awayData.team.tactics;
           const mid = `comp-${competitionId}-${m.id}`;
           inputs.push({
             compMatchId: m.id,
@@ -97,16 +100,16 @@ export default function MultiplexLive() {
               home: {
                 team: homeData.team,
                 players: homeData.players,
-                formation: homeData.team.tactics?.formation ?? homeData.team.formation,
-                lineup: homeData.team.tactics?.lineup,
-                tacticStyle: homeData.team.tactics?.style,
+                formation: homeTactics?.formation ?? homeData.team.formation,
+                lineup: homeTactics?.lineup,
+                tacticStyle: homeTactics?.style,
               },
               away: {
                 team: awayData.team,
                 players: awayData.players,
-                formation: awayData.team.tactics?.formation ?? awayData.team.formation,
-                lineup: awayData.team.tactics?.lineup,
-                tacticStyle: awayData.team.tactics?.style,
+                formation: awayTactics?.formation ?? awayData.team.formation,
+                lineup: awayTactics?.lineup,
+                tacticStyle: awayTactics?.style,
               },
               speed: globalSpeed,
               rules: rulesForPhase(comp.config, m.phase),

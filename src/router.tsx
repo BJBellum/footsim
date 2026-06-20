@@ -2,6 +2,7 @@ import { createBrowserRouter } from 'react-router-dom';
 import Home from '@/pages/Home';
 import Callback from '@/pages/auth/Callback';
 import NoAccess from '@/pages/NoAccess';
+import MyTeam from '@/pages/MyTeam';
 import Dashboard from '@/pages/dashboard/Dashboard';
 import Settings from '@/pages/dashboard/Settings';
 import Teams from '@/pages/dashboard/Teams';
@@ -49,6 +50,14 @@ export const router = createBrowserRouter(
         { path: 'competitions/:id', element: <CompetitionDetail /> },
         { path: 'postes', element: <Postes /> },
       ],
+    },
+    {
+      path: '/my-team',
+      element: (
+        <RequireAuth>
+          <MyTeam />
+        </RequireAuth>
+      ),
     },
     {
       path: '/match',

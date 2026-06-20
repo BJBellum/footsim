@@ -237,6 +237,8 @@ export type Team = {
   tactics?: TeamTactics;
   /** set when team has been successfully pushed to GitHub */
   publishedAt?: string;
+  /** Discord ID of the manager allowed to edit tactics for this team */
+  managerDiscordId?: string;
 };
 
 export type LeagueClub = {

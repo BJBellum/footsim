@@ -44,6 +44,7 @@ export default function TeamDetail() {
   const [editName, setEditName] = useState('');
   const [editFlag, setEditFlag] = useState<string | null>(null);
   const [editStrength, setEditStrength] = useState(60);
+  const [editManagerId, setEditManagerId] = useState('');
 
   useEffect(() => {
     if (!ownerId) return;
@@ -215,6 +216,7 @@ export default function TeamDetail() {
     setEditName(team.name);
     setEditFlag(team.flag);
     setEditStrength(team.globalStrength);
+    setEditManagerId(team.managerDiscordId ?? '');
     setTab('infos');
   }
 
@@ -232,6 +234,7 @@ export default function TeamDetail() {
         cultures: editCultures,
         continent: editContinent[0] ?? team.continent,
         continents: editContinent.length > 0 ? editContinent : undefined,
+        managerDiscordId: editManagerId.trim() || undefined,
       },
       players,
     });
@@ -415,6 +418,8 @@ export default function TeamDetail() {
           continents={editContinent}
           onChange={setEditCultures}
           onChangeContinents={setEditContinent}
+          managerId={editManagerId}
+          onManagerId={setEditManagerId}
           onSave={saveInfos}
         />
       )}
@@ -437,7 +442,7 @@ export default function TeamDetail() {
 
 function CultureEditPanel({
   name, onName, flag, onFlag, strength, onStrength,
-  cultures, continents, onChange, onChangeContinents, onSave,
+  cultures, continents, onChange, onChangeContinents, managerId, onManagerId, onSave,
 }: {
   name: string;
   onName: (v: string) => void;
@@ -449,6 +454,8 @@ function CultureEditPanel({
   continents: Continent[];
   onChange: (w: CultureWeight[]) => void;
   onChangeContinents: (c: Continent[]) => void;
+  managerId: string;
+  onManagerId: (v: string) => void;
   onSave: () => void;
 }) {
   const total = cultures.reduce((s, c) => s + c.weight, 0);
@@ -612,6 +619,19 @@ function CultureEditPanel({
           })}
         </div>
       )}
+
+      <div className="space-y-2 border-t border-border pt-4">
+        <label className="block text-sm text-muted">Discord ID du manager</label>
+        <Input
+          value={managerId}
+          onChange={(e) => onManagerId(e.target.value)}
+          placeholder="ex: 772821169664426025"
+          className="max-w-xs"
+        />
+        <p className="text-xs text-muted">
+          Ce joueur pourra se connecter et modifier la tactique de cette équipe.
+        </p>
+      </div>
 
       <Button onClick={onSave} disabled={cultures.length === 0}>
         Enregistrer (non publié)
