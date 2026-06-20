@@ -6,7 +6,7 @@ export type EventKind =
   | 'kickoff' | 'goal' | 'shot' | 'shotOnTarget' | 'save' | 'foul'
   | 'yellow' | 'red' | 'corner' | 'offside' | 'halftime' | 'fulltime' | 'keyPass'
   | 'penalty' | 'freeKick' | 'header' | 'dribble' | 'clearance' | 'crossbar'
-  | 'substitution' | 'extraTime';
+  | 'substitution' | 'extraTime' | 'coachRed';
 
 export type TacticMods = {
   shotFreqMult: number;
@@ -73,6 +73,7 @@ export type MatchInput = {
   speed: Speed;
   rules: MatchRules;
   corruption?: CorruptionDeal;
+  /** coaches are taken from team.coach — passed explicitly here for worker use */
 };
 
 export type MatchState = {
@@ -105,4 +106,6 @@ export type MatchState = {
   homeSubs: number;
   awaySubs: number;
   penaltyScore?: { home: number; away: number };
+  /** coach ejected this match — suspended for next match */
+  coachEjected?: { home: boolean; away: boolean };
 };

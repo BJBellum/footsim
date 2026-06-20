@@ -63,5 +63,7 @@ export function eventText(
       return `Mi-temps.`;
     case 'fulltime':
       return `Fin du match.`;
+    case 'coachRed':
+      return `🟥 ${minute}' — L'entraîneur de ${team} est expulsé ! Il sera suspendu au prochain match.`;
   }
 }

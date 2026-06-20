@@ -253,11 +253,14 @@ function SidePicker({
         </div>
       )}
       {team?.coach && (
-        <div className="rounded border border-border bg-bg px-3 py-2 space-y-2">
+        <div className={`rounded border px-3 py-2 space-y-2 ${team.coachSuspended ? 'border-danger/30 bg-danger/5' : 'border-border bg-bg'}`}>
           <div className="flex items-center justify-between text-xs">
-            <span className="font-medium">{team.coach.firstName} {team.coach.lastName}</span>
+            <span className={`font-medium ${team.coachSuspended ? 'line-through text-muted' : ''}`}>{team.coach.firstName} {team.coach.lastName}</span>
             <span className="text-muted">OVR {team.coach.overall}</span>
           </div>
+          {team.coachSuspended && (
+            <div className="text-xs text-danger font-medium">🟥 Suspendu — aucun bonus ce match</div>
+          )}
           <div className="flex flex-wrap gap-1">
             {(team.coach.positiveTraits ?? (team.coach.trait ? [team.coach.trait] : [])).map(t => (
               <span key={t} className="rounded bg-green-500/10 px-1.5 py-0.5 text-xs text-green-400 border border-green-500/20">{COACH_TRAIT_LABEL[t]}</span>

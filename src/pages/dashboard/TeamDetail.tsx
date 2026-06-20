@@ -512,8 +512,10 @@ async function applyNewStrength(strength: number) {
       {tab === 'entraineur' && (
         <CoachPanel
           coach={team.coach ?? null}
+          suspended={team.coachSuspended ?? false}
           cultures={team.cultures ?? [{ culture: team.culture, weight: 50 }]}
           onSave={(c: Coach) => mutate({ team: { ...team, coach: c }, players })}
+          onToggleSuspension={() => mutate({ team: { ...team, coachSuspended: !team.coachSuspended }, players })}
         />
       )}
 
@@ -551,10 +553,12 @@ async function applyNewStrength(strength: number) {
   );
 }
 
-function CoachPanel({ coach, cultures, onSave }: {
+function CoachPanel({ coach, suspended, cultures, onSave, onToggleSuspension }: {
   coach: Coach | null;
+  suspended: boolean;
   cultures: CultureWeight[];
   onSave: (c: Coach) => void;
+  onToggleSuspension: () => void;
 }) {
   const [current, setCurrent] = useState<Coach | null>(coach);
 
@@ -593,9 +597,15 @@ function CoachPanel({ coach, cultures, onSave }: {
       <div className="rounded-lg border border-border bg-surface p-5 space-y-5">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="font-display text-2xl">{current.firstName} {current.lastName}</div>
-            <div className="mt-1 text-sm text-muted">Overall {current.overall} / 100</div>
+            <div className={`font-display text-2xl ${suspended ? 'line-through text-muted' : ''}`}>{current.firstName} {current.lastName}</div>
+            <div className="mt-1 flex items-center gap-2 text-sm text-muted">
+              <span>Overall {current.overall} / 100</span>
+              {suspended && <span className="rounded bg-danger/10 px-2 py-0.5 text-xs text-danger border border-danger/30">🟥 Suspendu prochain match</span>}
+            </div>
           </div>
+          <Button size="sm" variant="ghost" onClick={onToggleSuspension}>
+            {suspended ? 'Lever suspension' : 'Suspendre'}
+          </Button>
         </div>
 
         {/* Traits */}

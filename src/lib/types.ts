@@ -257,6 +257,8 @@ export type Team = {
   managerDiscordId?: string;
   /** Head coach — generated at team creation, editable */
   coach?: import('@/lib/gen/coach').Coach;
+  /** Coach suspended for next match (received red card in previous match) */
+  coachSuspended?: boolean;
 };
 
 export type LeagueClub = {

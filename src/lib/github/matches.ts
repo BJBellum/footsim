@@ -85,6 +85,29 @@ export async function saveMatch(
     scoreFor: state.score.away,
     scoreAgainst: state.score.home,
   }, token);
+
+  // Persist coach suspension: set if ejected this match, clear if was suspended (served)
+  const homeEjected = state.coachEjected?.home ?? false;
+  const awayEjected = state.coachEjected?.away ?? false;
+  if (homeEjected || input.home.team.coachSuspended) {
+    await updateCoachSuspension(input.home.team, homeEjected, token);
+  }
+  if (awayEjected || input.away.team.coachSuspended) {
+    await updateCoachSuspension(input.away.team, awayEjected, token);
+  }
+}
+
+async function updateCoachSuspension(team: Team, suspended: boolean, token: string): Promise<void> {
+  const path = TEAM_PATH(team.slug);
+  const existing = await readJson<Team & { sha?: string }>(path, token);
+  if (!existing) return;
+  await writeJson({
+    path,
+    token,
+    data: { ...existing, coachSuspended: suspended },
+    message: `fix(coach): ${suspended ? 'suspend' : 'reinstate'} coach for ${team.slug}`,
+    sha: existing.sha,
+  });
 }
 
 function buildSide(

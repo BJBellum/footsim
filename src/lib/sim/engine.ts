@@ -397,6 +397,8 @@ export function tick(state: MatchState, ctx: EngineCtx): MatchState {
             state.cards[victimSide].yellow.push(fouler.id);
             pushEvent(state, ctx, { type: 'yellow', side: victimSide, playerId: fouler.id, ballPos: ZONE.centre },
               victimName, `${fouler.firstName} ${fouler.lastName}`);
+            // 1.5% chance coach protests and gets ejected on any card
+            if (chance(0.015)) applyCoachRed(state, ctx, victimSide);
           }
         }
       }
@@ -462,7 +464,17 @@ function applyRed(state: MatchState, ctx: EngineCtx, side: 'home' | 'away', play
   state.cards[side].red.push(player.id);
   if (side === 'home') state.homeOnPitch = state.homeOnPitch.filter((id) => id !== player.id);
   else state.awayOnPitch = state.awayOnPitch.filter((id) => id !== player.id);
+  const teamName = side === 'home' ? ctx.home.team.name : ctx.away.team.name;
   pushEvent(state, ctx, { type: 'red', side, playerId: player.id, ballPos: ZONE.centre },
-    side === 'home' ? ctx.home.team.name : ctx.away.team.name,
-    `${player.firstName} ${player.lastName}`);
+    teamName, `${player.firstName} ${player.lastName}`);
+  // 8% chance coach gets ejected too after a player red
+  if (chance(0.08)) applyCoachRed(state, ctx, side);
+}
+
+function applyCoachRed(state: MatchState, ctx: EngineCtx, side: 'home' | 'away'): void {
+  if (!state.coachEjected) state.coachEjected = { home: false, away: false };
+  if (state.coachEjected[side]) return; // already ejected
+  state.coachEjected[side] = true;
+  const teamName = side === 'home' ? ctx.home.team.name : ctx.away.team.name;
+  pushEvent(state, ctx, { type: 'coachRed', side, ballPos: ZONE.centre }, teamName);
 }
