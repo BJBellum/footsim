@@ -38,7 +38,6 @@ export default function CompetitionNew() {
   const [groupsCount, setGroupsCount] = useState(4);
   const [qualifyPerGroup, setQualifyPerGroup] = useState(2);
   const [rules, setRules] = useState<MatchRules>(DEFAULT_RULES);
-  const [suspenseDraw, setSuspenseDraw] = useState(false);
   const [drawResult, setDrawResult] = useState<ReturnType<typeof conductDraw> | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -52,7 +51,8 @@ export default function CompetitionNew() {
     );
   }
 
-  const minTeams = format === 'league' ? 3 : format === 'cup' ? 2 : groupsCount * 2;
+  const minTeamsPerGroup = 4;
+  const minTeams = format === 'league' ? 3 : format === 'cup' ? 2 : groupsCount * minTeamsPerGroup;
   const needsEven = format === 'groups_knockout';
   const evenOk = !needsEven || isEvenTeamCount(selectedTeams.length);
   const valid = name.trim().length > 0 && selectedTeams.length >= minTeams && evenOk && !!pat;
@@ -162,7 +162,6 @@ export default function CompetitionNew() {
           result={drawResult}
           teams={teams.filter((t) => selectedTeams.includes(t.id))}
           groupCount={groupsCount}
-          suspense={suspenseDraw}
           onConfirm={createWithGroups}
         />
         {busy && <div className="flex items-center gap-2 text-muted text-sm"><span className="animate-spin">⏳</span> Création…</div>}
@@ -237,15 +236,6 @@ export default function CompetitionNew() {
         )}
         {format === 'groups_knockout' && (
           <>
-            <label className="flex items-center gap-3 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                checked={suspenseDraw}
-                onChange={(e) => setSuspenseDraw(e.target.checked)}
-                className="h-4 w-4 rounded border-border"
-              />
-              Tirage au sort avec suspens
-            </label>
             <label className="block text-sm">
               <span className="mb-1 block text-muted">Nombre de groupes</span>
               <select
@@ -361,6 +351,11 @@ export default function CompetitionNew() {
       {needsEven && selectedTeams.length > 0 && !evenOk && (
         <p className="text-sm text-warning">
           Les poules requièrent un nombre pair d'équipes ({selectedTeams.length} sélectionnée{selectedTeams.length > 1 ? 's' : ''}).
+        </p>
+      )}
+      {needsEven && selectedTeams.length > 0 && evenOk && selectedTeams.length < minTeams && (
+        <p className="text-sm text-warning">
+          Minimum {minTeamsPerGroup} équipes par groupe — il faut au moins {minTeams} équipes pour {groupsCount} groupe{groupsCount > 1 ? 's' : ''}.
         </p>
       )}
 

@@ -9,22 +9,19 @@ type Props = {
   result: DrawResult;
   teams: Team[];
   groupCount: number;
-  suspense: boolean;
   onConfirm: (groups: Record<string, string[]>) => void;
 };
 
 const GROUP_NAMES = 'ABCDEFGHIJKLMNOP'.split('');
 
-export function DrawCeremony({ result, teams, groupCount, suspense, onConfirm }: Props) {
+export function DrawCeremony({ result, teams, groupCount, onConfirm }: Props) {
   const teamMap = new Map(teams.map((t) => [t.id, t]));
   const groupKeys = Object.keys(result.groups).sort();
 
-  const [revealed, setRevealed] = useState<Set<string>>(
-    suspense ? new Set() : new Set(result.order),
-  );
+  const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const [current, setCurrent] = useState<string | null>(null);
   const [idx, setIdx] = useState(0);
-  const [done, setDone] = useState(!suspense);
+  const [done, setDone] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function revealNext() {
@@ -151,7 +148,7 @@ export function DrawCeremony({ result, teams, groupCount, suspense, onConfirm }:
 
       {/* Controls */}
       <div className="flex gap-3">
-        {suspense && !done && (
+        {!done && (
           <Button onClick={revealNext} disabled={!!current} size="lg">
             {idx === 0 ? 'Commencer le tirage' : `Tirer (${idx}/${result.order.length})`}
           </Button>
