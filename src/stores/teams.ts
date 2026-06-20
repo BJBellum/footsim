@@ -36,10 +36,20 @@ export const useTeams = create<State>((set, get) => ({
           new GithubTeamBackend(pat).listTeams(ownerId),
         ]);
         const ghSlugs = new Set(ghTeams.map((t) => t.slug));
+        const idbBySlug = new Map(idbTeams.map((t) => [t.slug, t]));
         // IDB teams not yet on GitHub → keep as unpublished
         const localOnly = idbTeams.filter((t) => !ghSlugs.has(t.slug)).map((t) => ({ ...t, publishedAt: undefined }));
-        // GitHub teams are published by definition — inject fallback if field missing in stored JSON
-        const published = ghTeams.map((t) => t.publishedAt ? t : { ...t, publishedAt: new Date(0).toISOString() });
+        // GitHub teams: merge local-only fields (managerDiscordId, tactics) from IDB if present
+        const published = ghTeams.map((t) => {
+          const local = idbBySlug.get(t.slug);
+          const base = t.publishedAt ? t : { ...t, publishedAt: new Date(0).toISOString() };
+          if (!local) return base;
+          return {
+            ...base,
+            managerDiscordId: local.managerDiscordId ?? base.managerDiscordId,
+            tactics: local.tactics ?? base.tactics,
+          };
+        });
         set({ teams: [...published, ...localOnly], loading: false });
       } else {
         const teams = await idbBackend.listTeams(ownerId);
