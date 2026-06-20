@@ -63,7 +63,9 @@ export const useTeams = create<State>((set, get) => ({
   async saveTeam(team, players, pat) {
     const backend = getBackend(pat);
     await backend.saveTeam(team, players);
-    const saved = pat ? { ...team, publishedAt: new Date().toISOString() } : team;
+    const saved = pat
+      ? { ...team, publishedAt: new Date().toISOString() }
+      : { ...team, publishedAt: undefined };
     const next = [...get().teams.filter((t) => t.slug !== team.slug), saved];
     set({ teams: next });
   },

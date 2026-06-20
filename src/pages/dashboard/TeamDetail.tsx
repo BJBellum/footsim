@@ -28,6 +28,7 @@ export default function TeamDetail() {
   const [data, setData] = useState<{ team: Team; players: Player[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [dirty, setDirty] = useState(false);
+  const [unpublished, setUnpublished] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -56,12 +57,16 @@ const [regenStrength, setRegenStrength] = useState(false);
           if (effectivePat) {
             const remote = await fetchTeam(slug, ownerId, effectivePat).catch(() => null);
             if (remote && remote.team.publishedAt) {
-              setData({ ...local, team: { ...local.team, publishedAt: remote.team.publishedAt } });
+              const merged = { ...local, team: { ...local.team, publishedAt: remote.team.publishedAt } };
+              setData(merged);
+              setUnpublished(!merged.team.publishedAt);
             } else {
               setData(local);
+              setUnpublished(true);
             }
           } else {
             setData(local);
+            setUnpublished(!local.team.publishedAt);
           }
           setDirty(false);
           return;
@@ -70,6 +75,7 @@ const [regenStrength, setRegenStrength] = useState(false);
         const res = await fetchTeam(slug, ownerId, effectivePat);
         if (!res) toast('error', 'Équipe introuvable.');
         setData(res);
+        setUnpublished(!res?.team.publishedAt);
         setDirty(false);
       } catch (err) {
         toast('error', String(err));
@@ -83,6 +89,7 @@ const [regenStrength, setRegenStrength] = useState(false);
   function mutate(next: { team: Team; players: Player[] }) {
     setData(next);
     setDirty(true);
+    setUnpublished(true);
   }
 
   async function saveLocal() {
@@ -91,6 +98,7 @@ const [regenStrength, setRegenStrength] = useState(false);
     try {
       await saveTeam({ ...data.team, ownerId }, data.players, null);
       setDirty(false);
+      setUnpublished(true);
       toast('success', 'Enregistré localement.');
     } catch (err) {
       toast('error', String(err));
@@ -105,6 +113,7 @@ const [regenStrength, setRegenStrength] = useState(false);
     try {
       await saveTeam(data.team, data.players, effectivePat);
       setDirty(false);
+      setUnpublished(false);
       toast('success', 'Publié sur GitHub.');
     } catch (err) {
       toast('error', String(err));
@@ -363,14 +372,16 @@ async function applyNewStrength(strength: number) {
 
         {/* Publish / delete zone */}
         <div className="flex flex-col items-end gap-2">
-          {dirty && (
+          {(dirty || unpublished) && (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-warning">Non enregistré</span>
-              <Button size="sm" variant="ghost" onClick={saveLocal} disabled={publishing}>
-                {publishing ? <Spinner className="mr-1" /> : null}
-                Enregistrer
-              </Button>
-              <Button size="sm" onClick={publish} disabled={publishing}>
+              <span className="text-xs text-warning">{dirty ? 'Non enregistré' : 'Non publié'}</span>
+              {dirty && (
+                <Button size="sm" variant="ghost" onClick={saveLocal} disabled={publishing}>
+                  {publishing ? <Spinner className="mr-1" /> : null}
+                  Enregistrer
+                </Button>
+              )}
+              <Button size="sm" onClick={publish} disabled={publishing || !effectivePat}>
                 {publishing ? <Spinner className="mr-1" /> : null}
                 ↑ GitHub
               </Button>
@@ -394,18 +405,20 @@ async function applyNewStrength(strength: number) {
         </div>
       </div>
 
-      {/* Sticky save/publish bar when dirty */}
-      {dirty && (
+      {/* Sticky save/publish bar */}
+      {(dirty || unpublished) && (
         <div className="sticky top-0 z-20 flex items-center justify-between rounded-lg border border-warning/30 bg-warning/10 px-4 py-2">
           <span className="text-sm text-warning">
-            Modifications non enregistrées.
+            {dirty ? 'Modifications non enregistrées.' : 'Modifications locales non publiées sur GitHub.'}
           </span>
           <div className="flex gap-2">
-            <Button size="sm" variant="ghost" onClick={saveLocal} disabled={publishing}>
-              {publishing ? <Spinner className="mr-1" /> : null}
-              Enregistrer
-            </Button>
-            <Button size="sm" onClick={publish} disabled={publishing}>
+            {dirty && (
+              <Button size="sm" variant="ghost" onClick={saveLocal} disabled={publishing}>
+                {publishing ? <Spinner className="mr-1" /> : null}
+                Enregistrer
+              </Button>
+            )}
+            <Button size="sm" onClick={publish} disabled={publishing || !effectivePat}>
               {publishing ? <Spinner className="mr-1" /> : null}
               ↑ GitHub
             </Button>
