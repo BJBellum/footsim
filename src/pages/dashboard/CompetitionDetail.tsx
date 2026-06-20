@@ -91,6 +91,14 @@ export default function CompetitionDetail() {
 
   const teamMap: Record<string, Team> = {};
   for (const t of teams) teamMap[t.id] = t;
+  // Fallback for non-admin viewers who have no PAT: use snapshot stored in competition
+  if (current.teamSnapshot) {
+    for (const [id, snap] of Object.entries(current.teamSnapshot)) {
+      if (!teamMap[id]) {
+        teamMap[id] = { id, name: snap.name, flag: snap.flag } as Team;
+      }
+    }
+  }
 
   const isGroupsKO = current.format === 'groups_knockout';
   const isLeague = current.format === 'league';

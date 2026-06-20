@@ -89,6 +89,8 @@ export type Competition = {
   createdAt: string;
   winner?: string;
   disqualifiedTeamIds?: string[];
+  /** Name + flag snapshot so non-admin viewers can display team info without GitHub PAT. */
+  teamSnapshot?: Record<string, { name: string; flag: string }>;
 };
 
 export type CompetitionSummary = {

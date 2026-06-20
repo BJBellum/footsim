@@ -107,6 +107,12 @@ export default function CompetitionNew() {
         groups = result.groups;
       }
 
+      const teamSnapshot: Record<string, { name: string; flag: string }> = {};
+      for (const id of teamIds) {
+        const t = teams.find((x) => x.id === id);
+        if (t) teamSnapshot[id] = { name: t.name, flag: t.flag };
+      }
+
       const comp: Competition = {
         id,
         name: name.trim(),
@@ -120,6 +126,7 @@ export default function CompetitionNew() {
         currentRound: 1,
         status: 'ongoing',
         createdAt: new Date().toISOString(),
+        teamSnapshot,
       };
 
       await save(comp, pat);
