@@ -311,29 +311,36 @@ export default function TeamNew() {
             {draft.players.length} joueurs générés localement — non encore publiés.
           </div>
           {coach && (
-            <div className="rounded-lg border border-border bg-surface p-4 space-y-2">
-              <div className="text-xs uppercase tracking-widest text-muted">Entraîneur généré</div>
+            <div className="rounded-lg border border-border bg-surface p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-semibold">{coach.firstName} {coach.lastName}</div>
-                  <div className="text-xs text-muted">{COACH_TRAIT_LABEL[coach.trait]} · Overall {coach.overall}</div>
-                </div>
+                <div className="text-xs uppercase tracking-widest text-muted">Entraîneur généré</div>
                 <Button size="sm" variant="ghost" onClick={() => {
                   const fresh = generateCoach(cultures);
                   setCoach(fresh);
                   setDraft(d => d ? { ...d, team: { ...d.team, coach: fresh } } : d);
-                }}>
-                  Regénérer
-                </Button>
+                }}>Regénérer</Button>
               </div>
-              <div className="grid grid-cols-3 gap-2 text-xs">
-                {(['motivation','tactique','offensive','defensif','mentalite','gestion'] as const).map(k => (
-                  <div key={k} className="flex items-center justify-between rounded bg-bg px-2 py-1">
-                    <span className="capitalize text-muted">{k}</span>
-                    <span className="tabular-nums font-medium">{coach.stats[k]}</span>
-                  </div>
-                ))}
+              <div>
+                <div className="font-semibold">{coach.firstName} {coach.lastName}</div>
+                <div className="text-xs text-muted">Overall {coach.overall}</div>
               </div>
+              {(coach.positiveTraits?.length ?? 0) > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {(coach.positiveTraits ?? []).map(t => (
+                    <span key={t} className="rounded bg-green-500/10 px-2 py-0.5 text-xs text-green-400 border border-green-500/20">{COACH_TRAIT_LABEL[t]}</span>
+                  ))}
+                </div>
+              )}
+              {(coach.negativeTraits?.length ?? 0) > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {(coach.negativeTraits ?? []).map(t => (
+                    <span key={t} className="rounded bg-danger/10 px-2 py-0.5 text-xs text-danger border border-danger/20">{COACH_TRAIT_LABEL[t]}</span>
+                  ))}
+                </div>
+              )}
+              {(coach.positiveTraits?.length ?? 0) === 0 && (coach.negativeTraits?.length ?? 0) === 0 && (
+                <p className="text-xs text-muted italic">Aucun trait particulier.</p>
+              )}
             </div>
           )}
         </div>

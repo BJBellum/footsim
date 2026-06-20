@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/Input';
 import { useTeams } from '@/stores/teams';
 import { useBackendArgs } from '@/hooks/useBackendArgs';
 import type { CultureWeight } from '@/lib/gen/names';
-import { generateCoach, COACH_TRAIT_LABEL, type Coach } from '@/lib/gen/coach';
+import { generateCoach, COACH_TRAIT_LABEL, COACH_TRAIT_DESCRIPTION, type Coach } from '@/lib/gen/coach';
 
 const ADD_COUNTS = [100, 200, 500, 1000];
 
@@ -580,6 +580,9 @@ function CoachPanel({ coach, cultures, onSave }: {
     defensif: 'Défensif', mentalite: 'Mentalité', gestion: 'Gestion',
   };
 
+  const pos = current.positiveTraits ?? (current.trait ? [current.trait] : []);
+  const neg = current.negativeTraits ?? [];
+
   return (
     <section className="space-y-6">
       <div className="flex items-center justify-between">
@@ -587,20 +590,45 @@ function CoachPanel({ coach, cultures, onSave }: {
         <Button size="sm" variant="ghost" onClick={regen}>Regénérer</Button>
       </div>
 
-      <div className="rounded-lg border border-border bg-surface p-5 space-y-4">
+      <div className="rounded-lg border border-border bg-surface p-5 space-y-5">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="font-display text-2xl">{current.firstName} {current.lastName}</div>
-            <div className="mt-1 flex items-center gap-2 text-sm text-muted">
-              <span className="rounded bg-accent/10 px-2 py-0.5 text-xs text-accent font-medium">
-                {COACH_TRAIT_LABEL[current.trait]}
-              </span>
-              <span>Overall {current.overall} / 100</span>
-            </div>
+            <div className="mt-1 text-sm text-muted">Overall {current.overall} / 100</div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {/* Traits */}
+        <div className="space-y-2">
+          {pos.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="text-xs uppercase tracking-widest text-muted">Traits positifs</div>
+              {pos.map((t) => (
+                <div key={t} className="rounded border border-green-500/20 bg-green-500/5 px-3 py-2">
+                  <div className="text-xs font-semibold text-green-400">{COACH_TRAIT_LABEL[t]}</div>
+                  <div className="text-xs text-muted mt-0.5">{COACH_TRAIT_DESCRIPTION[t]}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          {neg.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="text-xs uppercase tracking-widest text-muted">Traits négatifs</div>
+              {neg.map((t) => (
+                <div key={t} className="rounded border border-danger/20 bg-danger/5 px-3 py-2">
+                  <div className="text-xs font-semibold text-danger">{COACH_TRAIT_LABEL[t]}</div>
+                  <div className="text-xs text-muted mt-0.5">{COACH_TRAIT_DESCRIPTION[t]}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          {pos.length === 0 && neg.length === 0 && (
+            <p className="text-xs text-muted italic">Aucun trait particulier.</p>
+          )}
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 border-t border-border pt-4">
           {statKeys.map((k) => (
             <div key={k} className="space-y-1">
               <div className="flex items-center justify-between text-xs">
@@ -608,34 +636,13 @@ function CoachPanel({ coach, cultures, onSave }: {
                 <span className="tabular-nums font-semibold">{current.stats[k]}</span>
               </div>
               <div className="h-1.5 w-full rounded-full bg-border">
-                <div
-                  className="h-full rounded-full bg-accent"
-                  style={{ width: `${(current.stats[k] / 20) * 100}%` }}
-                />
+                <div className="h-full rounded-full bg-accent" style={{ width: `${(current.stats[k] / 20) * 100}%` }} />
               </div>
             </div>
           ))}
         </div>
-
-        <TraitDescription trait={current.trait} />
       </div>
     </section>
-  );
-}
-
-function TraitDescription({ trait }: { trait: import('@/lib/gen/coach').CoachTrait }) {
-  const descriptions: Record<import('@/lib/gen/coach').CoachTrait, string> = {
-    motivateur: '+5% bonus attaque — galvanise les joueurs en phase offensive.',
-    tacticien: '+8% bonus milieu — organisation tactique supérieure.',
-    offensif: '+6% attaque, -3% défense — style offensif assumé.',
-    defensif: '+8% défense, -4% attaque — bloc bas et solidité défensive.',
-    disciplinaire: '-30% fautes commises — équipe disciplinée et propre.',
-    opportuniste: '+10% fréquence de tirs — cherche le but à chaque occasion.',
-    gestionnaire: 'Meilleure qualité des remplaçants en fin de match.',
-    charismatique: '+3% sur tous les ratings — leadership général.',
-  };
-  return (
-    <p className="text-xs text-muted italic border-t border-border pt-3">{descriptions[trait]}</p>
   );
 }
 

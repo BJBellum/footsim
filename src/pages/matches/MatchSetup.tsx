@@ -253,21 +253,34 @@ function SidePicker({
         </div>
       )}
       {team?.coach && (
-        <div className="rounded border border-border bg-bg px-3 py-2 space-y-1">
+        <div className="rounded border border-border bg-bg px-3 py-2 space-y-2">
           <div className="flex items-center justify-between text-xs">
             <span className="font-medium">{team.coach.firstName} {team.coach.lastName}</span>
-            <span className="rounded bg-accent/10 px-1.5 py-0.5 text-accent">{COACH_TRAIT_LABEL[team.coach.trait]}</span>
+            <span className="text-muted">OVR {team.coach.overall}</span>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {(team.coach.positiveTraits ?? (team.coach.trait ? [team.coach.trait] : [])).map(t => (
+              <span key={t} className="rounded bg-green-500/10 px-1.5 py-0.5 text-xs text-green-400 border border-green-500/20">{COACH_TRAIT_LABEL[t]}</span>
+            ))}
+            {(team.coach.negativeTraits ?? []).map(t => (
+              <span key={t} className="rounded bg-danger/10 px-1.5 py-0.5 text-xs text-danger border border-danger/20">{COACH_TRAIT_LABEL[t]}</span>
+            ))}
           </div>
           <div className="text-xs text-muted">
             {(() => {
               const b = computeCoachBonuses(team.coach);
               const parts: string[] = [];
               if (b.attackMult > 1.01) parts.push(`+${Math.round((b.attackMult - 1) * 100)}% ATK`);
+              if (b.attackMult < 0.99) parts.push(`${Math.round((b.attackMult - 1) * 100)}% ATK`);
               if (b.midfieldMult > 1.01) parts.push(`+${Math.round((b.midfieldMult - 1) * 100)}% MID`);
+              if (b.midfieldMult < 0.99) parts.push(`${Math.round((b.midfieldMult - 1) * 100)}% MID`);
               if (b.defenseMult > 1.01) parts.push(`+${Math.round((b.defenseMult - 1) * 100)}% DEF`);
+              if (b.defenseMult < 0.99) parts.push(`${Math.round((b.defenseMult - 1) * 100)}% DEF`);
               if (b.foulRateMult < 0.99) parts.push(`-${Math.round((1 - b.foulRateMult) * 100)}% fautes`);
+              if (b.foulRateMult > 1.01) parts.push(`+${Math.round((b.foulRateMult - 1) * 100)}% fautes`);
               if (b.shotFreqMult > 1.01) parts.push(`+${Math.round((b.shotFreqMult - 1) * 100)}% tirs`);
-              return parts.join(' · ') || 'Bonus standards';
+              if (b.shotFreqMult < 0.99) parts.push(`${Math.round((b.shotFreqMult - 1) * 100)}% tirs`);
+              return parts.join(' · ') || 'Aucun bonus net';
             })()}
           </div>
         </div>
