@@ -31,6 +31,7 @@ jobs:
           echo "VITE_DATA_REPO=BJBellum/footsim-data" >> .env.production
           echo "VITE_DATA_BRANCH=main" >> .env.production
           echo "VITE_ADMIN_DISCORD_ID=772821169664426025" >> .env.production
+          echo "VITE_GITHUB_READ_TOKEN=${{ secrets.VITE_GITHUB_READ_TOKEN }}" >> .env.production
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:

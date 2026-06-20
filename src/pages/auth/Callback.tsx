@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { fetchDiscordUser, parseTokenFragment, isAdminId } from '@/lib/auth/discord';
 import { useSession } from '@/stores/session';
 import { GithubTeamBackend } from '@/lib/github/backend';
+import { env } from '@/lib/env';
 import { Spinner } from '@/components/ui/Spinner';
 
 export default function Callback() {
@@ -29,8 +30,8 @@ export default function Callback() {
           navigate('/dashboard', { replace: true });
           return;
         }
-        // Check if user is a team manager — read GitHub public repo, no PAT needed
-        const ghBackend = new GithubTeamBackend(null);
+        // Check if user is a team manager
+        const ghBackend = new GithubTeamBackend(env.githubReadToken ?? null);
         const teams = await ghBackend.listTeams(user.id);
         const isManager = teams.some((t) => t.managerDiscordId === user.id);
         navigate(isManager ? '/my-team' : '/no-access', { replace: true });

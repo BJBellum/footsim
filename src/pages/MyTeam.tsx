@@ -12,8 +12,9 @@ import { FORMAT_LABEL } from '@/lib/competition/types';
 import type { Player, Team, TeamTactics } from '@/lib/types';
 import type { CompetitionSummary } from '@/lib/competition/types';
 import { loadLocalTactics, saveLocalTactics } from '@/lib/localTactics';
+import { env } from '@/lib/env';
 
-const ghPublic = new GithubTeamBackend(null);
+const ghPublic = new GithubTeamBackend(env.githubReadToken ?? null);
 
 const STATUS_LABEL: Record<string, string> = {
   setup: 'Configuration',
@@ -65,7 +66,7 @@ export default function MyTeam() {
   useEffect(() => {
     if (tab !== 'competitions') return;
     setLoadingComps(true);
-    listCompetitions(null)
+    listCompetitions(env.githubReadToken ?? null)
       .then(setSummaries)
       .catch(() => toast('error', 'Impossible de charger les compétitions.'))
       .finally(() => setLoadingComps(false));

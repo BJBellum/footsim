@@ -11,4 +11,5 @@ export const env = {
   dataRepo: need(import.meta.env.VITE_DATA_REPO, 'VITE_DATA_REPO'),
   dataBranch: need(import.meta.env.VITE_DATA_BRANCH, 'VITE_DATA_BRANCH'),
   adminDiscordId: need(import.meta.env.VITE_ADMIN_DISCORD_ID, 'VITE_ADMIN_DISCORD_ID'),
+  githubReadToken: import.meta.env.VITE_GITHUB_READ_TOKEN as string | undefined,
 };
