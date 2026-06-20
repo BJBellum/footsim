@@ -571,7 +571,15 @@ function CultureEditPanel({
   }
 
   function setWeight(c: Culture, value: number) {
-    onChange(cultures.map((w) => (w.culture === c ? { ...w, weight: value } : w)));
+    const clamped = Math.max(1, Math.min(100, value));
+    const others = cultures.filter((w) => w.culture !== c);
+    const remaining = Math.max(0, 100 - clamped);
+    const otherTotal = others.reduce((s, w) => s + w.weight, 0);
+    onChange(cultures.map((w) => {
+      if (w.culture === c) return { ...w, weight: clamped };
+      const share = otherTotal > 0 ? Math.round((w.weight / otherTotal) * remaining) : Math.round(remaining / others.length);
+      return { ...w, weight: Math.max(1, share) };
+    }));
   }
 
   function distribute() {

@@ -372,7 +372,15 @@ function NomExportPanel({
   }
 
   function setWeight(culture: CultureWeight['culture'], value: number) {
-    onChange(weights.map((w) => (w.culture === culture ? { ...w, weight: value } : w)));
+    const clamped = Math.max(1, Math.min(100, value));
+    const others = weights.filter((w) => w.culture !== culture);
+    const remaining = Math.max(0, 100 - clamped);
+    const otherTotal = others.reduce((s, w) => s + w.weight, 0);
+    onChange(weights.map((w) => {
+      if (w.culture === culture) return { ...w, weight: clamped };
+      const share = otherTotal > 0 ? Math.round((w.weight / otherTotal) * remaining) : Math.round(remaining / others.length);
+      return { ...w, weight: Math.max(1, share) };
+    }));
   }
 
   function distribute() {
