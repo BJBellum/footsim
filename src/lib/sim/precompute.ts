@@ -1,4 +1,6 @@
 import type { Formation, Player, TacticStyle } from '@/lib/types';
+import type { Coach } from '@/lib/gen/coach';
+import { computeCoachBonuses } from '@/lib/gen/coach';
 import type { SideRatings, TacticMods } from './types';
 import { pickXI } from './lineup';
 
@@ -22,6 +24,7 @@ export function precomputeSide(
   formation: Formation,
   customLineup?: string[],
   tacticStyle?: TacticStyle,
+  coach?: Coach,
 ): SideRatings {
   let lineup: Player[];
   let bench: Player[];
@@ -56,11 +59,19 @@ export function precomputeSide(
   const meanAm = am.length ? avg(am.map((p) => p.overall)) : meanAtt;
 
   const tacticMods = getTacticMods(tacticStyle);
+  const coachB = coach ? computeCoachBonuses(coach) : null;
 
-  const attack = (0.7 * meanAtt + 0.3 * meanAm) * tacticMods.attackMult;
-  const midfield = (mid.length ? avg(mid.map((p) => p.overall)) : 50) * tacticMods.midfieldMult;
-  const defense = (def.length ? avg(def.map((p) => p.overall)) : 50) * 0.8 + (gk?.overall ?? 50) * 0.2;
+  const attack = (0.7 * meanAtt + 0.3 * meanAm) * tacticMods.attackMult * (coachB?.attackMult ?? 1);
+  const midfield = (mid.length ? avg(mid.map((p) => p.overall)) : 50) * tacticMods.midfieldMult * (coachB?.midfieldMult ?? 1);
+  const defense = ((def.length ? avg(def.map((p) => p.overall)) : 50) * 0.8 + (gk?.overall ?? 50) * 0.2) * (coachB?.defenseMult ?? 1);
   const gkRating = gk?.overall ?? 50;
+
+  const mergedTacticMods: TacticMods = coachB ? {
+    shotFreqMult: tacticMods.shotFreqMult * coachB.shotFreqMult,
+    foulRateMult: tacticMods.foulRateMult * coachB.foulRateMult,
+    midfieldMult: tacticMods.midfieldMult,
+    attackMult: tacticMods.attackMult,
+  } : tacticMods;
 
   return {
     attack,
@@ -72,7 +83,7 @@ export function precomputeSide(
     bench: bench.map((p) => p.id),
     yellow: new Set(),
     red: new Set(),
-    tacticMods,
+    tacticMods: mergedTacticMods,
   };
 }
 

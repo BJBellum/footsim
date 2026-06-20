@@ -10,6 +10,7 @@ import {
   type Culture, type Continent, type Player, type Team,
 } from '@/lib/types';
 import type { CultureWeight } from '@/lib/gen/names';
+import { generateCoach, COACH_TRAIT_LABEL, type Coach } from '@/lib/gen/coach';
 import { slugify } from '@/lib/slug';
 import { useSession } from '@/stores/session';
 import { useTeams } from '@/stores/teams';
@@ -35,6 +36,7 @@ export default function TeamNew() {
   const [generating, setGenerating] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [draft, setDraft] = useState<{ team: Team; players: Player[] } | null>(null);
+  const [coach, setCoach] = useState<Coach | null>(null);
 
   const totalWeight = cultures.reduce((s, c) => s + c.weight, 0);
 
@@ -95,6 +97,8 @@ export default function TeamNew() {
 
       const slug = slugify(name);
       const ownerId = session?.id ?? 'unknown';
+      const generatedCoach = generateCoach(cultures);
+      setCoach(generatedCoach);
       const team: Team = {
         id: crypto.randomUUID(),
         slug,
@@ -112,6 +116,7 @@ export default function TeamNew() {
         playerCount: players.length,
         formation: '4-3-3',
         managerDiscordId: managerId.trim() || undefined,
+        coach: generatedCoach,
       };
 
       setDraft({ team, players });
@@ -301,8 +306,36 @@ export default function TeamNew() {
       )}
 
       {draft && !generating && (
-        <div className="rounded-lg border border-accent/30 bg-accent/5 px-4 py-3 text-sm text-accent">
-          {draft.players.length} joueurs générés localement — non encore publiés.
+        <div className="space-y-3">
+          <div className="rounded-lg border border-accent/30 bg-accent/5 px-4 py-3 text-sm text-accent">
+            {draft.players.length} joueurs générés localement — non encore publiés.
+          </div>
+          {coach && (
+            <div className="rounded-lg border border-border bg-surface p-4 space-y-2">
+              <div className="text-xs uppercase tracking-widest text-muted">Entraîneur généré</div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-semibold">{coach.firstName} {coach.lastName}</div>
+                  <div className="text-xs text-muted">{COACH_TRAIT_LABEL[coach.trait]} · Overall {coach.overall}</div>
+                </div>
+                <Button size="sm" variant="ghost" onClick={() => {
+                  const fresh = generateCoach(cultures);
+                  setCoach(fresh);
+                  setDraft(d => d ? { ...d, team: { ...d.team, coach: fresh } } : d);
+                }}>
+                  Regénérer
+                </Button>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                {(['motivation','tactique','offensive','defensif','mentalite','gestion'] as const).map(k => (
+                  <div key={k} className="flex items-center justify-between rounded bg-bg px-2 py-1">
+                    <span className="capitalize text-muted">{k}</span>
+                    <span className="tabular-nums font-medium">{coach.stats[k]}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

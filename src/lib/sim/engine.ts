@@ -72,6 +72,15 @@ function pickAttacker(side: 'home' | 'away', ctx: EngineCtx, state: MatchState):
   return pick(candidates.slice(0, Math.min(4, candidates.length)));
 }
 
+function pickMidfielder(side: 'home' | 'away', ctx: EngineCtx, state: MatchState): Player | null {
+  const onPitch = side === 'home' ? state.homeOnPitch : state.awayOnPitch;
+  const players = side === 'home' ? ctx.home.players : ctx.away.players;
+  const candidates = onPitch.map((id) => players.get(id)!).filter((p) => p && ['CM', 'AM', 'DM', 'LM', 'RM'].includes(p.position));
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => (b.stats.technical.passing + b.stats.technical.firstTouch) - (a.stats.technical.passing + a.stats.technical.firstTouch));
+  return pick(candidates.slice(0, Math.min(4, candidates.length)));
+}
+
 function pickDefender(side: 'home' | 'away', ctx: EngineCtx, state: MatchState): Player | null {
   const onPitch = side === 'home' ? state.homeOnPitch : state.awayOnPitch;
   const players = side === 'home' ? ctx.home.players : ctx.away.players;
@@ -342,7 +351,7 @@ export function tick(state: MatchState, ctx: EngineCtx): MatchState {
   const wFoul     = 0.08 * oppMods.foulRateMult;
   const wCorner   = 0.04;
   const wOffside  = state.rules.noOffside ? 0 : 0.03;
-  const wKeyPass  = 0.10;
+  const wKeyPass  = 0.18;
   const wFreeKick = 0.03;
   const wDribble  = 0.04 * pAttack;
   const wClear    = 0.03 * (1 - pAttack);
@@ -413,11 +422,12 @@ export function tick(state: MatchState, ctx: EngineCtx): MatchState {
     }, teamName);
 
   } else if (r < wShot + wFoul + wCorner + wOffside + wKeyPass) {
-    const passer = pickAttacker(possessing, ctx, state);
+    const passer = pickMidfielder(possessing, ctx, state) ?? pickAttacker(possessing, ctx, state);
     pushEvent(state, ctx, {
       type: 'keyPass', side: possessing, playerId: passer?.id,
       ballPos: possessing === 'home' ? ZONE.midfieldAway : ZONE.midfieldHome,
     }, teamName, passer ? `${passer.firstName} ${passer.lastName}` : undefined);
+    if (chance(0.35)) tryShot(state, ctx, possessing, opp, teamName, oppName, 1.0);
 
   } else if (r < wShot + wFoul + wCorner + wOffside + wKeyPass + wFreeKick) {
     const fkShooter = pickAttacker(possessing, ctx, state);

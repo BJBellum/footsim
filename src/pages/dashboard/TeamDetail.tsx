@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/Input';
 import { useTeams } from '@/stores/teams';
 import { useBackendArgs } from '@/hooks/useBackendArgs';
 import type { CultureWeight } from '@/lib/gen/names';
+import { generateCoach, COACH_TRAIT_LABEL, type Coach } from '@/lib/gen/coach';
 
 const ADD_COUNTS = [100, 200, 500, 1000];
 
@@ -35,7 +36,7 @@ export default function TeamDetail() {
   const [deleteCount, setDeleteCount] = useState(1);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [tab, setTab] = useState<'roster' | 'tactique' | 'infos'>('roster');
+  const [tab, setTab] = useState<'roster' | 'tactique' | 'entraineur' | 'infos'>('roster');
 const [regenStrength, setRegenStrength] = useState(false);
   const [newStrength, setNewStrength] = useState<number | null>(null);
   const [editCultures, setEditCultures] = useState<CultureWeight[] | null>(null);
@@ -428,13 +429,13 @@ async function applyNewStrength(strength: number) {
 
       {/* Tab bar */}
       <div className="flex items-center gap-1 border-b border-border">
-        {(['roster', 'tactique'] as const).map((t) => (
+        {(['roster', 'tactique', 'entraineur'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium transition-colors ${tab === t ? 'border-b-2 border-accent text-accent' : 'text-muted hover:text-text'}`}
           >
-            {t === 'roster' ? 'Roster' : 'Tactique'}
+            {t === 'roster' ? 'Roster' : t === 'tactique' ? 'Tactique' : 'Entraîneur'}
           </button>
         ))}
         <div className="ml-auto">
@@ -508,6 +509,14 @@ async function applyNewStrength(strength: number) {
         </section>
       )}
 
+      {tab === 'entraineur' && (
+        <CoachPanel
+          coach={team.coach ?? null}
+          cultures={team.cultures ?? [{ culture: team.culture, weight: 50 }]}
+          onSave={(c: Coach) => mutate({ team: { ...team, coach: c }, players })}
+        />
+      )}
+
       {tab === 'infos' && editCultures !== null && (
         <CultureEditPanel
           name={editName}
@@ -539,6 +548,94 @@ async function applyNewStrength(strength: number) {
         ) : null}
       </AnimatePresence>
     </div>
+  );
+}
+
+function CoachPanel({ coach, cultures, onSave }: {
+  coach: Coach | null;
+  cultures: CultureWeight[];
+  onSave: (c: Coach) => void;
+}) {
+  const [current, setCurrent] = useState<Coach | null>(coach);
+
+  function regen() {
+    const c = generateCoach(cultures);
+    setCurrent(c);
+    onSave(c);
+  }
+
+  if (!current) {
+    return (
+      <section className="space-y-4">
+        <h2 className="font-display text-xl">Entraîneur</h2>
+        <p className="text-sm text-muted">Aucun entraîneur généré pour cette équipe.</p>
+        <Button onClick={regen}>Générer un entraîneur</Button>
+      </section>
+    );
+  }
+
+  const statKeys = ['motivation', 'tactique', 'offensive', 'defensif', 'mentalite', 'gestion'] as const;
+  const statLabel: Record<typeof statKeys[number], string> = {
+    motivation: 'Motivation', tactique: 'Tactique', offensive: 'Offensive',
+    defensif: 'Défensif', mentalite: 'Mentalité', gestion: 'Gestion',
+  };
+
+  return (
+    <section className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="font-display text-xl">Entraîneur</h2>
+        <Button size="sm" variant="ghost" onClick={regen}>Regénérer</Button>
+      </div>
+
+      <div className="rounded-lg border border-border bg-surface p-5 space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="font-display text-2xl">{current.firstName} {current.lastName}</div>
+            <div className="mt-1 flex items-center gap-2 text-sm text-muted">
+              <span className="rounded bg-accent/10 px-2 py-0.5 text-xs text-accent font-medium">
+                {COACH_TRAIT_LABEL[current.trait]}
+              </span>
+              <span>Overall {current.overall} / 100</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {statKeys.map((k) => (
+            <div key={k} className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted">{statLabel[k]}</span>
+                <span className="tabular-nums font-semibold">{current.stats[k]}</span>
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-border">
+                <div
+                  className="h-full rounded-full bg-accent"
+                  style={{ width: `${(current.stats[k] / 20) * 100}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <TraitDescription trait={current.trait} />
+      </div>
+    </section>
+  );
+}
+
+function TraitDescription({ trait }: { trait: import('@/lib/gen/coach').CoachTrait }) {
+  const descriptions: Record<import('@/lib/gen/coach').CoachTrait, string> = {
+    motivateur: '+5% bonus attaque — galvanise les joueurs en phase offensive.',
+    tacticien: '+8% bonus milieu — organisation tactique supérieure.',
+    offensif: '+6% attaque, -3% défense — style offensif assumé.',
+    defensif: '+8% défense, -4% attaque — bloc bas et solidité défensive.',
+    disciplinaire: '-30% fautes commises — équipe disciplinée et propre.',
+    opportuniste: '+10% fréquence de tirs — cherche le but à chaque occasion.',
+    gestionnaire: 'Meilleure qualité des remplaçants en fin de match.',
+    charismatique: '+3% sur tous les ratings — leadership général.',
+  };
+  return (
+    <p className="text-xs text-muted italic border-t border-border pt-3">{descriptions[trait]}</p>
   );
 }
 

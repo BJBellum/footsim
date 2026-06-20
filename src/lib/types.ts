@@ -255,6 +255,8 @@ export type Team = {
   publishedAt?: string;
   /** Discord ID of the manager allowed to edit tactics for this team */
   managerDiscordId?: string;
+  /** Head coach — generated at team creation, editable */
+  coach?: import('@/lib/gen/coach').Coach;
 };
 
 export type LeagueClub = {
