@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { toast } from '@/components/ui/Toast';
@@ -12,7 +12,9 @@ import { useBackendArgs } from '@/hooks/useBackendArgs';
 import { advanceBracket, applyResultToStandings } from '@/lib/competition/scheduler';
 import { rulesForPhase } from '@/lib/competition/types';
 import { accumulateMatchStats, computeAwards } from '@/lib/competition/statsAccumulator';
-import type { MatchInput, Speed } from '@/lib/sim/types';
+import { generateRefOffer, acceptOffer } from '@/lib/sim/corruption';
+import type { MatchInput, Speed, CorruptionDeal } from '@/lib/sim/types';
+import type { CorruptionOffer } from '@/lib/sim/corruption';
 import type { Team } from '@/lib/types';
 
 export default function MultiplexLive() {
@@ -43,6 +45,16 @@ export default function MultiplexLive() {
   const [paused, setPaused] = useState(false);
   const [savingGh, setSavingGh] = useState(false);
   const [pendingUpdate, setPendingUpdate] = useState<Parameters<typeof save>[0] | null>(null);
+
+  // Pre-launch corruption state
+  type PendingSlot = { compMatchId: string; input: MatchInput; corruption: CorruptionDeal | null };
+  const [pendingInputs, setPendingInputs] = useState<PendingSlot[] | null>(null);
+  const [corruptionModal, setCorruptionModal] = useState<{
+    slotIdx: number;
+    side: 'home' | 'away';
+    offer: CorruptionOffer | null;
+    contacted: boolean;
+  } | null>(null);
 
   useEffect(() => {
     if (!pat || !competitionId) return;
@@ -91,14 +103,14 @@ export default function MultiplexLive() {
                 lineup: awayData.team.tactics?.lineup,
                 tacticStyle: awayData.team.tactics?.style,
               },
-              speed: '1',
+              speed: globalSpeed,
               rules: rulesForPhase(comp.config, m.phase),
             },
           });
         }
 
         if (inputs.length === 0) { toast('error', 'Données équipes introuvables.'); return; }
-        start(inputs);
+        setPendingInputs(inputs.map((i) => ({ ...i, corruption: null })));
       } catch (err) {
         toast('error', String(err));
       } finally {
@@ -213,6 +225,36 @@ export default function MultiplexLive() {
     }
   }
 
+  function launchAll() {
+    if (!pendingInputs) return;
+    const inputs = pendingInputs.map(({ compMatchId, input, corruption }) => ({
+      compMatchId,
+      input: { ...input, corruption: corruption ?? undefined },
+    }));
+    start(inputs);
+    setPendingInputs(null);
+  }
+
+  function contactRef(slotIdx: number, side: 'home' | 'away') {
+    const offer = generateRefOffer();
+    setCorruptionModal({ slotIdx, side, offer, contacted: true });
+  }
+
+  function acceptCorruption() {
+    if (!corruptionModal || !corruptionModal.offer) return;
+    const deal = acceptOffer(corruptionModal.side, corruptionModal.offer);
+    setPendingInputs((prev) =>
+      prev
+        ? prev.map((s, i) => (i === corruptionModal.slotIdx ? { ...s, corruption: deal } : s))
+        : prev,
+    );
+    setCorruptionModal(null);
+  }
+
+  function declineCorruption() {
+    setCorruptionModal(null);
+  }
+
   const SPEEDS: Speed[] = ['0.5', '1', '2', '5', 'instant'];
   const SPEED_LABEL: Record<Speed, string> = { '0.5': '×0.5', '1': '×1', '2': '×2', '5': '×5', instant: '⚡' };
 
@@ -221,6 +263,107 @@ export default function MultiplexLive() {
       <main className="flex min-h-screen flex-col items-center justify-center gap-3">
         <Spinner className="h-6 w-6" />
         <p className="text-muted text-sm">Chargement des matchs…</p>
+      </main>
+    );
+  }
+
+  if (pendingInputs) {
+    return (
+      <main className="mx-auto max-w-3xl px-6 py-8 space-y-6">
+        <div>
+          <Link to={`/dashboard/competitions/${competitionId}`} className="text-sm text-muted hover:text-text">
+            ← {current?.name ?? 'Compétition'}
+          </Link>
+          <h1 className="mt-1 font-display text-2xl">Multiplex — Journée {roundNum}</h1>
+          <p className="text-sm text-muted mt-1">Configurez la corruption avant de lancer les matchs.</p>
+        </div>
+
+        <div className="space-y-3">
+          {pendingInputs.map((slot, i) => {
+            const home = slot.input.home.team;
+            const away = slot.input.away.team;
+            const deal = slot.corruption;
+            return (
+              <div key={slot.compMatchId} className="rounded-lg border border-border bg-surface p-4 space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 flex-1">
+                    {home.flag && <img src={home.flag} alt="" className="h-6 w-6 rounded-sm object-cover" />}
+                    <span className="font-medium text-sm truncate">{home.name}</span>
+                  </div>
+                  <span className="text-muted text-xs">vs</span>
+                  <div className="flex items-center gap-2 flex-1 justify-end">
+                    <span className="font-medium text-sm truncate">{away.name}</span>
+                    {away.flag && <img src={away.flag} alt="" className="h-6 w-6 rounded-sm object-cover" />}
+                  </div>
+                </div>
+
+                {deal ? (
+                  <div className="text-xs rounded-md bg-warning/10 border border-warning/30 px-3 py-2 text-warning flex items-center justify-between">
+                    <span>🤝 Corruption active — {deal.side === 'home' ? home.name : away.name} ({deal.bribe}M€)</span>
+                    <button
+                      className="underline opacity-70 hover:opacity-100"
+                      onClick={() => setPendingInputs((prev) => prev ? prev.map((s, si) => si === i ? { ...s, corruption: null } : s) : prev)}
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="ghost" className="text-xs" onClick={() => contactRef(i, 'home')}>
+                      🤫 Corrompre via {home.name}
+                    </Button>
+                    <Button size="sm" variant="ghost" className="text-xs" onClick={() => contactRef(i, 'away')}>
+                      🤫 Corrompre via {away.name}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <Button onClick={launchAll}>▶ Lancer tous les matchs</Button>
+
+        <AnimatePresence>
+          {corruptionModal && (() => {
+            const slot = pendingInputs[corruptionModal.slotIdx];
+            const teamName = corruptionModal.side === 'home'
+              ? slot.input.home.team.name
+              : slot.input.away.team.name;
+            return (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="w-full max-w-md rounded-xl border border-border bg-bg shadow-2xl p-6 space-y-4"
+                >
+                  <div className="text-xs uppercase tracking-widest text-muted">Corruption — {teamName}</div>
+
+                  {corruptionModal.offer ? (
+                    <>
+                      <div className="rounded-md bg-warning/10 border border-warning/30 p-4 space-y-2">
+                        <div className="text-sm italic text-warning">"{corruptionModal.offer.message}"</div>
+                        <div className="text-sm font-medium">Montant demandé : <span className="text-warning">{corruptionModal.offer.amount}M€</span></div>
+                      </div>
+                      <div className="flex gap-3">
+                        <Button size="sm" onClick={acceptCorruption}>Accepter le deal</Button>
+                        <Button size="sm" variant="ghost" onClick={declineCorruption}>Refuser</Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="rounded-md bg-surface border border-border p-4">
+                        <div className="text-sm text-muted">L'arbitre n'est pas intéressé pour ce match.</div>
+                      </div>
+                      <Button size="sm" variant="ghost" onClick={declineCorruption}>Fermer</Button>
+                    </>
+                  )}
+                </motion.div>
+              </div>
+            );
+          })()}
+        </AnimatePresence>
       </main>
     );
   }
