@@ -61,6 +61,14 @@ export const router = createBrowserRouter(
       ),
     },
     {
+      path: '/competition-view/:id',
+      element: (
+        <RequireAuth>
+          <CompetitionDetail />
+        </RequireAuth>
+      ),
+    },
+    {
       path: '/match',
       element: (
         <RequireAdmin>

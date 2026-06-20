@@ -27,10 +27,11 @@ const STATUS_COLOR: Record<string, string> = {
   completed: 'text-warning',
 };
 
-type Tab = 'tactique' | 'postes' | 'competitions';
+type Tab = 'tactique' | 'joueurs' | 'postes' | 'competitions';
 
 export default function MyTeam() {
   const session = useSession((s) => s.session);
+
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<{ team: Team; players: Player[] } | null>(null);
   const [tab, setTab] = useState<Tab>('tactique');
@@ -179,13 +180,13 @@ export default function MyTeam() {
 
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-border">
-        {(['tactique', 'postes', 'competitions'] as Tab[]).map((t) => (
+        {(['tactique', 'joueurs', 'postes', 'competitions'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium transition-colors ${tab === t ? 'border-b-2 border-accent text-accent' : 'text-muted hover:text-text'}`}
           >
-            {t === 'tactique' ? 'Tactique' : t === 'postes' ? 'Postes' : 'Compétitions'}
+            {t === 'tactique' ? 'Tactique' : t === 'joueurs' ? 'Joueurs' : t === 'postes' ? 'Postes' : 'Compétitions'}
           </button>
         ))}
       </div>
@@ -195,6 +196,34 @@ export default function MyTeam() {
         <div className="rounded-lg border border-border bg-surface p-5 space-y-4">
           <p className="text-xs text-muted">Modifie ta formation, ton 11 et ton style. Sauvegarde locale uniquement.</p>
           <TacticsPanel team={team} players={players} onSave={saveTactics} />
+        </div>
+      )}
+
+      {/* Joueurs */}
+      {tab === 'joueurs' && (
+        <div className="overflow-hidden rounded-lg border border-border bg-surface">
+          <table className="w-full text-sm">
+            <thead className="bg-bg text-left text-muted">
+              <tr>
+                <th className="px-4 py-2 font-medium">Nom</th>
+                <th className="px-4 py-2 font-medium">Poste</th>
+                <th className="px-4 py-2 font-medium text-right">Overall</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...players]
+                .sort((a, b) => b.overall - a.overall)
+                .map((p) => (
+                  <tr key={p.id} className="border-t border-border">
+                    <td className="px-4 py-2">{p.firstName} {p.lastName}</td>
+                    <td className="px-4 py-2">
+                      <span className="rounded bg-border/40 px-2 py-0.5 font-mono text-xs">{POSITION_LABEL[p.position]}</span>
+                    </td>
+                    <td className="px-4 py-2 text-right font-medium">{p.overall}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -237,20 +266,26 @@ export default function MyTeam() {
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
-              {summaries.map((s) => (
-                <div key={s.id} className="rounded-lg border border-border bg-surface p-4 space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="font-medium">{s.name}</div>
-                    <span className={`text-xs ${STATUS_COLOR[s.status]}`}>{STATUS_LABEL[s.status]}</span>
+              {summaries.map((s) => {
+                const clickable = s.status === 'ongoing';
+                const inner = (
+                  <div className={`rounded-lg border border-border bg-surface p-4 space-y-2 transition-colors ${clickable ? 'hover:border-accent/50 cursor-pointer' : ''}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="font-medium">{s.name}</div>
+                      <span className={`text-xs ${STATUS_COLOR[s.status]}`}>{STATUS_LABEL[s.status]}</span>
+                    </div>
+                    <div className="text-xs text-muted">
+                      {FORMAT_LABEL[s.format]} · {s.teamCount} équipes
+                    </div>
+                    {s.winner && (
+                      <div className="text-xs text-warning">🏆 Vainqueur enregistré</div>
+                    )}
                   </div>
-                  <div className="text-xs text-muted">
-                    {FORMAT_LABEL[s.format]} · {s.teamCount} équipes
-                  </div>
-                  {s.winner && (
-                    <div className="text-xs text-warning">🏆 Vainqueur enregistré</div>
-                  )}
-                </div>
-              ))}
+                );
+                return clickable
+                  ? <Link key={s.id} to={`/competition-view/${s.id}`}>{inner}</Link>
+                  : <div key={s.id}>{inner}</div>;
+              })}
             </div>
           )}
         </div>

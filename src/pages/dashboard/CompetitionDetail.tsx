@@ -19,6 +19,7 @@ import type { DrawResult } from '@/lib/competition/draw';
 import type { Competition, CompMatch, PlayerCompStats } from '@/lib/competition/types';
 import type { CorruptionDeal } from '@/lib/sim/types';
 import type { Team } from '@/lib/types';
+import { env } from '@/lib/env';
 
 export default function CompetitionDetail() {
   const { id } = useParams<{ id: string }>();
@@ -42,8 +43,10 @@ export default function CompetitionDetail() {
   const [knockoutDraw, setKnockoutDraw] = useState<DrawResult | null>(null);
   const [preMatchModal, setPreMatchModal] = useState<{ matchId: string; home: Team; away: Team } | null>(null);
 
+  const readToken = pat ?? env.githubReadToken ?? null;
+
   useEffect(() => {
-    if (!pat || !id) return;
+    if (!readToken || !id) return;
 
     const teamLoad = teams.length === 0 ? refreshTeams(ownerId, effectivePat) : Promise.resolve();
 
@@ -53,9 +56,9 @@ export default function CompetitionDetail() {
       return;
     }
 
-    Promise.all([load(id, pat), teamLoad]).finally(() => setLoading(false));
+    Promise.all([load(id, readToken), teamLoad]).finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, pat]);
+  }, [id, readToken]);
 
   if (loading) {
     return <div className="flex justify-center py-20"><Spinner className="h-6 w-6" /></div>;
