@@ -11,7 +11,6 @@ import { useBackendArgs } from '@/hooks/useBackendArgs';
 import {
   generateLeagueMatches,
   generateCupBracket,
-  generateGroupsKnockout,
   generateGroupsKnockoutFromGroups,
   buildInitialStandings,
 } from '@/lib/competition/scheduler';
@@ -38,6 +37,7 @@ export default function CompetitionNew() {
   const [groupsCount, setGroupsCount] = useState(4);
   const [qualifyPerGroup, setQualifyPerGroup] = useState(2);
   const [rules, setRules] = useState<MatchRules>(DEFAULT_RULES);
+  const [knockoutRules, setKnockoutRules] = useState<MatchRules>({ ...DEFAULT_RULES, extraTime: true, penalties: true });
   const [drawResult, setDrawResult] = useState<ReturnType<typeof conductDraw> | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -76,55 +76,41 @@ export default function CompetitionNew() {
         groupsCount: format === 'groups_knockout' ? groupsCount : undefined,
         qualifyPerGroup: format === 'groups_knockout' ? qualifyPerGroup : undefined,
         matchRules: rules,
+        knockoutRules: format === 'groups_knockout' ? knockoutRules : undefined,
       };
 
-      // rebuild ordered teamIds from drawn groups
-      const orderedTeams = Object.values(drawnGroups).flat();
-
+      let teamIds: string[];
       let matches, groups;
+
       if (format === 'league') {
-        matches = generateLeagueMatches(orderedTeams, legs);
+        teamIds = [...selectedTeams];
+        matches = generateLeagueMatches(teamIds, legs);
         groups = undefined;
       } else if (format === 'cup') {
-        matches = generateCupBracket(orderedTeams, legs, thirdPlace);
+        teamIds = [...selectedTeams];
+        matches = generateCupBracket(teamIds, legs, thirdPlace);
         groups = undefined;
       } else {
-        // use drawn group assignments directly
+        // groups_knockout: drawnGroups comes from DrawCeremony
         const groupList = Object.entries(drawnGroups).map(([key, tids], i) => ({
           id: key,
           name: `Groupe ${'ABCDEFGHIJKLMNOP'[i]}`,
           teamIds: tids,
         }));
-        const result = generateGroupsKnockout(
-          orderedTeams, groupsCount, qualifyPerGroup, legs, thirdPlace,
-        );
-        // override generated groups with drawn ones
+        teamIds = groupList.flatMap((g) => g.teamIds);
+        const result = generateGroupsKnockoutFromGroups(groupList, qualifyPerGroup, legs, thirdPlace);
         matches = result.matches;
-        groups = groupList;
-        // re-assign group matches to drawn groups
-        let gMatchIdx = 0;
-        matches = matches.map((m) => {
-          if (m.phase !== 'group') return m;
-          const gi = Math.floor(gMatchIdx / (groupList[0]?.teamIds.length ?? 1));
-          gMatchIdx++;
-          return { ...m, groupId: groupList[Math.min(gi, groupList.length - 1)]?.id ?? m.groupId };
-        });
-        // regenerate group matches properly from drawn groups
-        const { matches: properMatches, groups: _ } = generateGroupsKnockoutFromGroups(
-          groupList, qualifyPerGroup, legs, thirdPlace,
-        );
-        matches = properMatches;
-        groups = groupList;
+        groups = result.groups;
       }
 
       const comp: Competition = {
         id,
         name: name.trim(),
         format,
-        teamIds: orderedTeams,
+        teamIds,
         matches,
         groups,
-        standings: buildInitialStandings(orderedTeams),
+        standings: buildInitialStandings(teamIds),
         playerStats: {},
         config,
         currentRound: 1,
@@ -265,57 +251,18 @@ export default function CompetitionNew() {
       </section>
 
       <section className="space-y-4 rounded-lg border border-border bg-surface p-5">
-        <div className="text-xs uppercase tracking-widest text-muted">Règles des matchs</div>
-        <label className="flex items-center gap-3 text-sm cursor-pointer">
-          <input
-            type="checkbox"
-            checked={rules.noOffside}
-            onChange={(e) => setRules({ ...rules, noOffside: e.target.checked })}
-            className="h-4 w-4 rounded border-border"
-          />
-          Pas de hors-jeu
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block text-muted">Remplaçants max</span>
-          <select
-            className="h-9 rounded-md border border-border bg-surface px-3 text-sm"
-            value={rules.maxSubs}
-            onChange={(e) => setRules({ ...rules, maxSubs: Number(e.target.value) as 3 | 5 })}
-          >
-            <option value={3}>3</option>
-            <option value={5}>5</option>
-          </select>
-        </label>
-        <label className="flex items-center gap-3 text-sm cursor-pointer">
-          <input
-            type="checkbox"
-            checked={rules.extraTime}
-            onChange={(e) => setRules({ ...rules, extraTime: e.target.checked })}
-            className="h-4 w-4 rounded border-border"
-          />
-          Prolongations
-        </label>
-        {rules.extraTime && (
-          <label className="flex items-center gap-3 text-sm cursor-pointer pl-5">
-            <input
-              type="checkbox"
-              checked={rules.goldenGoal}
-              onChange={(e) => setRules({ ...rules, goldenGoal: e.target.checked })}
-              className="h-4 w-4 rounded border-border"
-            />
-            But en or
-          </label>
-        )}
-        <label className="flex items-center gap-3 text-sm cursor-pointer">
-          <input
-            type="checkbox"
-            checked={rules.penalties}
-            onChange={(e) => setRules({ ...rules, penalties: e.target.checked })}
-            className="h-4 w-4 rounded border-border"
-          />
-          Tirs au but
-        </label>
+        <div className="text-xs uppercase tracking-widest text-muted">
+          {format === 'groups_knockout' ? 'Règles — Phase de groupes' : 'Règles des matchs'}
+        </div>
+        <RulesEditor rules={rules} onChange={setRules} showKnockoutOptions={format !== 'groups_knockout'} />
       </section>
+
+      {format === 'groups_knockout' && (
+        <section className="space-y-4 rounded-lg border border-border bg-surface p-5">
+          <div className="text-xs uppercase tracking-widest text-muted">Règles — Phase finale</div>
+          <RulesEditor rules={knockoutRules} onChange={setKnockoutRules} showKnockoutOptions />
+        </section>
+      )}
 
       <section className="space-y-4 rounded-lg border border-border bg-surface p-5">
         <div className="flex items-center justify-between">
@@ -370,6 +317,74 @@ export default function CompetitionNew() {
           </span>
         )}
       </div>
+    </div>
+  );
+}
+
+function RulesEditor({
+  rules,
+  onChange,
+  showKnockoutOptions,
+}: {
+  rules: MatchRules;
+  onChange: (r: MatchRules) => void;
+  showKnockoutOptions: boolean;
+}) {
+  return (
+    <div className="space-y-3">
+      <label className="flex items-center gap-3 text-sm cursor-pointer">
+        <input
+          type="checkbox"
+          checked={rules.noOffside}
+          onChange={(e) => onChange({ ...rules, noOffside: e.target.checked })}
+          className="h-4 w-4 rounded border-border"
+        />
+        Pas de hors-jeu
+      </label>
+      <label className="block text-sm">
+        <span className="mb-1 block text-muted">Remplaçants max</span>
+        <select
+          className="h-9 rounded-md border border-border bg-surface px-3 text-sm"
+          value={rules.maxSubs}
+          onChange={(e) => onChange({ ...rules, maxSubs: Number(e.target.value) as 3 | 5 })}
+        >
+          <option value={3}>3</option>
+          <option value={5}>5</option>
+        </select>
+      </label>
+      {showKnockoutOptions && (
+        <>
+          <label className="flex items-center gap-3 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={rules.extraTime}
+              onChange={(e) => onChange({ ...rules, extraTime: e.target.checked })}
+              className="h-4 w-4 rounded border-border"
+            />
+            Prolongations
+          </label>
+          {rules.extraTime && (
+            <label className="flex items-center gap-3 text-sm cursor-pointer pl-5">
+              <input
+                type="checkbox"
+                checked={rules.goldenGoal}
+                onChange={(e) => onChange({ ...rules, goldenGoal: e.target.checked })}
+                className="h-4 w-4 rounded border-border"
+              />
+              But en or
+            </label>
+          )}
+          <label className="flex items-center gap-3 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={rules.penalties}
+              onChange={(e) => onChange({ ...rules, penalties: e.target.checked })}
+              className="h-4 w-4 rounded border-border"
+            />
+            Tirs au but
+          </label>
+        </>
+      )}
     </div>
   );
 }

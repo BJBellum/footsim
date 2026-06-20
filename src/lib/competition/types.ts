@@ -46,7 +46,10 @@ export type CompetitionConfig = {
   thirdPlaceMatch: boolean;
   groupsCount?: number;
   qualifyPerGroup?: number;
+  /** Used for league/cup, and as group-phase rules for groups_knockout */
   matchRules: MatchRules;
+  /** Knockout-phase rules for groups_knockout (if absent, falls back to matchRules) */
+  knockoutRules?: MatchRules;
 };
 
 export type PlayerCompStats = {
@@ -96,6 +99,12 @@ export type CompetitionSummary = {
   createdAt: string;
   winner?: string;
 };
+
+/** Pick the right MatchRules for a given match phase. */
+export function rulesForPhase(config: CompetitionConfig, phase: string): MatchRules {
+  const isKnockout = phase !== 'group' && phase !== 'league';
+  return (isKnockout && config.knockoutRules) ? config.knockoutRules : config.matchRules;
+}
 
 export const FORMAT_LABEL: Record<CompetitionFormat, string> = {
   league: 'Championnat (Ligue)',

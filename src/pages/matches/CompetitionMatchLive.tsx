@@ -17,6 +17,7 @@ import { useCredentials } from '@/stores/credentials';
 import { useBackendArgs } from '@/hooks/useBackendArgs';
 import { saveMatch } from '@/lib/github/matches';
 import { advanceBracket, applyResultToStandings } from '@/lib/competition/scheduler';
+import { rulesForPhase } from '@/lib/competition/types';
 
 import type { Team } from '@/lib/types';
 import type { MatchInput } from '@/lib/sim/types';
@@ -106,7 +107,7 @@ export default function CompetitionMatchLive() {
             formation: awayData.team.formation,
           },
           speed: '1',
-          rules: comp.config.matchRules,
+          rules: rulesForPhase(comp.config, compMatch.phase),
         };
         startMatch(input);
       } catch (err) {

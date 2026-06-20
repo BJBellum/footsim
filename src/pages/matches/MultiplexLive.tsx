@@ -10,6 +10,7 @@ import { useTeams } from '@/stores/teams';
 import { useCredentials } from '@/stores/credentials';
 import { useBackendArgs } from '@/hooks/useBackendArgs';
 import { advanceBracket, applyResultToStandings } from '@/lib/competition/scheduler';
+import { rulesForPhase } from '@/lib/competition/types';
 import { accumulateMatchStats, computeAwards } from '@/lib/competition/statsAccumulator';
 import type { MatchInput, Speed } from '@/lib/sim/types';
 import type { Team } from '@/lib/types';
@@ -79,7 +80,7 @@ export default function MultiplexLive() {
               home: { team: homeData.team, players: homeData.players, formation: homeData.team.formation },
               away: { team: awayData.team, players: awayData.players, formation: awayData.team.formation },
               speed: '1',
-              rules: comp.config.matchRules,
+              rules: rulesForPhase(comp.config, m.phase),
             },
           });
         }
