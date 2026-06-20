@@ -346,6 +346,35 @@ export function advanceBracket(matches: CompMatch[], completedMatchId: string): 
   });
 }
 
+/** True if all group-phase matches are done and knockout has no teams yet. */
+export function needsKnockoutDraw(matches: import('./types').CompMatch[]): boolean {
+  const groupMatches = matches.filter((m) => m.phase === 'group');
+  const knockoutMatches = matches.filter((m) => m.phase !== 'group' && m.phase !== '3rd');
+  if (groupMatches.length === 0) return false;
+  const allGroupDone = groupMatches.every((m) => m.status === 'completed');
+  const knockoutUnseeded = knockoutMatches.some((m) => m.homeTeamId === null && !m.homeFromMatch);
+  return allGroupDone && knockoutUnseeded;
+}
+
+/**
+ * Get qualified teams per rank across groups, for the knockout draw.
+ * Returns array of arrays: qualifiers[0] = all group winners, qualifiers[1] = all runners-up, etc.
+ */
+export function getQualifiersByRank(
+  groups: import('./types').CompGroup[],
+  standings: Record<string, import('./types').Standing>,
+  qualifyPerGroup: number,
+): string[][] {
+  const byRank: string[][] = Array.from({ length: qualifyPerGroup }, () => []);
+  for (const group of groups) {
+    const sorted = sortStandings(group.teamIds.map((id) => standings[id]).filter(Boolean));
+    for (let rank = 0; rank < qualifyPerGroup && rank < sorted.length; rank++) {
+      byRank[rank].push(sorted[rank].teamId);
+    }
+  }
+  return byRank;
+}
+
 // After group stage completes, seed knockout bracket with group qualifiers
 export function seedKnockoutFromGroups(
   matches: CompMatch[],
@@ -353,15 +382,17 @@ export function seedKnockoutFromGroups(
   standings: Record<string, Standing>,
   qualifyPerGroup: number,
 ): CompMatch[] {
-  // For each group, get top N teams
   const qualifiers: string[] = [];
   for (const group of groups) {
     const groupStandings = group.teamIds.map((id) => standings[id]).filter(Boolean);
     const sorted = sortStandings(groupStandings);
     qualifiers.push(...sorted.slice(0, qualifyPerGroup).map((s) => s.teamId));
   }
+  return seedKnockoutWithOrder(matches, qualifiers);
+}
 
-  // Find the first knockout round matches (phase !== 'group', no homeTeamId/awayTeamId)
+/** Seed knockout slots with a pre-determined draw order. */
+export function seedKnockoutWithOrder(matches: CompMatch[], qualifiers: string[]): CompMatch[] {
   const knockoutFirstRound = matches
     .filter((m) => m.phase !== 'group' && m.phase !== '3rd')
     .sort((a, b) => a.round - b.round);
@@ -369,7 +400,6 @@ export function seedKnockoutFromGroups(
   const firstRound = knockoutFirstRound[0]?.round;
   const firstRoundMatches = knockoutFirstRound.filter((m) => m.round === firstRound);
 
-  // Assign qualifiers to slots (alternating group leaders for better seeding)
   let qi = 0;
   return matches.map((m) => {
     if (!firstRoundMatches.some((fm) => fm.id === m.id)) return m;

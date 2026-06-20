@@ -40,6 +40,7 @@ type State = {
   save: (competition: Competition, token: string) => Promise<void>;
   remove: (id: string, token: string) => Promise<void>;
   setCurrent: (c: Competition | null) => void;
+  saveLocal: (competition: Competition) => void;
 };
 
 export const useCompetition = create<State>((set, get) => ({
@@ -105,5 +106,10 @@ export const useCompetition = create<State>((set, get) => ({
     } else {
       set({ current: null, dirty: false });
     }
+  },
+
+  saveLocal(competition) {
+    lsWrite(competition);
+    set({ current: competition, dirty: true });
   },
 }));

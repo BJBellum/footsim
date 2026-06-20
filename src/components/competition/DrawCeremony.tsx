@@ -10,11 +10,12 @@ type Props = {
   teams: Team[];
   groupCount: number;
   onConfirm: (groups: Record<string, string[]>) => void;
+  knockoutMode?: boolean;
 };
 
 const GROUP_NAMES = 'ABCDEFGHIJKLMNOP'.split('');
 
-export function DrawCeremony({ result, teams, groupCount, onConfirm }: Props) {
+export function DrawCeremony({ result, teams, groupCount, onConfirm, knockoutMode = false }: Props) {
   const teamMap = new Map(teams.map((t) => [t.id, t]));
   const groupKeys = Object.keys(result.groups).sort();
 
@@ -101,11 +102,11 @@ export function DrawCeremony({ result, teams, groupCount, onConfirm }: Props) {
       </AnimatePresence>
 
       {/* Groups grid */}
-      <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${Math.min(groupCount, 4)}, minmax(0,1fr))` }}>
+      <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${Math.min(knockoutMode ? groupKeys.length : groupCount, 4)}, minmax(0,1fr))` }}>
         {groupKeys.map((gKey, gi) => (
           <div key={gKey} className="rounded-lg border border-border bg-surface p-3 space-y-2">
             <div className="text-xs font-semibold uppercase tracking-widest text-muted">
-              Groupe {GROUP_NAMES[gi]}
+              {knockoutMode ? `Match ${gi + 1}` : `Groupe ${GROUP_NAMES[gi]}`}
             </div>
             <div className="space-y-1">
               {result.groups[gKey].map((tid) => {
@@ -155,7 +156,7 @@ export function DrawCeremony({ result, teams, groupCount, onConfirm }: Props) {
         )}
         {done && (
           <Button onClick={() => onConfirm(result.groups)} size="lg">
-            Confirmer et créer la compétition
+            {knockoutMode ? 'Confirmer le tirage' : 'Confirmer et créer la compétition'}
           </Button>
         )}
       </div>

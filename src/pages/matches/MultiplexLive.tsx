@@ -20,6 +20,7 @@ export default function MultiplexLive() {
 
   const load = useCompetition((s) => s.load);
   const save = useCompetition((s) => s.save);
+  const saveLocal = useCompetition((s) => s.saveLocal);
   const current = useCompetition((s) => s.current);
   const teamsStore = useTeams((s) => s.teams);
   const fetchTeam = useTeams((s) => s.fetchTeam);
@@ -39,7 +40,7 @@ export default function MultiplexLive() {
 
   const [loading, setLoading] = useState(true);
   const [paused, setPaused] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [savingGh, setSavingGh] = useState(false);
   const [pendingUpdate, setPendingUpdate] = useState<Parameters<typeof save>[0] | null>(null);
 
   useEffect(() => {
@@ -178,17 +179,24 @@ export default function MultiplexLive() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allFinished]);
 
-  async function handleSave() {
+  function handleSaveLocal() {
+    if (!pendingUpdate) return;
+    saveLocal(pendingUpdate);
+    toast('success', 'Résultats enregistrés localement.');
+    setPendingUpdate(null);
+  }
+
+  async function handleSaveGitHub() {
     if (!pendingUpdate || !pat) return;
-    setSaving(true);
+    setSavingGh(true);
     try {
       await save(pendingUpdate, pat);
-      toast('success', 'Résultats enregistrés.');
+      toast('success', 'Résultats sauvegardés sur GitHub.');
       setPendingUpdate(null);
     } catch (err) {
       toast('error', `Erreur : ${err}`);
     } finally {
-      setSaving(false);
+      setSavingGh(false);
     }
   }
 
@@ -237,14 +245,19 @@ export default function MultiplexLive() {
       </div>
 
       {allFinished && (
-        <div className="rounded-lg border border-accent/30 bg-accent/5 p-4 flex items-center justify-between gap-3">
+        <div className="rounded-lg border border-accent/30 bg-accent/5 p-4 flex items-center justify-between gap-3 flex-wrap">
           <span className="font-medium">Tous les matchs sont terminés.</span>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {pendingUpdate && (
-              <Button size="sm" onClick={handleSave} disabled={saving}>
-                {saving ? <Spinner className="mr-1 h-3 w-3" /> : null}
-                Enregistrer les résultats
-              </Button>
+              <>
+                <Button size="sm" onClick={handleSaveLocal}>
+                  Enregistrer en local
+                </Button>
+                <Button size="sm" variant="ghost" onClick={handleSaveGitHub} disabled={savingGh}>
+                  {savingGh ? <Spinner className="mr-1 h-3 w-3" /> : null}
+                  ↑ GitHub
+                </Button>
+              </>
             )}
             <Button size="sm" variant="ghost" onClick={() => navigate(`/dashboard/competitions/${competitionId}`)}>
               Retour à la compétition

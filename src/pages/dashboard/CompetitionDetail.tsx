@@ -6,11 +6,15 @@ import { toast } from '@/components/ui/Toast';
 import { StandingsTable } from '@/components/competition/StandingsTable';
 import { BracketView } from '@/components/competition/BracketView';
 import { CompetitionStats } from '@/components/competition/CompetitionStats';
+import { DrawCeremony } from '@/components/competition/DrawCeremony';
 import { useCompetition } from '@/stores/competition';
 import { useTeams } from '@/stores/teams';
 import { useCredentials } from '@/stores/credentials';
 import { useBackendArgs } from '@/hooks/useBackendArgs';
 import { useSession } from '@/stores/session';
+import { needsKnockoutDraw, getQualifiersByRank, seedKnockoutWithOrder } from '@/lib/competition/scheduler';
+import { buildKnockoutPots, conductKnockoutDraw } from '@/lib/competition/draw';
+import type { DrawResult } from '@/lib/competition/draw';
 import type { Competition, CompMatch, PlayerCompStats } from '@/lib/competition/types';
 import type { Team } from '@/lib/types';
 
@@ -19,6 +23,7 @@ export default function CompetitionDetail() {
   const load = useCompetition((s) => s.load);
   const save = useCompetition((s) => s.save);
   const remove = useCompetition((s) => s.remove);
+  const setCurrent = useCompetition((s) => s.setCurrent);
   const current = useCompetition((s) => s.current);
   const dirty = useCompetition((s) => s.dirty);
   const teams = useTeams((s) => s.teams);
@@ -32,6 +37,7 @@ export default function CompetitionDetail() {
   const [deleting, setDeleting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'bracket' | 'rounds' | 'stats'>('overview');
+  const [knockoutDraw, setKnockoutDraw] = useState<DrawResult | null>(null);
 
   useEffect(() => {
     if (!pat || !id) return;
@@ -97,6 +103,30 @@ export default function CompetitionDetail() {
 
   const currentRound = current.currentRound;
 
+  const showKnockoutDraw = isAdmin
+    && isGroupsKO
+    && current.groups
+    && needsKnockoutDraw(current.matches)
+    && !knockoutDraw;
+
+  function startKnockoutDraw() {
+    if (!current || !current.groups || !current.config.qualifyPerGroup) return;
+    const byRank = getQualifiersByRank(current.groups, current.standings, current.config.qualifyPerGroup);
+    const pots = buildKnockoutPots(byRank);
+    const result = conductKnockoutDraw(pots);
+    setKnockoutDraw(result);
+  }
+
+  function confirmKnockoutDraw(groups: Record<string, string[]>) {
+    if (!current) return;
+    const orderedQualifiers = Object.values(groups).flat();
+    const updatedMatches = seedKnockoutWithOrder(current.matches, orderedQualifiers);
+    const updated: Competition = { ...current, matches: updatedMatches };
+    setCurrent(updated);
+    setKnockoutDraw(null);
+    toast('success', 'Tirage phase finale effectué. Sauvegardez pour conserver.');
+  }
+
   async function simulateRound(round: number) {
     if (!pat || !current) return;
     const roundMatches = current.matches.filter(
@@ -111,6 +141,28 @@ export default function CompetitionDetail() {
       // Multiplex
       navigate(`/competition/${current.id}/round/${round}`);
     }
+  }
+
+  if (knockoutDraw) {
+    const allQualifiedTeams = teams.filter((t) =>
+      Object.values(knockoutDraw.groups).flat().includes(t.id)
+    );
+    return (
+      <div className="space-y-6">
+        <div>
+          <Link to="/dashboard/competitions" className="text-sm text-muted hover:text-text">← Compétitions</Link>
+          <h1 className="mt-2 font-display text-4xl">Tirage — Phase finale</h1>
+          <p className="text-muted text-sm mt-1">{current.name}</p>
+        </div>
+        <DrawCeremony
+          result={knockoutDraw}
+          teams={allQualifiedTeams}
+          groupCount={Object.keys(knockoutDraw.groups).length}
+          onConfirm={confirmKnockoutDraw}
+          knockoutMode
+        />
+      </div>
+    );
   }
 
   return (
@@ -186,6 +238,18 @@ export default function CompetitionDetail() {
               />
             </div>
           )}
+        </div>
+      )}
+
+      {showKnockoutDraw && (
+        <div className="rounded-lg border border-accent/40 bg-accent/5 p-4 flex items-center justify-between gap-3">
+          <div>
+            <div className="font-medium">Phase de groupes terminée !</div>
+            <div className="text-sm text-muted">Lance le tirage au sort pour désigner les confrontations de la phase finale.</div>
+          </div>
+          <Button size="sm" onClick={startKnockoutDraw}>
+            🎰 Tirage phase finale
+          </Button>
         </div>
       )}
 
