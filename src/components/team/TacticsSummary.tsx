@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Player, SavedTactic } from '@/lib/types';
+import type { Formation, Player, SavedTactic } from '@/lib/types';
 import { TACTIC_STYLE_LABEL } from '@/lib/types';
 
 type Props = {
@@ -10,6 +10,131 @@ type Props = {
   onDelete: (id: string) => void;
   onRename?: (id: string, name: string) => void;
 };
+
+// Minimal slot layout for minimap — x/y in % of pitch
+const MINIMAP_LAYOUT: Record<Formation, { x: number; y: number }[]> = {
+  '4-3-3': [
+    { x: 50, y: 88 },
+    { x: 12, y: 70 }, { x: 34, y: 72 }, { x: 66, y: 72 }, { x: 88, y: 70 },
+    { x: 22, y: 50 }, { x: 50, y: 47 }, { x: 78, y: 50 },
+    { x: 12, y: 23 }, { x: 50, y: 18 }, { x: 88, y: 23 },
+  ],
+  '4-4-2': [
+    { x: 50, y: 88 },
+    { x: 12, y: 70 }, { x: 34, y: 72 }, { x: 66, y: 72 }, { x: 88, y: 70 },
+    { x: 8, y: 50 }, { x: 34, y: 49 }, { x: 66, y: 49 }, { x: 92, y: 50 },
+    { x: 34, y: 20 }, { x: 66, y: 20 },
+  ],
+  '3-5-2': [
+    { x: 50, y: 88 },
+    { x: 24, y: 72 }, { x: 50, y: 73 }, { x: 76, y: 72 },
+    { x: 8, y: 52 }, { x: 30, y: 53 }, { x: 50, y: 49 }, { x: 70, y: 53 }, { x: 92, y: 52 },
+    { x: 34, y: 20 }, { x: 66, y: 20 },
+  ],
+  '4-2-3-1': [
+    { x: 50, y: 88 },
+    { x: 12, y: 70 }, { x: 34, y: 72 }, { x: 66, y: 72 }, { x: 88, y: 70 },
+    { x: 34, y: 58 }, { x: 66, y: 58 },
+    { x: 12, y: 40 }, { x: 50, y: 38 }, { x: 88, y: 40 },
+    { x: 50, y: 18 },
+  ],
+  '5-3-2': [
+    { x: 50, y: 88 },
+    { x: 6, y: 70 }, { x: 24, y: 72 }, { x: 50, y: 73 }, { x: 76, y: 72 }, { x: 94, y: 70 },
+    { x: 24, y: 50 }, { x: 50, y: 50 }, { x: 76, y: 50 },
+    { x: 34, y: 20 }, { x: 66, y: 20 },
+  ],
+  '4-1-4-1': [
+    { x: 50, y: 88 },
+    { x: 12, y: 70 }, { x: 34, y: 72 }, { x: 66, y: 72 }, { x: 88, y: 70 },
+    { x: 50, y: 60 },
+    { x: 8, y: 46 }, { x: 34, y: 45 }, { x: 66, y: 45 }, { x: 92, y: 46 },
+    { x: 50, y: 18 },
+  ],
+  '3-4-3': [
+    { x: 50, y: 88 },
+    { x: 24, y: 72 }, { x: 50, y: 73 }, { x: 76, y: 72 },
+    { x: 8, y: 51 }, { x: 34, y: 49 }, { x: 66, y: 49 }, { x: 92, y: 51 },
+    { x: 12, y: 23 }, { x: 50, y: 18 }, { x: 88, y: 23 },
+  ],
+  '4-3-2-1': [
+    { x: 50, y: 88 },
+    { x: 12, y: 70 }, { x: 34, y: 72 }, { x: 66, y: 72 }, { x: 88, y: 70 },
+    { x: 22, y: 57 }, { x: 50, y: 55 }, { x: 78, y: 57 },
+    { x: 34, y: 38 }, { x: 66, y: 38 },
+    { x: 50, y: 18 },
+  ],
+  '4-5-1': [
+    { x: 50, y: 88 },
+    { x: 12, y: 70 }, { x: 34, y: 72 }, { x: 66, y: 72 }, { x: 88, y: 70 },
+    { x: 8, y: 48 }, { x: 28, y: 46 }, { x: 50, y: 50 }, { x: 72, y: 46 }, { x: 92, y: 48 },
+    { x: 50, y: 18 },
+  ],
+  '4-4-1-1': [
+    { x: 50, y: 88 },
+    { x: 12, y: 70 }, { x: 34, y: 72 }, { x: 66, y: 72 }, { x: 88, y: 70 },
+    { x: 8, y: 51 }, { x: 34, y: 50 }, { x: 66, y: 50 }, { x: 92, y: 51 },
+    { x: 50, y: 30 },
+    { x: 50, y: 16 },
+  ],
+  '3-4-1-2': [
+    { x: 50, y: 88 },
+    { x: 24, y: 72 }, { x: 50, y: 73 }, { x: 76, y: 72 },
+    { x: 8, y: 52 }, { x: 34, y: 50 }, { x: 66, y: 50 }, { x: 92, y: 52 },
+    { x: 50, y: 34 },
+    { x: 34, y: 18 }, { x: 66, y: 18 },
+  ],
+  '5-4-1': [
+    { x: 50, y: 88 },
+    { x: 6, y: 70 }, { x: 24, y: 72 }, { x: 50, y: 73 }, { x: 76, y: 72 }, { x: 94, y: 70 },
+    { x: 8, y: 48 }, { x: 34, y: 46 }, { x: 66, y: 46 }, { x: 92, y: 48 },
+    { x: 50, y: 18 },
+  ],
+  '3-6-1': [
+    { x: 50, y: 88 },
+    { x: 24, y: 72 }, { x: 50, y: 73 }, { x: 76, y: 72 },
+    { x: 6, y: 50 }, { x: 24, y: 52 }, { x: 38, y: 47 }, { x: 62, y: 47 }, { x: 76, y: 52 }, { x: 94, y: 50 },
+    { x: 50, y: 18 },
+  ],
+};
+
+function TacticMinimap({ formation, lineup, players }: { formation: Formation; lineup: string[]; players: Player[] }) {
+  const slots = MINIMAP_LAYOUT[formation];
+  if (!slots) return null;
+  const playerMap = new Map(players.map((p) => [p.id, p]));
+
+  return (
+    <svg viewBox="0 0 100 140" width="80" height="112" className="shrink-0 rounded overflow-hidden">
+      {/* Pitch bg */}
+      <rect width="100" height="140" fill="var(--pitch)" />
+      {/* Centre line */}
+      <line x1="5" y1="70" x2="95" y2="70" stroke="var(--pitch-line)" strokeWidth="0.8" opacity="0.5" />
+      {/* Centre circle */}
+      <circle cx="50" cy="70" r="12" stroke="var(--pitch-line)" strokeWidth="0.8" fill="none" opacity="0.4" />
+      {/* Top penalty area */}
+      <rect x="25" y="5" width="50" height="20" stroke="var(--pitch-line)" strokeWidth="0.8" fill="none" opacity="0.4" />
+      {/* Bottom penalty area */}
+      <rect x="25" y="115" width="50" height="20" stroke="var(--pitch-line)" strokeWidth="0.8" fill="none" opacity="0.4" />
+      {/* Player dots */}
+      {slots.map((slot, i) => {
+        const id = lineup[i];
+        const p = id ? playerMap.get(id) : undefined;
+        const cx = (slot.x / 100) * 100;
+        const cy = (slot.y / 100) * 140;
+        return (
+          <g key={i}>
+            <circle
+              cx={cx} cy={cy} r={4.5}
+              fill={p ? 'white' : 'rgba(255,255,255,0.25)'}
+              stroke={p ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.3)'}
+              strokeWidth="0.8"
+            />
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
 
 function TacticCard({
   tactic,
@@ -81,25 +206,30 @@ function TacticCard({
         <button onClick={onDelete} className="text-muted hover:text-danger text-xs shrink-0 transition-colors mt-0.5">✕</button>
       </div>
 
-      {/* Lineup */}
-      {groups.length > 0 ? (
-        <div className="space-y-1">
-          {groups.map((g) => (
-            <div key={g.label} className="flex items-start gap-1.5">
-              <span className="w-7 shrink-0 text-[9px] font-bold text-muted uppercase pt-0.5">{g.label}</span>
-              <div className="flex flex-wrap gap-1">
-                {g.players.map((p) => (
-                  <span key={p.id} className="text-[10px] bg-border/40 rounded px-1 py-0.5 leading-tight" title={`${p.firstName} ${p.lastName} · ${p.position} · ${p.overall}`}>
-                    {p.lastName}
-                  </span>
-                ))}
-              </div>
+      {/* Minimap + Lineup */}
+      <div className="flex gap-2">
+        <TacticMinimap formation={tactic.formation} lineup={tactic.lineup} players={players} />
+        <div className="flex-1 min-w-0">
+          {groups.length > 0 ? (
+            <div className="space-y-1">
+              {groups.map((g) => (
+                <div key={g.label} className="flex items-start gap-1.5">
+                  <span className="w-7 shrink-0 text-[9px] font-bold text-muted uppercase pt-0.5">{g.label}</span>
+                  <div className="flex flex-wrap gap-1">
+                    {g.players.map((p) => (
+                      <span key={p.id} className="text-[10px] bg-border/40 rounded px-1 py-0.5 leading-tight" title={`${p.firstName} ${p.lastName} · ${p.position} · ${p.overall}`}>
+                        {p.lastName}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
+          ) : (
+            <p className="text-[10px] text-muted">Aucun joueur assigné.</p>
+          )}
         </div>
-      ) : (
-        <p className="text-[10px] text-muted">Aucun joueur assigné.</p>
-      )}
+      </div>
 
       {/* Activate button */}
       <button

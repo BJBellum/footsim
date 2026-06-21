@@ -243,11 +243,6 @@ export function TacticsPanel({ team, players, onSave }: Props) {
                 ✏️ Éditeur libre
               </button>
             </div>
-            {formationLabel && (
-              <div className="mb-2 text-xs text-accent">
-                Formation personnalisée : <strong>{formationLabel}</strong> (moteur : {formation})
-              </div>
-            )}
             <div className="flex flex-wrap gap-2">
               {FORMATIONS.map((f) => (
                 <Button key={f} size="sm" variant={formation === f && !formationLabel ? 'primary' : 'ghost'} onClick={() => changeFormation(f)}>
@@ -255,6 +250,20 @@ export function TacticsPanel({ team, players, onSave }: Props) {
                 </Button>
               ))}
             </div>
+            {formationLabel && (
+              <div className="mt-3 flex items-center gap-2">
+                <span className="text-[10px] uppercase tracking-widest text-muted">Personnalisée</span>
+                <div className="h-px flex-1 bg-border" />
+                <button
+                  onClick={() => { /* keep formationLabel + lineup, just display it active */ setFormation(formation); }}
+                  className={`rounded border px-2 py-0.5 text-xs font-mono font-medium transition-colors ${formationLabel ? 'border-accent bg-accent/10 text-accent' : 'border-border text-muted hover:border-accent hover:text-accent'}`}
+                  title={`Formation personnalisée (moteur : ${formation})`}
+                >
+                  {formationLabel}
+                </button>
+                <button onClick={() => { setFormationLabel(undefined); }} className="text-[10px] text-muted hover:text-danger transition-colors" title="Supprimer formation personnalisée">✕</button>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
@@ -373,6 +382,9 @@ export function TacticsPanel({ team, players, onSave }: Props) {
 // ── Custom Styles Panel ───────────────────────────────────────────────────────
 
 const DEFAULT_MODS: TacticMods = { shotFreqMult: 1, foulRateMult: 1, midfieldMult: 1, attackMult: 1, defenseMult: 1 };
+const BUDGET_MAX = 60;
+const SLIDER_MIN = 70;  // -30%
+const SLIDER_MAX = 130; // +30%
 
 const MOD_LABELS: Record<keyof TacticMods, string> = {
   attackMult: 'Attaque',
@@ -382,9 +394,20 @@ const MOD_LABELS: Record<keyof TacticMods, string> = {
   foulRateMult: 'Fréquence fautes',
 };
 
-function ModSlider({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+/** Budget cost: bonus costs 1pt/%, malus gives back 0.5pt/% */
+function budgetCost(mods: TacticMods): number {
+  return (Object.keys(DEFAULT_MODS) as (keyof TacticMods)[]).reduce((sum, k) => {
+    const pct = Math.round((mods[k] - 1) * 100);
+    return sum + (pct > 0 ? pct : pct * 0.5);
+  }, 0);
+}
+
+function ModSlider({ label, value, onChange, budgetLeft }: { label: string; value: number; onChange: (v: number) => void; budgetLeft: number }) {
   const pct = Math.round((value - 1) * 100);
   const color = pct > 0 ? 'text-green-400' : pct < 0 ? 'text-danger' : 'text-muted';
+  // effectiveMax: current value + remaining budget (each +1% costs 1pt from budget)
+  const effectiveMax = Math.max(SLIDER_MIN, Math.min(SLIDER_MAX, Math.round(100 + pct + budgetLeft)));
+
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-xs">
@@ -393,7 +416,7 @@ function ModSlider({ label, value, onChange }: { label: string; value: number; o
       </div>
       <input
         type="range"
-        min={50} max={150} step={5}
+        min={SLIDER_MIN} max={effectiveMax} step={5}
         value={Math.round(value * 100)}
         onChange={(e) => onChange(Number(e.target.value) / 100)}
         className="w-full accent-accent"
@@ -414,12 +437,17 @@ function CustomStyleEditor({
   const [name, setName] = useState(initial?.name ?? '');
   const [mods, setMods] = useState<TacticMods>(initial?.mods ?? { ...DEFAULT_MODS });
 
+  const spent = budgetCost(mods);
+  const remaining = BUDGET_MAX - spent;
+  const overBudget = remaining < 0;
+
   function setMod(key: keyof TacticMods, v: number) {
-    setMods((prev) => ({ ...prev, [key]: v }));
+    const next = { ...mods, [key]: v };
+    if (budgetCost(next) <= BUDGET_MAX) setMods(next);
   }
 
   function handleSave() {
-    if (!name.trim()) return;
+    if (!name.trim() || overBudget) return;
     onSave({ id: initial?.id ?? crypto.randomUUID(), name: name.trim(), mods });
   }
 
@@ -429,13 +457,29 @@ function CustomStyleEditor({
         <label className="block text-xs text-muted mb-1">Nom du style</label>
         <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Mon pressing offensif" />
       </div>
+      {/* Budget bar */}
+      <div className="space-y-1">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted">Budget</span>
+          <span className={overBudget ? 'text-danger font-medium' : remaining < 10 ? 'text-warning' : 'text-muted'}>
+            {Math.round(spent)} / {BUDGET_MAX} pts {overBudget ? '— dépassé !' : `(${Math.round(remaining)} restants)`}
+          </span>
+        </div>
+        <div className="h-1.5 rounded-full bg-border overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all ${overBudget ? 'bg-danger' : remaining < 10 ? 'bg-warning' : 'bg-accent'}`}
+            style={{ width: `${Math.min(100, (spent / BUDGET_MAX) * 100)}%` }}
+          />
+        </div>
+        <p className="text-[10px] text-muted">+1 pt par % de bonus · malus rend 0.5 pt · max ±30% par slider</p>
+      </div>
       <div className="space-y-3">
         {(Object.keys(MOD_LABELS) as (keyof TacticMods)[]).map((k) => (
-          <ModSlider key={k} label={MOD_LABELS[k]} value={mods[k]} onChange={(v) => setMod(k, v)} />
+          <ModSlider key={k} label={MOD_LABELS[k]} value={mods[k]} onChange={(v) => setMod(k, v)} budgetLeft={remaining} />
         ))}
       </div>
       <div className="flex gap-2">
-        <Button size="sm" onClick={handleSave} disabled={!name.trim()}>Enregistrer</Button>
+        <Button size="sm" onClick={handleSave} disabled={!name.trim() || overBudget}>Enregistrer</Button>
         <Button size="sm" variant="ghost" onClick={onCancel}>Annuler</Button>
       </div>
     </div>
