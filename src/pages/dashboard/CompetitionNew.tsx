@@ -26,7 +26,7 @@ import { DrawCeremony } from '@/components/competition/DrawCeremony';
 export default function CompetitionNew() {
   const teams = useTeams((s) => s.teams);
   const refresh = useTeams((s) => s.refresh);
-  const save = useCompetition((s) => s.save);
+  const saveLocal = useCompetition((s) => s.saveLocal);
   const pat = useCredentials((s) => s.githubPat);
   const { ownerId, pat: effectivePat } = useBackendArgs();
   const navigate = useNavigate();
@@ -60,7 +60,7 @@ export default function CompetitionNew() {
   const needsEven = format === 'groups_knockout';
   const evenOk = !needsEven || isEvenTeamCount(selectedTeams.length);
   const lpmOk = format !== 'lpm' || selectedTeams.length === 48;
-  const valid = name.trim().length > 0 && selectedTeams.length >= minTeams && evenOk && lpmOk && !!pat;
+  const valid = name.trim().length > 0 && selectedTeams.length >= minTeams && evenOk && lpmOk;
 
   function startDraw() {
     if (!valid) return;
@@ -72,7 +72,6 @@ export default function CompetitionNew() {
   }
 
   async function createWithGroups(drawnGroups: Record<string, string[]>) {
-    if (!pat) return;
     setBusy(true);
     try {
       const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -139,7 +138,7 @@ export default function CompetitionNew() {
         hostTeamId: (format === 'lpm' && hostTeamId && teamIds.includes(hostTeamId)) ? hostTeamId : undefined,
       };
 
-      await save(comp, pat);
+      saveLocal(comp);
       toast('success', 'Compétition créée.');
       navigate(`/dashboard/competitions/${id}`);
     } catch (err) {
@@ -150,7 +149,7 @@ export default function CompetitionNew() {
   }
 
   async function create() {
-    if (!valid || !pat) return;
+    if (!valid) return;
     if (format === 'groups_knockout' || format === 'cup') {
       startDraw();
       return;
