@@ -1,5 +1,6 @@
 import type { MatchRules } from '@/lib/sim/types';
 import type { PressItem } from './press';
+import type { Injury, Suspension } from './injuries';
 
 export type CompetitionFormat = 'league' | 'cup' | 'groups_knockout';
 export type CompetitionStatus = 'setup' | 'ongoing' | 'completed';
@@ -96,6 +97,10 @@ export type Competition = {
   morale?: Record<string, number>;
   /** Press articles generated after each match */
   pressItems?: PressItem[];
+  /** Active injuries across all teams */
+  injuries?: Injury[];
+  /** Active suspensions across all teams */
+  suspensions?: Suspension[];
 };
 
 export type CompetitionSummary = {

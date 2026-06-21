@@ -65,5 +65,7 @@ export function eventText(
       return `Fin du match.`;
     case 'coachRed':
       return `🟥 ${minute}' — L'entraîneur de ${team} est expulsé ! Il sera suspendu au prochain match.`;
+    case 'injury':
+      return `🚑 ${minute}' — ${playerName ?? 'Un joueur'} (${team}) sort blessé sur civière.`;
   }
 }

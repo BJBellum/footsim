@@ -24,6 +24,8 @@ import { env } from '@/lib/env';
 import { moraleLabel, MORALE_DEFAULT } from '@/lib/competition/morale';
 import type { PressItem } from '@/lib/competition/press';
 import { PRESS_CATEGORY_COLOR, PRESS_CATEGORY_LABEL } from '@/lib/competition/press';
+import type { Injury, Suspension } from '@/lib/competition/injuries';
+import { SEVERITY_COLOR, CAUSE_LABEL } from '@/lib/competition/injuries';
 
 export default function CompetitionDetail() {
   const { id } = useParams<{ id: string }>();
@@ -47,7 +49,7 @@ export default function CompetitionDetail() {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'bracket' | 'rounds' | 'stats' | 'presse'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'bracket' | 'rounds' | 'stats' | 'presse' | 'medical'>('overview');
   const [knockoutDraw, setKnockoutDraw] = useState<DrawResult | null>(null);
   const [preMatchModal, setPreMatchModal] = useState<{ matchId: string; home: Team; away: Team } | null>(null);
 
@@ -180,14 +182,26 @@ export default function CompetitionDetail() {
     setKnockoutDraw(result);
   }
 
-  function confirmKnockoutDraw(groups: Record<string, string[]>) {
+  async function confirmKnockoutDraw(groups: Record<string, string[]>) {
     if (!current) return;
     const orderedQualifiers = Object.values(groups).flat();
     const updatedMatches = seedKnockoutWithOrder(current.matches, orderedQualifiers);
     const updated: Competition = { ...current, matches: updatedMatches };
     setCurrent(updated);
     setKnockoutDraw(null);
-    toast('success', 'Tirage phase finale effectué. Sauvegardez pour conserver.');
+    if (pat) {
+      setSyncing(true);
+      try {
+        await save(updated, pat);
+        toast('success', 'Tirage effectué et sauvegardé.');
+      } catch {
+        toast('error', 'Tirage effectué mais sauvegarde GitHub échouée — synchronise manuellement.');
+      } finally {
+        setSyncing(false);
+      }
+    } else {
+      toast('success', 'Tirage phase finale effectué.');
+    }
   }
 
   function openMatchModal(matchId: string) {
@@ -342,7 +356,7 @@ export default function CompetitionDetail() {
       )}
 
       <div className="flex gap-1 border-b border-border overflow-x-auto">
-        {(['overview', 'bracket', 'rounds', 'stats', 'presse'] as const).map((tab) => (
+        {(['overview', 'bracket', 'rounds', 'stats', 'presse', 'medical'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -352,9 +366,19 @@ export default function CompetitionDetail() {
                 : 'border-transparent text-muted hover:text-text'
             }`}
           >
-            {tab === 'overview' ? 'Classement' : tab === 'bracket' ? 'Tableau' : tab === 'rounds' ? 'Journées' : tab === 'stats' ? 'Statistiques' : '📰 Presse'}
+            {tab === 'overview' ? 'Classement'
+              : tab === 'bracket' ? 'Tableau'
+              : tab === 'rounds' ? 'Journées'
+              : tab === 'stats' ? 'Statistiques'
+              : tab === 'presse' ? 'Presse'
+              : 'Médical'}
             {tab === 'presse' && (current.pressItems?.length ?? 0) > 0 && (
               <span className="ml-1.5 rounded-full bg-accent/20 px-1.5 text-[10px] text-accent">{current.pressItems!.length}</span>
+            )}
+            {tab === 'medical' && ((current.injuries?.length ?? 0) + (current.suspensions?.length ?? 0)) > 0 && (
+              <span className="ml-1.5 rounded-full bg-danger/20 px-1.5 text-[10px] text-danger">
+                {(current.injuries?.length ?? 0) + (current.suspensions?.length ?? 0)}
+              </span>
             )}
           </button>
         ))}
@@ -432,6 +456,14 @@ export default function CompetitionDetail() {
               morale={current.morale ?? {}}
               teamMap={teamMap}
               teamIds={current.teamIds}
+            />
+          )}
+
+          {activeTab === 'medical' && (
+            <MedicalTab
+              injuries={current.injuries ?? []}
+              suspensions={current.suspensions ?? []}
+              teamMap={teamMap}
             />
           )}
         </motion.div>
@@ -689,6 +721,107 @@ function PressTab({
             })}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function MedicalTab({
+  injuries,
+  suspensions,
+  teamMap,
+}: {
+  injuries: Injury[];
+  suspensions: Suspension[];
+  teamMap: Record<string, Team>;
+}) {
+  const totalInjured = injuries.length;
+  const totalSuspended = suspensions.length;
+
+  // Group by team
+  const teamIds = [...new Set([...injuries.map((i) => i.teamId), ...suspensions.map((s) => s.teamId)])];
+
+  if (totalInjured === 0 && totalSuspended === 0) {
+    return (
+      <div className="py-16 text-center text-muted text-sm">
+        Aucun joueur blessé ou suspendu.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Summary */}
+      <div className="flex gap-4 flex-wrap">
+        <div className="rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-center min-w-[100px]">
+          <div className="text-2xl font-display text-danger">{totalInjured}</div>
+          <div className="text-xs text-muted mt-0.5">Blessé{totalInjured > 1 ? 's' : ''}</div>
+        </div>
+        <div className="rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 text-center min-w-[100px]">
+          <div className="text-2xl font-display text-warning">{totalSuspended}</div>
+          <div className="text-xs text-muted mt-0.5">Suspendu{totalSuspended > 1 ? 's' : ''}</div>
+        </div>
+      </div>
+
+      {/* Per team */}
+      <div className="space-y-4">
+        {teamIds.map((tid) => {
+          const team = teamMap[tid];
+          const teamInjuries = injuries.filter((i) => i.teamId === tid);
+          const teamSuspensions = suspensions.filter((s) => s.teamId === tid);
+          return (
+            <div key={tid} className="rounded-lg border border-border bg-surface overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-bg/40">
+                {team?.flag && <img src={team.flag} alt="" className="h-6 w-6 object-cover rounded-sm shrink-0" />}
+                <span className="font-medium text-sm">{team?.name ?? tid}</span>
+                <span className="ml-auto text-xs text-muted">
+                  {teamInjuries.length > 0 && `${teamInjuries.length} blessé${teamInjuries.length > 1 ? 's' : ''}`}
+                  {teamInjuries.length > 0 && teamSuspensions.length > 0 && ' · '}
+                  {teamSuspensions.length > 0 && `${teamSuspensions.length} suspendu${teamSuspensions.length > 1 ? 's' : ''}`}
+                </span>
+              </div>
+              <div className="divide-y divide-border/50">
+                {teamInjuries.map((inj) => (
+                  <div key={inj.id} className="flex items-start gap-3 px-4 py-3">
+                    <div className="mt-0.5 shrink-0">
+                      <span className={`inline-block rounded border px-1.5 py-0.5 text-[10px] font-medium ${SEVERITY_COLOR[inj.severity]}`}>
+                        {inj.severity}
+                      </span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium">{inj.playerName}</span>
+                        <span className="text-[10px] text-muted">{CAUSE_LABEL[inj.cause]}</span>
+                      </div>
+                      <p className="text-xs text-muted mt-0.5">{inj.description}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="text-sm font-display tabular-nums text-danger">{inj.matchesRemaining}</div>
+                      <div className="text-[10px] text-muted">match{inj.matchesRemaining > 1 ? 's' : ''}</div>
+                    </div>
+                  </div>
+                ))}
+                {teamSuspensions.map((sus) => (
+                  <div key={sus.id} className="flex items-start gap-3 px-4 py-3">
+                    <div className="mt-0.5 shrink-0">
+                      <span className="inline-block rounded border px-1.5 py-0.5 text-[10px] font-medium text-warning bg-warning/10 border-warning/20">
+                        suspension
+                      </span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-sm font-medium">{sus.subjectName}</span>
+                      <p className="text-xs text-muted mt-0.5">{sus.reason}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="text-sm font-display tabular-nums text-warning">{sus.matchesRemaining}</div>
+                      <div className="text-[10px] text-muted">match{sus.matchesRemaining > 1 ? 's' : ''}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

@@ -14,6 +14,9 @@ import { rulesForPhase } from '@/lib/competition/types';
 import { accumulateMatchStats, computeAwards } from '@/lib/competition/statsAccumulator';
 import { generateRefOffer, acceptOffer } from '@/lib/sim/corruption';
 import { loadLocalTactics } from '@/lib/localTactics';
+import { updateMorale, initMorale, MORALE_DEFAULT } from '@/lib/competition/morale';
+import { generateMatchPressItem, generateMoralePressItem } from '@/lib/competition/press';
+import { createMatchInjury, createSuspension, decrementInjuries, decrementSuspensions, unavailableIds } from '@/lib/competition/injuries';
 import { PenaltyShootout } from '@/components/match/PenaltyShootout';
 import type { MatchInput, MatchState, Speed, CorruptionDeal } from '@/lib/sim/types';
 import type { CorruptionOffer } from '@/lib/sim/corruption';
@@ -99,6 +102,11 @@ export default function MultiplexLive() {
           const homeTactics = loadLocalTactics(homeData.team.id) ?? homeData.team.tactics;
           const awayTactics = loadLocalTactics(awayData.team.id) ?? awayData.team.tactics;
           const mid = `comp-${competitionId}-${m.id}`;
+          const moraleMap = comp.morale ?? initMorale(comp.teamIds);
+          const compInjuries = comp.injuries ?? [];
+          const compSuspensions = comp.suspensions ?? [];
+          const homeUnavail = unavailableIds(m.homeTeamId!, compInjuries, compSuspensions);
+          const awayUnavail = unavailableIds(m.awayTeamId!, compInjuries, compSuspensions);
           inputs.push({
             compMatchId: m.id,
             input: {
@@ -109,6 +117,8 @@ export default function MultiplexLive() {
                 formation: homeTactics?.formation ?? homeData.team.formation,
                 lineup: homeTactics?.lineup,
                 tacticStyle: homeTactics?.style,
+                morale: moraleMap[m.homeTeamId!] ?? MORALE_DEFAULT,
+                unavailablePlayerIds: [...homeUnavail].filter((id) => id !== 'coach'),
               },
               away: {
                 team: awayData.team,
@@ -116,6 +126,8 @@ export default function MultiplexLive() {
                 formation: awayTactics?.formation ?? awayData.team.formation,
                 lineup: awayTactics?.lineup,
                 tacticStyle: awayTactics?.style,
+                morale: moraleMap[m.awayTeamId!] ?? MORALE_DEFAULT,
+                unavailablePlayerIds: [...awayUnavail].filter((id) => id !== 'coach'),
               },
               speed: globalSpeed,
               rules: rulesForPhase(comp.config, m.phase),
@@ -214,6 +226,89 @@ export default function MultiplexLive() {
       setTabIndex(0);
     }
 
+    // Morale + press accumulation
+    let updatedMorale = current.morale ?? initMorale(current.teamIds);
+    let updatedPressItems = current.pressItems ?? [];
+    for (const slot of slots) {
+      if (!slot.state || slot.state.status !== 'fulltime') continue;
+      const compMatch = current.matches.find((m) => m.id === slot.compMatchId);
+      if (!compMatch?.homeTeamId || !compMatch?.awayTeamId) continue;
+      const homeId = compMatch.homeTeamId;
+      const awayId = compMatch.awayTeamId;
+      const moraleBefore = { ...updatedMorale };
+      updatedMorale = updateMorale(updatedMorale, homeId, awayId, slot.state.score.home, slot.state.score.away);
+      const nameFor = (tid: string) =>
+        (tid === slot.home.id ? slot.home.name : null) ??
+        (tid === slot.away.id ? slot.away.name : null) ??
+        tid;
+      const baseSeed = `${current.id}-r${roundNum}-${slot.compMatchId}`;
+      for (const [tid, goalsFor, goalsAgainst] of [
+        [homeId, slot.state.score.home, slot.state.score.away],
+        [awayId, slot.state.score.away, slot.state.score.home],
+      ] as [string, number, number][]) {
+        const matchPress = generateMatchPressItem({
+          seed: `${baseSeed}-${tid}`,
+          round: current.currentRound,
+          teamId: tid,
+          teamName: nameFor(tid),
+          goalsFor,
+          goalsAgainst,
+          moraleBefore: moraleBefore[tid] ?? MORALE_DEFAULT,
+          moraleAfter: updatedMorale[tid] ?? MORALE_DEFAULT,
+        });
+        updatedPressItems = [...updatedPressItems, matchPress];
+        const moralePress = generateMoralePressItem({
+          seed: `${baseSeed}-${tid}-m`,
+          round: current.currentRound,
+          teamId: tid,
+          teamName: nameFor(tid),
+          morale: updatedMorale[tid] ?? MORALE_DEFAULT,
+        });
+        if (moralePress) updatedPressItems = [...updatedPressItems, moralePress];
+      }
+    }
+
+    // Injuries + suspensions accumulation
+    let updatedInjuries = decrementInjuries(current.injuries ?? []);
+    let updatedSuspensions = decrementSuspensions(current.suspensions ?? []);
+
+    for (const slot of slots) {
+      if (!slot.state || slot.state.status !== 'fulltime') continue;
+      const compMatch = current.matches.find((m) => m.id === slot.compMatchId);
+      if (!compMatch?.homeTeamId || !compMatch?.awayTeamId) continue;
+      const homePlayersMap = new Map(slot.homePlayers.map((p) => [p.id, p]));
+      const awayPlayersMap = new Map(slot.awayPlayers.map((p) => [p.id, p]));
+      for (const [side, tid, playersMap] of [
+        ['home' as const, compMatch.homeTeamId, homePlayersMap],
+        ['away' as const, compMatch.awayTeamId, awayPlayersMap],
+      ] as ['home' | 'away', string, Map<string, import('@/lib/types').Player>][]) {
+        for (const pid of (slot.state.matchInjuries?.[side] ?? [])) {
+          const p = playersMap.get(pid);
+          if (!p) continue;
+          updatedInjuries = [...updatedInjuries, createMatchInjury(tid, p, compMatch.round)];
+        }
+        for (const pid of slot.state.cards[side].red) {
+          const p = playersMap.get(pid);
+          if (!p) continue;
+          if (updatedSuspensions.some((s) => s.subjectId === pid && s.teamId === tid)) continue;
+          updatedSuspensions = [...updatedSuspensions, createSuspension(
+            tid, pid, `${p.firstName} ${p.lastName}`, 1, 'Carton rouge', compMatch.round,
+          )];
+        }
+      }
+      for (const [side, tid] of [['home' as const, compMatch.homeTeamId], ['away' as const, compMatch.awayTeamId]] as ['home' | 'away', string][]) {
+        if (slot.state.coachEjected?.[side]) {
+          const c = (side === 'home' ? slot.home : slot.away).coach;
+          const coachName = c ? `${c.firstName} ${c.lastName}` : 'Entraîneur';
+          if (!updatedSuspensions.some((s) => s.subjectId === 'coach' && s.teamId === tid)) {
+            updatedSuspensions = [...updatedSuspensions, createSuspension(
+              tid, 'coach', coachName, 1, 'Expulsion en match', compMatch.round,
+            )];
+          }
+        }
+      }
+    }
+
     setPendingUpdate({
       ...current,
       matches: updatedMatches,
@@ -223,6 +318,10 @@ export default function MultiplexLive() {
       currentRound: Math.min(nextRound, Math.max(...updatedMatches.map((m) => m.round))),
       status: allDone ? ('completed' as const) : ('ongoing' as const),
       winner,
+      morale: updatedMorale,
+      pressItems: updatedPressItems,
+      injuries: updatedInjuries,
+      suspensions: updatedSuspensions,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allFinished]);

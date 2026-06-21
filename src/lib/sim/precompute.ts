@@ -30,25 +30,31 @@ export function precomputeSide(
   coachSuspended?: boolean,
   customTacticStyle?: CustomTacticStyle,
   morale?: number,
+  unavailablePlayerIds?: Set<string>,
 ): SideRatings {
   let lineup: Player[];
   let bench: Player[];
 
+  // Filter out injured/suspended players from available roster
+  const available = unavailablePlayerIds?.size
+    ? roster.filter((p) => !unavailablePlayerIds.has(p.id))
+    : roster;
+
   if (customLineup && customLineup.length === 11) {
-    const playerMap = new Map(roster.map((p) => [p.id, p]));
+    const playerMap = new Map(available.map((p) => [p.id, p]));
     const starters = customLineup.map((id) => playerMap.get(id)).filter(Boolean) as Player[];
     if (starters.length === 11) {
       lineup = starters;
-      bench = roster
+      bench = available
         .filter((p) => !customLineup.includes(p.id))
         .sort((a, b) => b.overall - a.overall)
         .slice(0, 12);
     } else {
-      ({ lineup, bench } = pickXI(roster, formation));
+      ({ lineup, bench } = pickXI(available, formation));
       bench = bench.sort((a, b) => b.overall - a.overall).slice(0, 12);
     }
   } else {
-    ({ lineup, bench } = pickXI(roster, formation));
+    ({ lineup, bench } = pickXI(available, formation));
     bench = bench.sort((a, b) => b.overall - a.overall).slice(0, 12);
   }
 

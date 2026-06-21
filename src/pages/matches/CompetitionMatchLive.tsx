@@ -21,6 +21,7 @@ import { rulesForPhase } from '@/lib/competition/types';
 import { loadLocalTactics } from '@/lib/localTactics';
 import { updateMorale, initMorale, MORALE_DEFAULT } from '@/lib/competition/morale';
 import { generateMatchPressItem, generateMoralePressItem } from '@/lib/competition/press';
+import { createMatchInjury, createSuspension, decrementInjuries, decrementSuspensions, unavailableIds } from '@/lib/competition/injuries';
 
 import type { Team } from '@/lib/types';
 import type { MatchInput } from '@/lib/sim/types';
@@ -109,6 +110,10 @@ export default function CompetitionMatchLive() {
         const awayTactics = loadLocalTactics(awayData.team.id) ?? awayData.team.tactics;
 
         const moraleMap = comp.morale ?? initMorale(comp.teamIds);
+        const compInjuries = comp.injuries ?? [];
+        const compSuspensions = comp.suspensions ?? [];
+        const homeUnavail = unavailableIds(compMatch.homeTeamId!, compInjuries, compSuspensions);
+        const awayUnavail = unavailableIds(compMatch.awayTeamId!, compInjuries, compSuspensions);
         const input: MatchInput = {
           matchId: mid,
           home: {
@@ -118,6 +123,7 @@ export default function CompetitionMatchLive() {
             lineup: homeTactics?.lineup,
             tacticStyle: homeTactics?.style,
             morale: moraleMap[compMatch.homeTeamId!] ?? MORALE_DEFAULT,
+            unavailablePlayerIds: [...homeUnavail].filter((id) => id !== 'coach'),
           },
           away: {
             team: awayData.team,
@@ -126,6 +132,7 @@ export default function CompetitionMatchLive() {
             lineup: awayTactics?.lineup,
             tacticStyle: awayTactics?.style,
             morale: moraleMap[compMatch.awayTeamId!] ?? MORALE_DEFAULT,
+            unavailablePlayerIds: [...awayUnavail].filter((id) => id !== 'coach'),
           },
           speed: '1',
           rules: rulesForPhase(comp.config, compMatch.phase),
@@ -323,6 +330,46 @@ export default function CompetitionMatchLive() {
         if (moraleItem) newPressItems.push(moraleItem);
       }
 
+      // Injuries from match events
+      let updatedInjuries = decrementInjuries(snap!.injuries ?? []);
+      let updatedSuspensions = decrementSuspensions(snap!.suspensions ?? []);
+
+      const homePlayersMap = new Map(matchInput!.home.players.map((p) => [p.id, p]));
+      const awayPlayersMap = new Map(matchInput!.away.players.map((p) => [p.id, p]));
+
+      for (const [side, tid, playersMap] of [
+        ['home' as const, homeTeamId, homePlayersMap],
+        ['away' as const, awayTeamId, awayPlayersMap],
+      ] as ['home' | 'away', string, Map<string, import('@/lib/types').Player>][]) {
+        for (const pid of (matchState!.matchInjuries?.[side] ?? [])) {
+          const p = playersMap.get(pid);
+          if (!p) continue;
+          updatedInjuries = [...updatedInjuries, createMatchInjury(tid, p, compMatch.round)];
+        }
+        // Red cards → 1 match suspension
+        for (const pid of matchState!.cards[side].red) {
+          const p = playersMap.get(pid);
+          if (!p) continue;
+          // Avoid duplicate suspensions
+          if (updatedSuspensions.some((s) => s.subjectId === pid && s.teamId === tid)) continue;
+          updatedSuspensions = [...updatedSuspensions, createSuspension(
+            tid, pid, `${p.firstName} ${p.lastName}`, 1, 'Carton rouge', compMatch.round,
+          )];
+        }
+      }
+      // Coach ejections → 1 match suspension
+      for (const [side, tid] of [['home' as const, homeTeamId], ['away' as const, awayTeamId]] as ['home' | 'away', string][]) {
+        if (matchState!.coachEjected?.[side]) {
+          const c = (side === 'home' ? matchInput!.home.team : matchInput!.away.team).coach;
+          const coachName = c ? `${c.firstName} ${c.lastName}` : 'Entraîneur';
+          if (!updatedSuspensions.some((s) => s.subjectId === 'coach' && s.teamId === tid)) {
+            updatedSuspensions = [...updatedSuspensions, createSuspension(
+              tid, 'coach', coachName, 1, 'Expulsion en match', compMatch.round,
+            )];
+          }
+        }
+      }
+
       const updated = {
         ...snap!,
         matches: updatedMatches,
@@ -335,6 +382,8 @@ export default function CompetitionMatchLive() {
         disqualifiedTeamIds: disqualifiedTeamIds.length > 0 ? disqualifiedTeamIds : undefined,
         morale: updatedMorale,
         pressItems: newPressItems,
+        injuries: updatedInjuries,
+        suspensions: updatedSuspensions,
       };
 
       // Résultat appliqué en mémoire + localStorage — sauvegarde GitHub manuelle

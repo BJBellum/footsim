@@ -6,7 +6,7 @@ export type EventKind =
   | 'kickoff' | 'goal' | 'shot' | 'shotOnTarget' | 'save' | 'foul'
   | 'yellow' | 'red' | 'corner' | 'offside' | 'halftime' | 'fulltime' | 'keyPass'
   | 'penalty' | 'freeKick' | 'header' | 'dribble' | 'clearance' | 'crossbar'
-  | 'substitution' | 'extraTime' | 'coachRed';
+  | 'substitution' | 'extraTime' | 'coachRed' | 'injury';
 
 export type TacticMods = {
   shotFreqMult: number;
@@ -69,8 +69,8 @@ export type CorruptionDeal = {
 
 export type MatchInput = {
   matchId: string;
-  home: { team: Team; players: Player[]; formation: Formation; lineup?: string[]; tacticStyle?: TacticStyle; customTacticStyle?: import('@/lib/types').CustomTacticStyle; morale?: number };
-  away: { team: Team; players: Player[]; formation: Formation; lineup?: string[]; tacticStyle?: TacticStyle; customTacticStyle?: import('@/lib/types').CustomTacticStyle; morale?: number };
+  home: { team: Team; players: Player[]; formation: Formation; lineup?: string[]; tacticStyle?: TacticStyle; customTacticStyle?: import('@/lib/types').CustomTacticStyle; morale?: number; unavailablePlayerIds?: string[] };
+  away: { team: Team; players: Player[]; formation: Formation; lineup?: string[]; tacticStyle?: TacticStyle; customTacticStyle?: import('@/lib/types').CustomTacticStyle; morale?: number; unavailablePlayerIds?: string[] };
   speed: Speed;
   rules: MatchRules;
   corruption?: CorruptionDeal;
@@ -109,4 +109,6 @@ export type MatchState = {
   penaltyScore?: { home: number; away: number };
   /** coach ejected this match — suspended for next match */
   coachEjected?: { home: boolean; away: boolean };
+  /** Players injured during this match: side → playerId[] */
+  matchInjuries?: { home: string[]; away: string[] };
 };

@@ -382,6 +382,11 @@ export function tick(state: MatchState, ctx: EngineCtx): MatchState {
       tryShot(state, ctx, possessing, opp, teamName, oppName, 1.4, pz);
     } else {
       const victimName = victimSide === 'home' ? ctx.home.team.name : ctx.away.team.name;
+      // 3% chance: the fouled player (attacker from possessing side) gets injured
+      const fouledPlayer = pickAttacker(possessing, ctx, state);
+      if (fouledPlayer && chance(0.03)) {
+        applyInjury(state, ctx, possessing, fouledPlayer);
+      }
       pushEvent(state, ctx, { type: 'foul', side: victimSide, playerId: fouler?.id, ballPos: ZONE.centre },
         victimName, fouler ? `${fouler.firstName} ${fouler.lastName}` : undefined);
       if (fouler) {
@@ -458,6 +463,35 @@ export function tick(state: MatchState, ctx: EngineCtx): MatchState {
   const last = state.events[state.events.length - 1];
   if (last?.ballPos) state.ball = last.ballPos;
   return state;
+}
+
+function applyInjury(state: MatchState, ctx: EngineCtx, side: 'home' | 'away', player: Player): void {
+  if (!state.matchInjuries) state.matchInjuries = { home: [], away: [] };
+  if (state.matchInjuries[side].includes(player.id)) return;
+  state.matchInjuries[side].push(player.id);
+  const teamName = side === 'home' ? ctx.home.team.name : ctx.away.team.name;
+  pushEvent(state, ctx, { type: 'injury', side, playerId: player.id, ballPos: ZONE.centre },
+    teamName, `${player.firstName} ${player.lastName}`);
+  // Force substitution if possible
+  const benchIds = side === 'home' ? ctx.home.ratings.bench : ctx.away.ratings.bench;
+  const players = side === 'home' ? ctx.home.players : ctx.away.players;
+  const subsUsed = side === 'home' ? state.homeSubs : state.awaySubs;
+  const sub = benchIds.map((id) => players.get(id)).find((p): p is Player => !!p && !state.matchInjuries![side].includes(p.id));
+  if (sub && subsUsed < state.rules.maxSubs) {
+    if (side === 'home') {
+      state.homeOnPitch = state.homeOnPitch.map((id) => id === player.id ? sub.id : id);
+      state.homeSubs++;
+    } else {
+      state.awayOnPitch = state.awayOnPitch.map((id) => id === player.id ? sub.id : id);
+      state.awaySubs++;
+    }
+    pushEvent(state, ctx, { type: 'substitution', side, playerId: sub.id, ballPos: ZONE.centre },
+      teamName, `${sub.firstName} ${sub.lastName} ↔ ${player.firstName} ${player.lastName} (blessure)`);
+  } else {
+    // No sub available — player is removed
+    if (side === 'home') state.homeOnPitch = state.homeOnPitch.filter((id) => id !== player.id);
+    else state.awayOnPitch = state.awayOnPitch.filter((id) => id !== player.id);
+  }
 }
 
 function applyRed(state: MatchState, ctx: EngineCtx, side: 'home' | 'away', player: Player): void {
