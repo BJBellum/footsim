@@ -622,12 +622,12 @@ export function generateMatchPressItem(opts: {
   // Jamais si déjà disqualifié ou phase finale
   const baseAllowed = !alreadyDisqualified && !isKnockout && !opts.dopingAlreadyThisMatch;
 
-  // Dopage joueur : 0.3% / 0.6% sur défaite (rare — max 1 par match via dopingAlreadyThisMatch)
-  const playerDopingChance = baseAllowed ? (diff < 0 ? 0.006 : 0.003) : 0;
+  // Dopage joueur : 0.1% fixe (rare — max 1 par match via dopingAlreadyThisMatch)
+  const playerDopingChance = baseAllowed ? 0.001 : 0;
   const isPlayerDoping = r() < playerDopingChance;
 
-  // Dopage équipe : 0.4% indépendant, seulement si pas de dopage joueur ce tour
-  const teamDopingChance = baseAllowed && !isPlayerDoping ? 0.004 : 0;
+  // Dopage équipe : 0.01% indépendant, seulement si pas de dopage joueur ce tour
+  const teamDopingChance = baseAllowed && !isPlayerDoping ? 0.0001 : 0;
   const isTeamDoping = r() < teamDopingChance;
 
   // Scandale classique : 3% sur défaite, 0.8% sinon
