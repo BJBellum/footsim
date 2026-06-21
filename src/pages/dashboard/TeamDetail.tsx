@@ -7,6 +7,7 @@ import { toast } from '@/components/ui/Toast';
 import { RosterTable } from '@/components/team/RosterTable';
 import { PlayerEdit } from '@/components/team/PlayerEdit';
 import { TacticsPanel } from '@/components/team/TacticsPanel';
+import { TacticsSummary } from '@/components/team/TacticsSummary';
 import type { Player, Team, TeamTactics, Culture, Continent } from '@/lib/types';
 import { CULTURE_LABEL, CONTINENT_LABEL, CULTURES_BY_CONTINENT } from '@/lib/types';
 import { FlagUpload } from '@/components/team/FlagUpload';
@@ -226,6 +227,54 @@ async function applyNewStrength(strength: number) {
     if (!data) return;
     mutate({ team: { ...data.team, tactics }, players: data.players });
     toast('success', 'Tactique enregistrée.');
+  }
+
+  function exportTactics() {
+    if (!data?.team.tactics) { toast('error', 'Aucune tactique à exporter.'); return; }
+    const { team, players } = data;
+    const playerMap = new Map(players.map((p) => [p.id, p]));
+    const lineupEntries = team.tactics!.lineup.map((id) => {
+      const p = playerMap.get(id);
+      return p ? { id, name: `${p.firstName} ${p.lastName}`, position: p.position, overall: p.overall } : { id };
+    });
+    const filledSet = new Set(team.tactics!.lineup);
+    const bench = players
+      .filter((p) => !filledSet.has(p.id))
+      .sort((a, b) => b.overall - a.overall)
+      .slice(0, 12)
+      .map((p) => ({ id: p.id, name: `${p.firstName} ${p.lastName}`, position: p.position, overall: p.overall }));
+    const payload = {
+      teamName: team.name,
+      formation: team.tactics!.formation,
+      formationLabel: team.tactics!.formationLabel,
+      style: team.tactics!.style,
+      customStyles: team.tactics!.customStyles ?? [],
+      activeCustomStyleId: team.tactics!.activeCustomStyleId,
+      lineup: lineupEntries,
+      bench,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `tactique-${team.slug}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function publishTactics() {
+    if (!data?.team.tactics || !effectivePat) return;
+    setPublishing(true);
+    try {
+      await saveTeam(data.team, data.players, effectivePat);
+      setDirty(false);
+      setUnpublished(false);
+      toast('success', 'Tactique publiée sur GitHub.');
+    } catch (err) {
+      toast('error', String(err));
+    } finally {
+      setPublishing(false);
+    }
   }
 
   function importTactics(e: React.ChangeEvent<HTMLInputElement>) {
@@ -501,13 +550,25 @@ async function applyNewStrength(strength: number) {
         <section className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-xl">Tactique</h2>
-            <div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="ghost" onClick={exportTactics}>
+                ↓ Exporter JSON
+              </Button>
               <Button size="sm" variant="ghost" onClick={() => tacticsImportRef.current?.click()}>
-                ↑ Importer tactique manager
+                ↑ Importer JSON
               </Button>
               <input ref={tacticsImportRef} type="file" accept=".json" className="hidden" onChange={importTactics} />
+              {team.tactics && (
+                <Button size="sm" onClick={publishTactics} disabled={publishing || !effectivePat}>
+                  {publishing ? <Spinner className="mr-1" /> : null}
+                  ↑ Publier GitHub
+                </Button>
+              )}
             </div>
           </div>
+          {team.tactics && (
+            <TacticsSummary tactics={team.tactics} players={players} />
+          )}
           <TacticsPanel team={team} players={players} onSave={saveTactics} />
         </section>
       )}

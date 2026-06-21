@@ -6,6 +6,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { toast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
 import { TacticsPanel } from '@/components/team/TacticsPanel';
+import { TacticsSummary } from '@/components/team/TacticsSummary';
 import { useSession } from '@/stores/session';
 import { GithubTeamBackend } from '@/lib/github/backend';
 import { listCompetitions } from '@/lib/github/competitions';
@@ -253,6 +254,9 @@ export default function MyTeam() {
       {tab === 'tactique' && (
         <div className="rounded-lg border border-border bg-surface p-5 space-y-4">
           <p className="text-xs text-muted">Modifie ta formation, ton 11 et ton style. Sauvegarde locale uniquement.</p>
+          {team.tactics && (
+            <TacticsSummary tactics={team.tactics} players={players} />
+          )}
           <TacticsPanel key={`${team.id}-${team.tactics?.formation ?? ''}-${team.tactics?.lineup?.join(',') ?? ''}`} team={team} players={players} onSave={saveTactics} />
         </div>
       )}
