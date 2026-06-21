@@ -8,62 +8,50 @@ type Props = {
   formation: Formation;
   /** IDs du lineup custom (tactics.lineup) — si absent ou invalide → meilleur XI auto */
   lineup?: string[];
-  /** Called with the auto XI IDs when user wants to save it as the active tactic lineup */
+  /** If provided, shows a button to save the current auto XI as the active tactic */
   onSaveAutoXI?: (lineupIds: string[]) => Promise<void>;
 };
 
 export function StartingXI({ players, formation, lineup, onSaveAutoXI }: Props) {
-  const hasCustom = !!(lineup && lineup.length === 11);
-  const [mode, setMode] = useState<'auto' | 'custom'>(hasCustom ? 'custom' : 'auto');
   const [saving, setSaving] = useState(false);
+  const hasCustom = !!(lineup && lineup.length === 11);
 
-  const { starters, bench } = useMemo(() => {
+  const { starters, bench, isAuto } = useMemo(() => {
     const byId = new Map(players.map((p) => [p.id, p]));
     let starters: Player[];
     let bench: Player[];
+    let isAuto = false;
 
-    const useCustom = mode === 'custom' && lineup && lineup.length === 11;
-    if (useCustom) {
-      const resolved = lineup!.map((id) => byId.get(id)).filter(Boolean) as Player[];
+    if (lineup && lineup.length === 11) {
+      const resolved = lineup.map((id) => byId.get(id)).filter(Boolean) as Player[];
       if (resolved.length === 11) {
         starters = resolved;
         bench = players
-          .filter((p) => !lineup!.includes(p.id))
+          .filter((p) => !lineup.includes(p.id))
           .sort((a, b) => b.overall - a.overall)
           .slice(0, 12);
       } else {
         ({ lineup: starters, bench } = pickXI(players, formation));
         bench = bench.sort((a, b) => b.overall - a.overall).slice(0, 12);
+        isAuto = true;
       }
     } else {
       ({ lineup: starters, bench } = pickXI(players, formation));
       bench = bench.sort((a, b) => b.overall - a.overall).slice(0, 12);
+      isAuto = true;
     }
 
-    return { starters, bench };
-  }, [players, formation, lineup, mode]);
+    return { starters, bench, isAuto };
+  }, [players, formation, lineup]);
 
   return (
     <div className="space-y-4">
-      {/* Toggle auto / custom */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="flex items-center gap-1 rounded-lg border border-border bg-surface p-1">
-          <button
-            onClick={() => setMode('auto')}
-            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${mode === 'auto' ? 'bg-accent text-white' : 'text-muted hover:text-text'}`}
-          >
-            ⚡ Meilleur XI auto
-          </button>
-          <button
-            onClick={() => setMode('custom')}
-            disabled={!hasCustom}
-            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${mode === 'custom' ? 'bg-accent text-white' : !hasCustom ? 'opacity-30 cursor-not-allowed text-muted' : 'text-muted hover:text-text'}`}
-            title={!hasCustom ? 'Aucun XI défini dans les tactiques' : undefined}
-          >
-            XI défini
-          </button>
-        </div>
-        {mode === 'auto' && onSaveAutoXI && (
+      {/* Source indicator + save button */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted">
+          {hasCustom && !isAuto ? '📋 XI tactique défini' : '⚡ Meilleur XI auto (par poste)'}
+        </span>
+        {isAuto && onSaveAutoXI && (
           <button
             disabled={saving}
             onClick={async () => {
@@ -71,9 +59,9 @@ export function StartingXI({ players, formation, lineup, onSaveAutoXI }: Props) 
               try { await onSaveAutoXI(starters.map((p) => p.id)); }
               finally { setSaving(false); }
             }}
-            className="px-3 py-1.5 rounded text-xs font-medium border border-border bg-surface hover:bg-border/40 transition-colors disabled:opacity-50"
+            className="px-2 py-0.5 rounded text-xs border border-border bg-surface hover:bg-border/40 transition-colors disabled:opacity-50"
           >
-            {saving ? '…' : '↑ Définir & publier ce XI'}
+            {saving ? '…' : '↑ Figer & publier ce XI'}
           </button>
         )}
       </div>
