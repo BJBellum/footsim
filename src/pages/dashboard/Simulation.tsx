@@ -272,7 +272,7 @@ const NEGATIVE_EXAMPLES: Record<string, string> = {
 
 function TraitCard({ trait, positive, examples }: { trait: string; positive: boolean; examples?: string }) {
   return (
-    <div className={`rounded-lg border px-4 py-3 space-y-1 ${positive ? 'border-green-500/20 bg-green-500/5' : 'border-danger/20 bg-danger/5'}`}>
+    <div className={`rounded-lg border px-4 py-3 space-y-1 ${positive ? 'border-green-500/30 bg-green-500/10' : 'border-red-500/30 bg-red-500/10'}`}>
       <div className="flex items-center gap-2">
         <span className={`text-sm font-semibold ${positive ? 'text-green-400' : 'text-danger'}`}>
           {COACH_TRAIT_LABEL[trait as keyof typeof COACH_TRAIT_LABEL]}
