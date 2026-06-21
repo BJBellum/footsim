@@ -43,10 +43,24 @@ export function DrawCeremony({ result, teams, groupCount, onConfirm, knockoutMod
 
   function revealAll() {
     if (timerRef.current) clearTimeout(timerRef.current);
-    setRevealed(new Set(result.order));
-    setCurrent(null);
-    setIdx(result.order.length);
-    setDone(true);
+    let i = idx;
+    function step() {
+      if (i >= result.order.length) {
+        setDone(true);
+        setCurrent(null);
+        return;
+      }
+      const teamId = result.order[i];
+      i++;
+      setCurrent(teamId);
+      setIdx(i);
+      timerRef.current = setTimeout(() => {
+        setRevealed((prev) => new Set([...prev, teamId]));
+        setCurrent(null);
+        timerRef.current = setTimeout(step, 300);
+      }, 900);
+    }
+    step();
   }
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
