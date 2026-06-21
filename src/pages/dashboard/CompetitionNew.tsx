@@ -15,6 +15,7 @@ import {
   buildInitialStandings,
 } from '@/lib/competition/scheduler';
 import { FORMAT_LABEL, FORMAT_DESCRIPTION } from '@/lib/competition/types';
+import { CULTURE_CONTINENT, CONTINENT_LABEL, type Continent } from '@/lib/types';
 import type { CompetitionFormat, CompetitionConfig, Competition } from '@/lib/competition/types';
 import type { MatchRules } from '@/lib/sim/types';
 import { DEFAULT_RULES } from '@/lib/sim/types';
@@ -32,6 +33,7 @@ export default function CompetitionNew() {
   const [name, setName] = useState('');
   const [format, setFormat] = useState<CompetitionFormat>('league');
   const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
+  const [continentFilter, setContinentFilter] = useState<Continent | 'all'>('all');
   const [legs, setLegs] = useState<1 | 2>(1);
   const [thirdPlace, setThirdPlace] = useState(false);
   const [groupsCount, setGroupsCount] = useState(4);
@@ -278,34 +280,80 @@ export default function CompetitionNew() {
       )}
 
       <section className="space-y-4 rounded-lg border border-border bg-surface p-5">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="text-xs uppercase tracking-widest text-muted">Équipes participantes</div>
           <span className="text-xs text-muted">{selectedTeams.length} sélectionnée{selectedTeams.length > 1 ? 's' : ''} · min {minTeams}</span>
         </div>
-        <div className="grid gap-2 max-h-72 overflow-y-auto pr-1">
-          {teams.map((team) => (
-            <label
-              key={team.id}
-              className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 transition-colors ${
-                selectedTeams.includes(team.id)
-                  ? 'border-accent bg-accent/5'
-                  : 'border-border hover:border-border/70'
-              }`}
-            >
-              <input
-                type="checkbox"
-                checked={selectedTeams.includes(team.id)}
-                onChange={() => toggleTeam(team.id)}
-                className="h-4 w-4 shrink-0"
-              />
-              {team.flag && <img src={team.flag} alt="" className="h-8 w-8 object-cover rounded-sm shrink-0" />}
-              <div className="min-w-0">
-                <div className="text-sm font-medium truncate">{team.name}</div>
-                <div className="text-xs text-muted">Force {team.globalStrength}</div>
+
+        {/* Filters + bulk actions */}
+        {(() => {
+          const visibleTeams = continentFilter === 'all'
+            ? teams
+            : teams.filter((t) => CULTURE_CONTINENT[t.culture] === continentFilter);
+          const allVisibleSelected = visibleTeams.length > 0 && visibleTeams.every((t) => selectedTeams.includes(t.id));
+
+          // Continents that actually have teams loaded
+          const availableContinents = [...new Set(teams.map((t) => CULTURE_CONTINENT[t.culture]))];
+
+          return (
+            <>
+              <div className="flex items-center gap-2 flex-wrap">
+                <select
+                  value={continentFilter}
+                  onChange={(e) => setContinentFilter(e.target.value as Continent | 'all')}
+                  className="rounded-md border border-border bg-bg px-2 py-1 text-xs text-text"
+                >
+                  <option value="all">Tous les continents</option>
+                  {availableContinents.map((c) => (
+                    <option key={c} value={c}>{CONTINENT_LABEL[c]}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (allVisibleSelected) {
+                      setSelectedTeams((prev) => prev.filter((id) => !visibleTeams.find((t) => t.id === id)));
+                    } else {
+                      const toAdd = visibleTeams.map((t) => t.id);
+                      setSelectedTeams((prev) => [...new Set([...prev, ...toAdd])]);
+                    }
+                  }}
+                  className="text-xs px-2.5 py-1 rounded-md border border-border hover:bg-border/40 transition-colors"
+                >
+                  {allVisibleSelected ? 'Tout désélectionner' : 'Tout sélectionner'}
+                </button>
+                {continentFilter !== 'all' && (
+                  <span className="text-xs text-muted">{visibleTeams.length} équipe{visibleTeams.length > 1 ? 's' : ''} visible{visibleTeams.length > 1 ? 's' : ''}</span>
+                )}
               </div>
-            </label>
-          ))}
-        </div>
+
+              <div className="grid gap-2 max-h-72 overflow-y-auto pr-1">
+                {visibleTeams.map((team) => (
+                  <label
+                    key={team.id}
+                    className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 transition-colors ${
+                      selectedTeams.includes(team.id)
+                        ? 'border-accent bg-accent/5'
+                        : 'border-border hover:border-border/70'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedTeams.includes(team.id)}
+                      onChange={() => toggleTeam(team.id)}
+                      className="h-4 w-4 shrink-0"
+                    />
+                    {team.flag && <img src={team.flag} alt="" className="h-8 w-8 object-cover rounded-sm shrink-0" />}
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">{team.name}</div>
+                      <div className="text-xs text-muted">Force {team.globalStrength}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </>
+          );
+        })()}
       </section>
 
       {needsEven && selectedTeams.length > 0 && !evenOk && (
