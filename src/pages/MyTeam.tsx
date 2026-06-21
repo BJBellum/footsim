@@ -104,7 +104,10 @@ export default function MyTeam() {
     const payload = {
       teamName: team.name,
       formation: team.tactics!.formation,
+      formationLabel: team.tactics!.formationLabel,
       style: team.tactics!.style,
+      customStyles: team.tactics!.customStyles ?? [],
+      activeCustomStyleId: team.tactics!.activeCustomStyleId,
       lineup,
       bench,
     };
@@ -127,7 +130,10 @@ export default function MyTeam() {
         const tactics: TeamTactics = {
           formation: json.formation,
           style: json.style,
-          lineup: json.lineup.map((p: { id: string }) => p.id),
+          lineup: Array.isArray(json.lineup) ? json.lineup.map((p: { id: string } | string) => typeof p === 'string' ? p : p.id) : [],
+          formationLabel: json.formationLabel,
+          customStyles: json.customStyles ?? [],
+          activeCustomStyleId: json.activeCustomStyleId,
         };
         saveLocalTactics(data.team.id, tactics);
         setData((prev) => prev ? { ...prev, team: { ...prev.team, tactics } } : prev);

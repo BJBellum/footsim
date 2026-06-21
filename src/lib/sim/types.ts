@@ -13,6 +13,7 @@ export type TacticMods = {
   foulRateMult: number;
   midfieldMult: number;
   attackMult: number;
+  defenseMult: number;
 };
 
 export type MatchRules = {
@@ -68,8 +69,8 @@ export type CorruptionDeal = {
 
 export type MatchInput = {
   matchId: string;
-  home: { team: Team; players: Player[]; formation: Formation; lineup?: string[]; tacticStyle?: TacticStyle };
-  away: { team: Team; players: Player[]; formation: Formation; lineup?: string[]; tacticStyle?: TacticStyle };
+  home: { team: Team; players: Player[]; formation: Formation; lineup?: string[]; tacticStyle?: TacticStyle; customTacticStyle?: import('@/lib/types').CustomTacticStyle };
+  away: { team: Team; players: Player[]; formation: Formation; lineup?: string[]; tacticStyle?: TacticStyle; customTacticStyle?: import('@/lib/types').CustomTacticStyle };
   speed: Speed;
   rules: MatchRules;
   corruption?: CorruptionDeal;

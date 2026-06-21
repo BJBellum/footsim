@@ -69,6 +69,12 @@ export default function MatchSetup() {
         return;
       }
       const matchId = crypto.randomUUID();
+      const homeCustomStyle = homeTactics?.activeCustomStyleId
+        ? homeTactics.customStyles?.find((s) => s.id === homeTactics.activeCustomStyleId)
+        : undefined;
+      const awayCustomStyle = awayTactics?.activeCustomStyleId
+        ? awayTactics.customStyles?.find((s) => s.id === awayTactics.activeCustomStyleId)
+        : undefined;
       start({
         matchId,
         home: {
@@ -77,6 +83,7 @@ export default function MatchSetup() {
           formation: homeFormation,
           lineup: homeTactics?.lineup,
           tacticStyle: homeTactics?.style as TacticStyle | undefined,
+          customTacticStyle: homeCustomStyle,
         },
         away: {
           team: away.team,
@@ -84,6 +91,7 @@ export default function MatchSetup() {
           formation: awayFormation,
           lineup: awayTactics?.lineup,
           tacticStyle: awayTactics?.style as TacticStyle | undefined,
+          customTacticStyle: awayCustomStyle,
         },
         speed,
         rules,
@@ -249,7 +257,13 @@ function SidePicker({
       ) : null}
       {savedTactics && (
         <div className="rounded border border-accent/30 bg-accent/5 px-3 py-2 text-xs text-accent">
-          ✓ Compo sauvegardée · {savedTactics.formationLabel ?? savedTactics.formation} · {TACTIC_STYLE_LABEL[savedTactics.style]}
+          ✓ Compo sauvegardée · {savedTactics.formationLabel ?? savedTactics.formation} · {(() => {
+            if (savedTactics.activeCustomStyleId) {
+              const cs = savedTactics.customStyles?.find((s) => s.id === savedTactics.activeCustomStyleId);
+              if (cs) return `🎨 ${cs.name}`;
+            }
+            return TACTIC_STYLE_LABEL[savedTactics.style];
+          })()}
         </div>
       )}
       {team?.coach && (

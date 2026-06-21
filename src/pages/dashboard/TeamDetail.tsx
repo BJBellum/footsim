@@ -238,7 +238,10 @@ async function applyNewStrength(strength: number) {
         const tactics: TeamTactics = {
           formation: json.formation,
           style: json.style,
-          lineup: json.lineup.map((p: { id: string }) => p.id),
+          lineup: Array.isArray(json.lineup) ? json.lineup.map((p: { id: string } | string) => typeof p === 'string' ? p : p.id) : [],
+          formationLabel: json.formationLabel,
+          customStyles: json.customStyles ?? [],
+          activeCustomStyleId: json.activeCustomStyleId,
         };
         mutate({ team: { ...data.team, tactics }, players: data.players });
         toast('success', 'Tactique importée (non publiée).');
