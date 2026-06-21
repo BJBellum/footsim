@@ -15,7 +15,7 @@ import { accumulateMatchStats, computeAwards } from '@/lib/competition/statsAccu
 import { generateRefOffer, acceptOffer } from '@/lib/sim/corruption';
 import { loadLocalTactics } from '@/lib/localTactics';
 import { updateMorale, initMorale, MORALE_DEFAULT } from '@/lib/competition/morale';
-import { generateMatchPressItem, generateMoralePressItem } from '@/lib/competition/press';
+import { generateMatchPressItem, generateMoralePressItem, generatePresidencyReboundItem } from '@/lib/competition/press';
 import { createMatchInjury, createSuspension, decrementInjuries, decrementSuspensions, unavailableIds } from '@/lib/competition/injuries';
 import { PenaltyShootout } from '@/components/match/PenaltyShootout';
 import type { MatchInput, MatchState, Speed, CorruptionDeal } from '@/lib/sim/types';
@@ -264,6 +264,28 @@ export default function MultiplexLive() {
     // Shared across all slots — prevents double-ban within same round
     const dopingBannedTeamIds = [...(current.disqualifiedTeamIds ?? [])];
     let updatedDisqualifiedTeamIds = current.disqualifiedTeamIds ?? [];
+    let updatedPendingRebound: Record<string, number> = { ...(current.pendingPresidencyRebound ?? {}) };
+    const roundNum2 = current.currentRound;
+
+    // Fire pending rebound articles due this round (before processing new matches)
+    for (const [reboundTeamId, reboundRound] of Object.entries(updatedPendingRebound)) {
+      if (reboundRound <= roundNum2) {
+        const reboundName = current.teamSnapshot?.[reboundTeamId]?.name ?? reboundTeamId;
+        const reboundItem = generatePresidencyReboundItem({
+          round: roundNum2,
+          teamId: reboundTeamId,
+          teamName: reboundName,
+          seed: `${current.id}-r${roundNum2}-rebound-${reboundTeamId}`,
+        });
+        updatedPressItems = [...updatedPressItems, reboundItem];
+        if (reboundItem.moraleBoost && reboundItem.moraleBoost > 0) {
+          updatedMorale[reboundTeamId] = Math.min(100, (updatedMorale[reboundTeamId] ?? MORALE_DEFAULT) + reboundItem.moraleBoost);
+        }
+        const { [reboundTeamId]: _, ...rest } = updatedPendingRebound;
+        updatedPendingRebound = rest;
+      }
+    }
+
     for (const slot of slots) {
       if (!slot.state || slot.state.status !== 'fulltime') continue;
       const compMatch = current.matches.find((m) => m.id === slot.compMatchId);
@@ -302,6 +324,12 @@ export default function MultiplexLive() {
           coach: teamCoach,
         });
         updatedPressItems = [...updatedPressItems, matchPress];
+        if (matchPress.moraleShock && matchPress.moraleShock < 0) {
+          updatedMorale[tid] = Math.max(1, (updatedMorale[tid] ?? MORALE_DEFAULT) + matchPress.moraleShock);
+        }
+        if (matchPress.moraleBoost && matchPress.moraleBoost > 0) {
+          updatedMorale[tid] = Math.min(100, (updatedMorale[tid] ?? MORALE_DEFAULT) + matchPress.moraleBoost);
+        }
         if (dopingSuspension) {
           updatedDopingSuspensions = [...updatedDopingSuspensions, dopingSuspension];
           dopingBannedTeamIds.push(tid);
@@ -320,7 +348,12 @@ export default function MultiplexLive() {
           teamName: nameFor(tid),
           morale: updatedMorale[tid] ?? MORALE_DEFAULT,
         });
-        if (moralePress) updatedPressItems = [...updatedPressItems, moralePress];
+        if (moralePress) {
+          updatedPressItems = [...updatedPressItems, moralePress];
+          if (moralePress.presidentDestitue) {
+            updatedPendingRebound = { ...updatedPendingRebound, [tid]: current.currentRound + 1 };
+          }
+        }
       }
     }
 
@@ -379,6 +412,7 @@ export default function MultiplexLive() {
       pressItems: updatedPressItems,
       injuries: updatedInjuries,
       suspensions: updatedSuspensions,
+      pendingPresidencyRebound: Object.keys(updatedPendingRebound).length > 0 ? updatedPendingRebound : undefined,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allFinished]);

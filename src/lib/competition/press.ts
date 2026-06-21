@@ -6,7 +6,7 @@ import type { Standing } from './types';
 import type { Player } from '@/lib/types';
 import type { Coach } from '@/lib/gen/coach';
 
-export type PressCategory = 'victoire' | 'defaite' | 'scandale' | 'forme' | 'crise' | 'neutralite' | 'exploit';
+export type PressCategory = 'victoire' | 'defaite' | 'scandale' | 'forme' | 'crise' | 'neutralite' | 'exploit' | 'critique' | 'revolte';
 
 export type PressMentionPlayer = {
   type: 'player';
@@ -48,6 +48,12 @@ export type PressItem = {
   body: string;
   moraleBefore?: number;
   moraleAfter?: number;
+  /** Extra morale penalty applied by hostile press — negative int, e.g. -15 */
+  moraleShock?: number;
+  /** Extra morale boost from positive press — positive int, e.g. +8 */
+  moraleBoost?: number;
+  /** If true, the president was destituted — caller should schedule rebound press next round */
+  presidentDestitue?: boolean;
   createdAt: string;
   /** Named persons mentioned in headline/body — used for clickable pop-ups */
   mentions?: PressMention[];
@@ -562,6 +568,110 @@ const TEAM_DOPING_PAIRS: [string, string][] = [
 ];
 
 
+// ── Presse hostile / critique ─────────────────────────────────────────────────
+// Niveau 1 : défaite normale — ton journalistique acerbe
+const CRITIQUE_HEADLINES_L1 = [
+  '{team} : la honte de la journée',
+  '{team} sombres, sans âme, sans idées',
+  'Nuls, ternes, inutiles : {team} au fond du gouffre',
+  '{team} : prestation indigne, résultat logique',
+  '{team} ne méritait pas de gagner — et ça s\'est vu',
+  'Zéro, néant, rien : {team} n\'existe plus sur un terrain',
+  '{team} : encore une débâcle collective à oublier',
+  'Catastrophe {team} : le niveau est alarmant',
+  '{team} en mode figurant — encore une fois',
+  'L\'effarante médiocrité de {team} confirmée ce soir',
+];
+
+const CRITIQUE_BODIES_L1 = [
+  'On cherche encore où était {team} sur ce terrain. Absents physiquement, inexistants tactiquement, incapables de produire le moindre football digne de ce nom. Ce n\'est pas une défaite, c\'est un aveu d\'impuissance. Le staff doit se poser des questions sérieuses.',
+  'Aucune envie, aucun pressing, aucune solution. {team} a rendu une copie blanche et s\'en est tiré avec un score qui flatte encore leur prestation. La direction technique ne peut pas rester les bras croisés face à une telle régression.',
+  '{team} confirme ce que tout le monde voit depuis plusieurs matchs : ce groupe est en crise profonde. Les automatismes n\'existent pas, la confiance est en miettes, et les individualités ne compensent plus le manque de collectif.',
+  'On attendait un sursaut d\'orgueil. On a eu droit à la même soupe tiède, molle et sans saveur. {team} joue sans conviction, sans intensité, sans le moindre signe d\'une équipe qui veut vraiment aller de l\'avant.',
+  'Les supporters de {team} méritent mieux que ça. Beaucoup mieux. Ce groupe ne se bat pas, ne court pas, ne joue pas. Il subit. Et ce soir, tout le monde l\'a vu.',
+];
+
+// Niveau 2 : grosse défaite (-3) — supporters en colère
+const CRITIQUE_HEADLINES_L2 = [
+  '{team} : bande de bras cassés',
+  '{team} — une honte, une vraie honte',
+  'Scandaleux : {team} se fait massacrer sans réagir',
+  '{team} : des touristes en compétition internationale',
+  'Nuls à chier : {team} se ridiculise',
+  '{team} : la pire prestation de la saison, et c\'est dire',
+  'Allez vous cacher : {team} est une catastrophe ambulante',
+  '{team} démonté, humilié, écœurant',
+  'On a honte pour eux : {team} n\'est plus une équipe',
+  '{team} : ce groupe ne sait pas ce qu\'est la compétition',
+];
+
+const CRITIQUE_BODIES_L2 = [
+  'C\'est quoi ce football de merde ? {team} s\'est fait découper en morceaux sans opposer la moindre résistance. Pas de pressing, pas de duels gagnés, pas de tirs cadrés. Rien. Des joueurs payés pour jouer au football qui n\'ont pas foutu grand-chose sur ce terrain. La honte.',
+  '{team} s\'est couché dès la première mi-temps. Ces gars-là ont l\'air de s\'en foutre royalement. Pas de réaction, pas d\'orgueil, pas de caractère. C\'est une bande de joueurs sans couilles qui méritent exactement ce qu\'ils récoltent ce soir.',
+  'On peut pas appeler ça du football. {team} a couru à côté des ballons, raté ses passes, subi chaque duel. À un moment, faut avoir la décence de se remettre en question plutôt que de serrer des mains et rentrer à l\'hôtel comme si de rien n\'était. Affligeant.',
+  'Les supporters qui ont fait le déplacement méritent un remboursement et des excuses. {team} n\'a pas joué ce soir. Il a juste été présent physiquement sur un terrain, sans âme, sans combativité, sans le début d\'une idée de football. Une honte collective.',
+  'Désastre total pour {team}. Vous pouvez mettre ça sur le compte de la malchance ou de la fatigue si ça vous fait du bien — mais la vérité c\'est que cette équipe est nulle. Nulle collectivement, nulle tactiquement, et quelques-uns sont nuls individuellement. Voilà.',
+];
+
+// Niveau 3 : humiliation (-4 et plus) — ultra-cru
+const CRITIQUE_HEADLINES_L3 = [
+  '{team} au poteau — exécution publique',
+  'Putain mais c\'est quoi ce cirque ? {team} désintégré',
+  '{team} : on vient d\'assister à une scène de crime',
+  'Dissolution immédiate demandée : {team} n\'a pas sa place ici',
+  '{team} tartinés dans tous les sens — humiliation totale',
+  '{team} — score de correctionnelle, prestation de honte absolue',
+  'Ces joueurs de {team} devraient avoir honte de sortir du vestiaire',
+  '{team} atomisé : une déroute historique qui va laisser des traces',
+  '{team} : ça méritait une raclée, ils l\'ont eue. Et encore.',
+  'Qui a envoyé {team} en compétition ? Une blague de mauvais goût.',
+];
+
+const CRITIQUE_BODIES_L3 = [
+  'On ne sait même pas par où commencer. {team} s\'est fait massacrer dans tous les compartiments du jeu. C\'est catastrophique, c\'est une humiliation absolue, et c\'est totalement mérité. Ces joueurs ne méritent pas de fouler un terrain international. Point.',
+  'C\'est une scène de crime. {team} s\'est fait éventrer, découper, ridiculiser. Et le pire dans tout ça ? Personne n\'a réagi. Pas de rage, pas de fierté blessée, rien. Des fantômes en maillot qui regardent les buts rentrer sans même avoir l\'air d\'en avoir quelque chose à faire.',
+  'Allez, on va être honnête : {team} n\'avait rien à faire dans cette compétition. Cette raclée le confirme. Des joueurs à la ramasse, un coach dépassé par les événements, un système de jeu inexistant. Le score reflète parfaitement l\'écart de niveau. Et encore, c\'est gentil.',
+  'Cette défaite devrait entrer dans les annales de la médiocrité. {team} n\'a pas seulement perdu — il s\'est désintégré, effondré, sabordé. Chaque joueur a sa part de responsabilité dans cette déroute honteuse qui va marquer les esprits longtemps. Rentrez chez vous.',
+  'Y\'a des soirées où on ferme les yeux et on essaie d\'oublier. Ce soir avec {team}, c\'est raté : impossible d\'oublier une telle boucherie. Cette équipe est une insulte au football. Les supporters qui ont eu la malchance de regarder ça ont droit à des excuses publiques.',
+];
+
+// Suffixes coach virulents pour critiques
+const CRITIQUE_COACH_L1 = [
+  `Les choix tactiques de {coach} sont incompréhensibles depuis plusieurs matchs.`,
+  `{coach} n'a pas les solutions. Ça commence à se voir.`,
+  `La question de l'avenir de {coach} à ce poste se pose sérieusement.`,
+  `{coach} sort de ce match sans réponses et sans crédibilité.`,
+];
+const CRITIQUE_COACH_L2 = [
+  `{coach} est responsable de ce naufrage. Ses choix sont catastrophiques.`,
+  `Comment {coach} peut encore aligner cette équipe dans cet état ? Mystère.`,
+  `{coach} est dépassé, dépassé, dépassé. Le groupe ne croit plus en lui.`,
+  `Après ça, {coach} doit se remettre en question — ou se faire remplacer.`,
+];
+const CRITIQUE_COACH_L3 = [
+  `{coach} devrait démissionner ce soir même. Cette équipe ne va nulle part sous sa direction.`,
+  `C'est quoi le plan de {coach} ? Parce que là, y'en a manifestement pas.`,
+  `{coach} est complètement perdu et son équipe avec lui. Un désastre humain et tactique.`,
+  `{coach} a perdu son groupe, perdu ses idées, perdu la face. L'heure du bilan a sonné.`,
+];
+
+// Suffixes joueur virulents pour critiques
+const CRITIQUE_PLAYER_L1 = [
+  `{player} a encore disparu quand l'équipe en avait besoin.`,
+  `On attendait que {player} se lève — il est resté assis.`,
+  `{player} en deçà de tout ce soir. Très en deçà.`,
+];
+const CRITIQUE_PLAYER_L2 = [
+  `{player} a été inexistant. Fantôme. Absent total.`,
+  `Ce soir, {player} n'a rien apporté. Strictement rien.`,
+  `{player} est passé complètement à côté de sa soirée — et ce n'est pas la première fois.`,
+];
+const CRITIQUE_PLAYER_L3 = [
+  `{player} aurait mieux fait de rester au vestiaire.`,
+  `On paie {player} pour ça ? Affligeant.`,
+  `{player} : prestation catastrophique dans un collectif catastrophique.`,
+];
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type MatchPressResult = {
@@ -634,6 +744,17 @@ export function generateMatchPressItem(opts: {
   const scandalChance = isPlayerDoping || isTeamDoping ? 0 : (diff < 0 ? 0.03 : 0.008);
   const scandalize = r() < scandalChance;
 
+  // Presse hostile : uniquement sur défaite, jamais si autre événement spécial
+  const isHumiliation = diff <= -4;
+  const isBrutalLoss = diff <= -3 && diff > -4;
+  const critiqueable = !isPlayerDoping && !isTeamDoping && !scandalize && diff < 0;
+  const critiqueChance = critiqueable
+    ? (isHumiliation ? 0.40 : isBrutalLoss ? 0.22 : 0.10)
+    : 0;
+  const isCritique = r() < critiqueChance;
+  let moraleShock: number | undefined;
+  let moraleBoost: number | undefined;
+
   if (isTeamDoping) {
     category = 'scandale';
     const [h, b] = pick(TEAM_DOPING_PAIRS, r);
@@ -677,6 +798,53 @@ export function generateMatchPressItem(opts: {
     const [h, b] = pick(SCANDAL_PAIRS, r);
     headline = h.replace(/{team}/g, opts.teamName);
     body = b.replace(/{team}/g, opts.teamName);
+  } else if (isCritique) {
+    category = 'critique';
+    if (isHumiliation) {
+      headline = pick(CRITIQUE_HEADLINES_L3, r).replace(/{team}/g, opts.teamName);
+      body = pick(CRITIQUE_BODIES_L3, r).replace(/{team}/g, opts.teamName);
+      moraleShock = -(18 + Math.floor(r() * 8)); // -18 à -25
+    } else if (isBrutalLoss) {
+      headline = pick(CRITIQUE_HEADLINES_L2, r).replace(/{team}/g, opts.teamName);
+      body = pick(CRITIQUE_BODIES_L2, r).replace(/{team}/g, opts.teamName);
+      moraleShock = -(12 + Math.floor(r() * 6)); // -12 à -17
+    } else {
+      headline = pick(CRITIQUE_HEADLINES_L1, r).replace(/{team}/g, opts.teamName);
+      body = pick(CRITIQUE_BODIES_L1, r).replace(/{team}/g, opts.teamName);
+      moraleShock = -(8 + Math.floor(r() * 5)); // -8 à -12
+    }
+    // Suffix coach critique
+    const coach = opts.coach;
+    if (coach) {
+      const coachLabel = `${coach.firstName} ${coach.lastName}`;
+      const coachBank = isHumiliation ? CRITIQUE_COACH_L3 : isBrutalLoss ? CRITIQUE_COACH_L2 : CRITIQUE_COACH_L1;
+      body += ' ' + pick(coachBank, r).replace(/{coach}/g, coachLabel);
+      mentions.push({
+        type: 'coach',
+        name: coachLabel,
+        overall: coach.overall,
+        stats: coach.stats,
+        positiveTraits: coach.positiveTraits,
+        negativeTraits: coach.negativeTraits,
+      });
+    }
+    // Suffix joueur critique
+    if (playerMention && featuredPlayer) {
+      const playerBank = isHumiliation ? CRITIQUE_PLAYER_L3 : isBrutalLoss ? CRITIQUE_PLAYER_L2 : CRITIQUE_PLAYER_L1;
+      body += ' ' + pick(playerBank, r).replace(/{player}/g, playerMention);
+      mentions.push({
+        type: 'player',
+        name: playerMention,
+        overall: featuredPlayer.overall,
+        position: featuredPlayer.position,
+        stats: {
+          technical: featuredPlayer.stats.technical as unknown as Record<string, number>,
+          mental: featuredPlayer.stats.mental as unknown as Record<string, number>,
+          physical: featuredPlayer.stats.physical as unknown as Record<string, number>,
+          ...(featuredPlayer.stats.goalkeeping ? { goalkeeping: featuredPlayer.stats.goalkeeping as unknown as Record<string, number> } : {}),
+        },
+      });
+    }
   } else if (isKnockout) {
     // ── Phase finale : templates spécifiques ─────────────────────────────────
     const koWinHeads = KO_WIN_HEADLINES[phase] ?? KO_WIN_HEADLINES['QF'];
@@ -687,6 +855,7 @@ export function generateMatchPressItem(opts: {
 
     if (diff > 0) {
       category = isBigWin ? 'exploit' : 'victoire';
+      moraleBoost = isBigWin ? (8 + Math.floor(r() * 7)) : (4 + Math.floor(r() * 5)); // exploit: +8-14, victoire: +4-8
       // 50% chance d'utiliser le template KO spécifique, sinon template générique enrichi
       if (r() < 0.5 && koWinHeads.length) {
         headline = pick(koWinHeads, r).replace(/{team}/g, opts.teamName);
@@ -716,6 +885,7 @@ export function generateMatchPressItem(opts: {
     // ── Phase de groupe ou ligue ─────────────────────────────────────────────
     if (diff > 0) {
       category = isBigWin ? 'exploit' : 'victoire';
+      moraleBoost = isBigWin ? (8 + Math.floor(r() * 7)) : (4 + Math.floor(r() * 5));
       headline = pick(isBigWin ? BIG_WIN_HEADLINES : WIN_HEADLINES, r).replace(/{team}/g, opts.teamName);
       body = pick(isBigWin ? BIG_WIN_BODIES : WIN_BODIES, r).replace(/{team}/g, opts.teamName);
       // Contexte classement
@@ -860,6 +1030,8 @@ export function generateMatchPressItem(opts: {
       body,
       moraleBefore: opts.moraleBefore,
       moraleAfter: opts.moraleAfter,
+      moraleShock,
+      moraleBoost,
       createdAt: new Date().toISOString(),
       mentions: mentions.length > 0 ? mentions : undefined,
     },
@@ -867,6 +1039,53 @@ export function generateMatchPressItem(opts: {
     teamDisqualified,
   };
 }
+
+const REVOLTE_HEADLINES = [
+  'SCANDALE : les supporters de {team} envahissent la fédération',
+  '{team} : la rue gronde, le comité dans le collimateur',
+  'Émeute devant la fédération de {team} — le peuple en a marre',
+  '{team} : des centaines de supporters réclament la tête du comité',
+  'La révolte gronde : les fans de {team} mettent le feu devant la fédération',
+  '{team} : le comité sous haute tension, les supporters dans la rue',
+  'Ras-le-bol : les supporters de {team} bloquent le siège de la fédération',
+  '{team} : scènes de chaos devant la fédération, le comité planqué à l\'intérieur',
+];
+
+const REVOLTE_BODIES = [
+  'La coupe est pleine. Des centaines de supporters de {team}, en colère noire, se sont rassemblés devant le siège de la fédération ce soir. Banderoles injurieuses, fumigènes rouges, chants hostiles : l\'ambiance était à la révolution. "Démission ! Démission !" scandait la foule. Le comité n\'a pas daigné se montrer. Une honte de plus.',
+  'C\'est la goutte d\'eau. Après des semaines de résultats catastrophiques, les supporters de {team} ont décidé de passer à l\'action. Manifestation sauvage devant la fédération, vitres brisées, portes bloquées. La police a dû intervenir pour disperser la foule. À l\'intérieur, les membres du comité attendaient retranchés dans leurs bureaux. Leur crédibilité est morte ce soir.',
+  'Ils en peuvent plus. Les supporters de {team} ont investi les abords de la fédération nationale en fin de soirée, réclamant à corps et à cris la démission du comité et le remplacement du staff. Des fumigènes, des bouteilles, des insultes — et une résolution claire : cette direction ne peut plus rester en place. La pression est maximale.',
+  'Le peuple de {team} a craqué. Des centaines de personnes ont convergé vers le siège de la fédération après la débâcle du soir. Banderoles : "Dehors les incapables", "Remboursez-nous", "Vous nous faites honte". La nuit a été longue pour les dirigeants. Certains sources indiquent que le comité envisage sérieusement de démissionner.',
+  'URGENT — Des scènes inédites devant la fédération de {team} ce soir. Supporters en colère, fumigènes, chants de honte. "On veut des gens compétents !" criait un supporter, le visage rouge. "On en a marre de payer pour regarder ces tocards !" La fédération a publié un communiqué laconique. Insuffisant. Très insuffisant.',
+];
+
+const DESTITUTION_HEADLINES = [
+  '{team} : le comité destitué sous la pression populaire',
+  'Chute du comité de la fédération {team} — une page se tourne',
+  '{team} : démission forcée, le comité plié bagage',
+  'Révolution à la fédération {team} — le comité dehors',
+];
+
+const DESTITUTION_BODIES = [
+  'C\'est officiel : le comité de la fédération de {team} a remis sa démission ce matin, sous la pression des supporters et des instances. Une décision qui intervient après les scènes de chaos devant le siège fédéral. Un intérim est mis en place. L\'espoir renaît timidement dans les rangs des supporters — et dans le vestiaire.',
+  'Sous la pression populaire, il a craqué. Le comité de la fédération de {team} a quitté son poste dans la nuit. Les réseaux s\'enflamment, les supporters crient victoire. L\'intérimaire nommé dans l\'urgence a promis "un nouveau souffle" et "un soutien total au groupe". Les joueurs ont été informés ce matin. L\'air dans le vestiaire semble différent.',
+  'Ils sont partis. Le comité de la fédération de {team} a rendu son tablier après la pression des événements. Une cellule de transition prend les rênes. Premier message envoyé au vestiaire : "Vous avez notre confiance totale. Redressez la tête." Simple. Mais parfois, les mots suffisent.',
+  'Départ précipité du comité directeur de la fédération {team}. La révolution des tribunes a fonctionné. De nouveaux visages arrivent à la tête de l\'institution, avec une promesse : remettre le football au centre, pas la politique. Le groupe y croit. Il faudra le prouver sur le terrain.',
+];
+
+const REBOUND_HEADLINES = [
+  '{team} : nouvelle direction, nouveau souffle — l\'heure de la renaissance',
+  'Après la tempête, {team} repart de l\'avant',
+  '{team} : le vestiaire galvanisé par le renouveau du comité',
+  'Réveil de {team} — la nouvelle direction insuffle une énergie nouvelle',
+];
+
+const REBOUND_BODIES = [
+  'Le nouveau comité de la fédération {team} a rencontré les joueurs ce matin. Long discours, ambiance studieuse, poignées de main sincères. "On repart de zéro. Ensemble." Le groupe a semblé réceptif. L\'entraîneur a confirmé : "L\'ambiance est différente. Les gars ont l\'air de vouloir se battre à nouveau." À confirmer sur le terrain.',
+  'Nouveau contexte, nouvelles sensations pour {team}. La direction de crise est derrière eux. Le nouveau comité a promis un soutien sans faille et un budget revu. Dans le vestiaire, les langues se délient. "On s\'était tous pris la tête, on avait perdu le fil. Là, c\'est comme si on effaçait tout." Reste à le démontrer collectivement.',
+  'La fédération {team} a tourné la page — et le vestiaire avec. Le staff a senti le changement dès l\'entraînement du lendemain : plus d\'intensité, plus de communication, moins de têtes basses. Le comité intérimaire a été clair : "Votre job, c\'est de jouer. Le reste, on gère." Parfois, c\'est tout ce dont un groupe a besoin.',
+  'Regain d\'énergie pour {team}. La révolution de la fédération a eu un effet inattendu : l\'unité dans le vestiaire. Les joueurs se sont serrés les coudes face à la tempête médiatique. La nouvelle direction a flatté l\'instinct de survie du groupe. "On va leur montrer qu\'ils ont eu tort de nous enterrer." On attend de voir.',
+];
 
 /** Occasional mid-competition press item based on morale extremes */
 export function generateMoralePressItem(opts: {
@@ -890,6 +1109,27 @@ export function generateMoralePressItem(opts: {
       createdAt: new Date().toISOString(),
     };
   }
+  // Révolte supporters : morale ≤ 5, 33% chance
+  if (opts.morale <= 5 && r() < 0.333) {
+    const destitue = r() < 0.6; // 60% chance le comité tombe suite à la manif
+    const headline = destitue
+      ? pick(DESTITUTION_HEADLINES, r).replace(/{team}/g, opts.teamName)
+      : pick(REVOLTE_HEADLINES, r).replace(/{team}/g, opts.teamName);
+    const body = destitue
+      ? pick(DESTITUTION_BODIES, r).replace(/{team}/g, opts.teamName)
+      : pick(REVOLTE_BODIES, r).replace(/{team}/g, opts.teamName);
+    return {
+      id: crypto.randomUUID(),
+      round: opts.round,
+      teamId: opts.teamId,
+      category: 'revolte',
+      headline,
+      body,
+      moraleAfter: opts.morale,
+      presidentDestitue: destitue,
+      createdAt: new Date().toISOString(),
+    };
+  }
   if (opts.morale <= 25 && r() < 0.5) {
     return {
       id: crypto.randomUUID(),
@@ -905,6 +1145,26 @@ export function generateMoralePressItem(opts: {
   return null;
 }
 
+/** Presidency rebound press item — fires the round after a destitution event */
+export function generatePresidencyReboundItem(opts: {
+  round: number;
+  teamId: string;
+  teamName: string;
+  seed: string;
+}): PressItem {
+  const r = rng(opts.seed + 'rebound');
+  return {
+    id: crypto.randomUUID(),
+    round: opts.round,
+    teamId: opts.teamId,
+    category: 'revolte',
+    headline: pick(REBOUND_HEADLINES, r).replace(/{team}/g, opts.teamName),
+    body: pick(REBOUND_BODIES, r).replace(/{team}/g, opts.teamName),
+    moraleBoost: 20 + Math.floor(r() * 11), // +20 à +30
+    createdAt: new Date().toISOString(),
+  };
+}
+
 export const PRESS_CATEGORY_LABEL: Record<PressCategory, string> = {
   victoire: 'Victoire',
   defaite: 'Défaite',
@@ -913,6 +1173,8 @@ export const PRESS_CATEGORY_LABEL: Record<PressCategory, string> = {
   crise: 'Crise',
   neutralite: 'Nul',
   exploit: 'Exploit',
+  critique: 'Critique',
+  revolte: 'Révolte',
 };
 
 export const PRESS_CATEGORY_COLOR: Record<PressCategory, string> = {
@@ -923,4 +1185,6 @@ export const PRESS_CATEGORY_COLOR: Record<PressCategory, string> = {
   crise: 'text-red-500 bg-red-500/10 border-red-500/20',
   neutralite: 'text-muted bg-border/40 border-border',
   exploit: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20',
+  critique: 'text-orange-600 bg-orange-600/10 border-orange-600/30',
+  revolte: 'text-purple-400 bg-purple-400/10 border-purple-400/20',
 };

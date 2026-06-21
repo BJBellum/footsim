@@ -105,6 +105,8 @@ export type Competition = {
   suspensions?: Suspension[];
   /** LPM: host nation team ID — auto-qualified regardless of finish position */
   hostTeamId?: string;
+  /** teamId → round at which presidency rebound press fires (after destitution event) */
+  pendingPresidencyRebound?: Record<string, number>;
 };
 
 export type CompetitionSummary = {

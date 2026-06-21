@@ -20,7 +20,7 @@ import { advanceBracket, applyResultToStandings, applyCorruptionDisqualification
 import { rulesForPhase } from '@/lib/competition/types';
 import { loadLocalTactics } from '@/lib/localTactics';
 import { updateMorale, initMorale, MORALE_DEFAULT } from '@/lib/competition/morale';
-import { generateMatchPressItem, generateMoralePressItem } from '@/lib/competition/press';
+import { generateMatchPressItem, generateMoralePressItem, generatePresidencyReboundItem } from '@/lib/competition/press';
 import { createMatchInjury, createSuspension, decrementInjuries, decrementSuspensions, unavailableIds } from '@/lib/competition/injuries';
 
 import type { Team } from '@/lib/types';
@@ -329,6 +329,26 @@ export default function CompetitionMatchLive() {
         (tid === matchInput!.away.team.id ? matchInput!.away.team.name : null) ??
         teamSnap[tid]?.name ?? tid;
 
+      let updatedPendingRebound: Record<string, number> = { ...(snap!.pendingPresidencyRebound ?? {}) };
+
+      // Fire pending rebound articles for this round
+      for (const [reboundTeamId, reboundRound] of Object.entries(updatedPendingRebound)) {
+        if (reboundRound <= round) {
+          const reboundItem = generatePresidencyReboundItem({
+            round,
+            teamId: reboundTeamId,
+            teamName: nameFor(reboundTeamId),
+            seed: `${seed}-rebound-${reboundTeamId}`,
+          });
+          newPressItems.push(reboundItem);
+          if (reboundItem.moraleBoost && reboundItem.moraleBoost > 0) {
+            updatedMorale[reboundTeamId] = Math.min(100, (updatedMorale[reboundTeamId] ?? MORALE_DEFAULT) + reboundItem.moraleBoost);
+          }
+          const { [reboundTeamId]: _, ...rest } = updatedPendingRebound;
+          updatedPendingRebound = rest;
+        }
+      }
+
       // Injuries from match events (init early — doping suspension appended below)
       let updatedInjuries = decrementInjuries(snap!.injuries ?? []);
       let updatedSuspensions = decrementSuspensions(snap!.suspensions ?? []);
@@ -362,6 +382,12 @@ export default function CompetitionMatchLive() {
           coach: teamCoach,
         });
         newPressItems.push(item);
+        if (item.moraleShock && item.moraleShock < 0) {
+          updatedMorale[tid] = Math.max(1, (updatedMorale[tid] ?? MORALE_DEFAULT) + item.moraleShock);
+        }
+        if (item.moraleBoost && item.moraleBoost > 0) {
+          updatedMorale[tid] = Math.min(100, (updatedMorale[tid] ?? MORALE_DEFAULT) + item.moraleBoost);
+        }
         if (dopingSuspension) {
           updatedSuspensions = [...updatedSuspensions, dopingSuspension];
           matchDopingOccurred = true;
@@ -379,7 +405,12 @@ export default function CompetitionMatchLive() {
           morale: updatedMorale[tid] ?? MORALE_DEFAULT,
           seed: seed + tid + round,
         });
-        if (moraleItem) newPressItems.push(moraleItem);
+        if (moraleItem) {
+          newPressItems.push(moraleItem);
+          if (moraleItem.presidentDestitue) {
+            updatedPendingRebound[tid] = round + 1;
+          }
+        }
       }
 
       const homePlayersMap = new Map(matchInput!.home.players.map((p) => [p.id, p]));
@@ -432,6 +463,7 @@ export default function CompetitionMatchLive() {
         pressItems: newPressItems,
         injuries: updatedInjuries,
         suspensions: updatedSuspensions,
+        pendingPresidencyRebound: Object.keys(updatedPendingRebound).length > 0 ? updatedPendingRebound : undefined,
       };
 
       // Résultat appliqué en mémoire + localStorage — sauvegarde GitHub manuelle
