@@ -15,6 +15,7 @@ import { useCredentials } from '@/stores/credentials';
 import { useBackendArgs } from '@/hooks/useBackendArgs';
 import { useSession } from '@/stores/session';
 import { needsKnockoutDraw, getQualifiersByRank, seedKnockoutWithOrder, sortStandings, seedLPMPlayoffs } from '@/lib/competition/scheduler';
+import { LPMDrawCeremony, type LPMPair } from '@/components/competition/LPMDrawCeremony';
 import { buildKnockoutPots, conductKnockoutDraw } from '@/lib/competition/draw';
 import type { DrawResult } from '@/lib/competition/draw';
 import type { Competition, CompMatch, PlayerCompStats } from '@/lib/competition/types';
@@ -51,6 +52,8 @@ export default function CompetitionDetail() {
   const [syncing, setSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'bracket' | 'rounds' | 'stats' | 'presse' | 'medical'>('overview');
   const [knockoutDraw, setKnockoutDraw] = useState<DrawResult | null>(null);
+  const [lpmDraw, setLpmDraw] = useState<LPMPair[] | null>(null);
+  const [roundDraw, setRoundDraw] = useState<{ round: number; pairs: LPMPair[] } | null>(null);
   const [preMatchModal, setPreMatchModal] = useState<{ matchId: string; home: Team; away: Team } | null>(null);
 
   // For public repos, reads work without a token. PAT only needed for writes.
@@ -183,21 +186,37 @@ export default function CompetitionDetail() {
     && lpmLeagueMatches.every((m) => m.status === 'completed')
     && lpmPlayoffMatches.some((m) => m.homeTeamId === null && !m.homeFromMatch);
 
-  async function seedLPMBarrages() {
-    if (!current || !pat) return;
+  function seedLPMBarrages() {
+    if (!current) return;
+    const standings = sortStandings(Object.values(current.standings));
+    // Compute pairs for the draw ceremony (same logic as seedLPMPlayoffs)
+    const hostRank = current.hostTeamId
+      ? standings.findIndex((s) => s.teamId === current.hostTeamId)
+      : -1;
+    let playoffZone = standings.slice(24, 40).map((s) => s.teamId);
+    if (current.hostTeamId && hostRank >= 24 && hostRank <= 39) {
+      const hostPosInZone = hostRank - 24;
+      playoffZone = [
+        ...playoffZone.slice(0, hostPosInZone),
+        standings[40]?.teamId ?? '',
+        ...playoffZone.slice(hostPosInZone + 1),
+      ].filter(Boolean);
+    }
+    const pairs: LPMPair[] = Array.from({ length: 8 }, (_, i) => ({
+      home: playoffZone[15 - i], // lower seed (40e→33e) reçoit à l'aller
+      away: playoffZone[i],      // higher seed (25e→32e) reçoit au retour
+    }));
+    setLpmDraw(pairs);
+  }
+
+  function confirmLPMDraw() {
+    if (!current || !lpmDraw) return;
     const standings = sortStandings(Object.values(current.standings));
     const updatedMatches = seedLPMPlayoffs(current.matches, standings, current.hostTeamId);
     const updated: Competition = { ...current, matches: updatedMatches };
     setCurrent(updated);
-    setSyncing(true);
-    try {
-      await save(updated, pat);
-      toast('success', 'Barrages LPM générés et sauvegardés.');
-    } catch {
-      toast('error', 'Barrages générés mais sauvegarde GitHub échouée — synchronise manuellement.');
-    } finally {
-      setSyncing(false);
-    }
+    setLpmDraw(null);
+    toast('success', 'Barrages LPM générés — sauvegarde via le bouton GitHub.');
   }
 
   function startKnockoutDraw() {
@@ -208,26 +227,14 @@ export default function CompetitionDetail() {
     setKnockoutDraw(result);
   }
 
-  async function confirmKnockoutDraw(groups: Record<string, string[]>) {
+  function confirmKnockoutDraw(groups: Record<string, string[]>) {
     if (!current) return;
     const orderedQualifiers = Object.values(groups).flat();
     const updatedMatches = seedKnockoutWithOrder(current.matches, orderedQualifiers);
     const updated: Competition = { ...current, matches: updatedMatches };
     setCurrent(updated);
     setKnockoutDraw(null);
-    if (pat) {
-      setSyncing(true);
-      try {
-        await save(updated, pat);
-        toast('success', 'Tirage effectué et sauvegardé.');
-      } catch {
-        toast('error', 'Tirage effectué mais sauvegarde GitHub échouée — synchronise manuellement.');
-      } finally {
-        setSyncing(false);
-      }
-    } else {
-      toast('success', 'Tirage phase finale effectué.');
-    }
+    toast('success', 'Tirage phase finale effectué — sauvegarde via le bouton GitHub.');
   }
 
   function openMatchModal(matchId: string) {
@@ -261,9 +268,58 @@ export default function CompetitionDetail() {
 
     if (roundMatches.length === 1) {
       openMatchModal(roundMatches[0].id);
+    } else if (isLPM && roundMatches[0]?.phase === 'league') {
+      // LPM league rounds: show draw ceremony before launching multiplex
+      const pairs: LPMPair[] = roundMatches.map((m) => ({ home: m.homeTeamId!, away: m.awayTeamId! }));
+      setRoundDraw({ round, pairs });
     } else {
       navigate(`/competition/${current.id}/round/${round}`);
     }
+  }
+
+  if (roundDraw) {
+    const allTeams = [...teams, ...Object.entries(current.teamSnapshot ?? {}).map(([id, s]) => ({ id, name: s.name, flag: s.flag } as Team))];
+    return (
+      <div className="max-w-4xl space-y-6">
+        <div>
+          <button onClick={() => setRoundDraw(null)} className="text-sm text-muted hover:text-text">← Retour</button>
+          <h1 className="mt-2 font-display text-4xl">Tirage — Journée {roundDraw.round}</h1>
+          <p className="text-muted text-sm mt-1">{current.name} · {roundDraw.pairs.length} matchs</p>
+        </div>
+        <LPMDrawCeremony
+          pairs={roundDraw.pairs}
+          teams={allTeams}
+          title={`Journée ${roundDraw.round}`}
+          subtitle="Tirage au sort des confrontations de la journée"
+          pairLabels={(i) => `Match ${i + 1}`}
+          onConfirm={() => {
+            setRoundDraw(null);
+            navigate(`/competition/${current.id}/round/${roundDraw.round}`);
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (lpmDraw) {
+    const allTeams = [...teams, ...Object.entries(current.teamSnapshot ?? {}).map(([id, s]) => ({ id, name: s.name, flag: s.flag } as Team))];
+    return (
+      <div className="max-w-4xl space-y-6">
+        <div>
+          <Link to={backTo} className="text-sm text-muted hover:text-text">{backLabel}</Link>
+          <h1 className="mt-2 font-display text-4xl">Tirage — Barrages de la Peur</h1>
+          <p className="text-muted text-sm mt-1">{current.name}</p>
+        </div>
+        <LPMDrawCeremony
+          pairs={lpmDraw}
+          teams={allTeams}
+          title="Barrages de la Peur — 8 confrontations"
+          subtitle="Places 25–40 · Aller-Retour · Les vainqueurs décrochent les derniers tickets"
+          pairLabels={(i) => `Match ${'ABCDEFGH'[i]}`}
+          onConfirm={confirmLPMDraw}
+        />
+      </div>
+    );
   }
 
   if (knockoutDraw) {
@@ -402,8 +458,8 @@ export default function CompetitionDetail() {
             <div className="font-medium">11 journées terminées — Barrages de la Peur</div>
             <div className="text-sm text-muted">Places 25–40 : génère les 8 confrontations aller-retour pour les derniers tickets.</div>
           </div>
-          <Button size="sm" onClick={seedLPMBarrages} disabled={syncing}>
-            {syncing ? <Spinner className="h-4 w-4" /> : '⚔ Lancer les barrages'}
+          <Button size="sm" onClick={seedLPMBarrages}>
+            ⚔ Lancer les barrages
           </Button>
         </div>
       )}

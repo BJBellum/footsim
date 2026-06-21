@@ -210,7 +210,9 @@ export default function MultiplexLive() {
     }
 
     const nextRound = updatedMatches.every(
-      (m) => m.round <= current.currentRound ? m.status === 'completed' : true,
+      (m) => m.round <= current.currentRound
+        ? (!m.homeTeamId || !m.awayTeamId || m.status === 'completed')
+        : true,
     )
       ? current.currentRound + 1
       : current.currentRound;

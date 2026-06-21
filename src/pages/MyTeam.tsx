@@ -11,6 +11,7 @@ import { useSession } from '@/stores/session';
 import { GithubTeamBackend } from '@/lib/github/backend';
 import { listCompetitions } from '@/lib/github/competitions';
 import { POSITIONS, POSITION_LABEL, POSITION_FULL, CULTURES_BY_CONTINENT, CULTURE_LABEL } from '@/lib/types';
+import { listTeams, loadTeam } from '@/lib/github/store';
 import type { Continent } from '@/lib/types';
 import { FORMAT_LABEL } from '@/lib/competition/types';
 import type { Player, SavedTactic, Team, TeamTactics } from '@/lib/types';
@@ -33,7 +34,7 @@ const STATUS_COLOR: Record<string, string> = {
   completed: 'text-warning',
 };
 
-type Tab = 'tactique' | 'joueurs' | 'noms' | 'postes' | 'competitions';
+type Tab = 'tactique' | 'joueurs' | 'noms' | 'postes' | 'competitions' | 'top';
 
 export default function MyTeam() {
   const session = useSession((s) => s.session);
@@ -54,6 +55,8 @@ export default function MyTeam() {
   const [tab, setTab] = useState<Tab>('tactique');
   const [summaries, setSummaries] = useState<CompetitionSummary[]>([]);
   const [loadingComps, setLoadingComps] = useState(false);
+  const [topPlayers, setTopPlayers] = useState<{ player: Player; team: Team }[]>([]);
+  const [loadingTop, setLoadingTop] = useState(false);
   const [viewingPlayer, setViewingPlayer] = useState<Player | null>(null);
   const [nameWeights, setNameWeights] = useState<CultureWeight[]>([]);
   const [generatingNames, setGeneratingNames] = useState(false);
@@ -105,6 +108,31 @@ export default function MyTeam() {
       .then(setSummaries)
       .catch(() => toast('error', 'Impossible de charger les compétitions.'))
       .finally(() => setLoadingComps(false));
+  }, [tab]);
+
+  useEffect(() => {
+    if (tab !== 'top' || topPlayers.length > 0) return;
+    setLoadingTop(true);
+    async function loadTop() {
+      try {
+        const teams = await listTeams(env.githubReadToken ?? null);
+        const all: { player: Player; team: Team }[] = [];
+        await Promise.all(
+          teams.map(async (team) => {
+            const d = await loadTeam(team.slug, env.githubReadToken ?? null);
+            if (!d) return;
+            for (const p of d.players) all.push({ player: p, team });
+          }),
+        );
+        all.sort((a, b) => b.player.overall - a.player.overall);
+        setTopPlayers(all);
+      } catch {
+        toast('error', 'Impossible de charger les joueurs.');
+      } finally {
+        setLoadingTop(false);
+      }
+    }
+    loadTop();
   }, [tab]);
 
   function persistSavedTactics(next: SavedTactic[], activeId?: string) {
@@ -293,13 +321,18 @@ export default function MyTeam() {
 
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-border">
-        {(['tactique', 'joueurs', 'noms', 'postes', 'competitions'] as Tab[]).map((t) => (
+        {(['tactique', 'joueurs', 'noms', 'postes', 'competitions', 'top'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium transition-colors ${tab === t ? 'border-b-2 border-accent text-accent' : 'text-muted hover:text-text'}`}
           >
-            {t === 'tactique' ? 'Tactique' : t === 'joueurs' ? 'Joueurs' : t === 'noms' ? 'Noms' : t === 'postes' ? 'Postes' : 'Compétitions'}
+            {t === 'tactique' ? 'Tactique'
+              : t === 'joueurs' ? 'Joueurs'
+              : t === 'noms' ? 'Noms'
+              : t === 'postes' ? 'Postes'
+              : t === 'competitions' ? 'Compétitions'
+              : 'Meilleurs joueurs'}
           </button>
         ))}
       </div>
@@ -467,6 +500,60 @@ export default function MyTeam() {
                   ? <Link key={s.id} to={`/competition-view/${s.id}`}>{inner}</Link>
                   : <div key={s.id}>{inner}</div>;
               })}
+            </div>
+          )}
+        </div>
+      )}
+      {/* Meilleurs joueurs */}
+      {tab === 'top' && (
+        <div className="space-y-4">
+          {loadingTop ? (
+            <div className="flex justify-center py-12"><Spinner className="h-6 w-6" /></div>
+          ) : topPlayers.length === 0 ? (
+            <div className="rounded-lg border border-border bg-surface p-12 text-center text-muted">
+              Aucun joueur chargé.
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-lg border border-border bg-surface">
+              <table className="w-full text-sm">
+                <thead className="bg-bg text-left text-xs text-muted uppercase tracking-wide">
+                  <tr>
+                    <th className="px-3 py-2 w-10 text-center">#</th>
+                    <th className="px-4 py-2">Joueur</th>
+                    <th className="px-4 py-2">Poste</th>
+                    <th className="px-4 py-2">Nationalité</th>
+                    <th className="px-4 py-2">Équipe</th>
+                    <th className="px-3 py-2 text-right font-bold">OVR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topPlayers.slice(0, 100).map((e, i) => {
+                    const { player: p, team: t } = e;
+                    const rankColor = i === 0 ? 'text-yellow-500 font-bold' : i === 1 ? 'text-zinc-400 font-bold' : i === 2 ? 'text-orange-500 font-bold' : 'text-muted';
+                    return (
+                      <tr
+                        key={p.id}
+                        className="border-t border-border hover:bg-accent/5 cursor-pointer transition-colors"
+                        onClick={() => setViewingPlayer(p)}
+                      >
+                        <td className={`px-3 py-2.5 text-center tabular-nums ${rankColor}`}>{i + 1}</td>
+                        <td className="px-4 py-2.5 font-medium">{p.firstName} {p.lastName}</td>
+                        <td className="px-4 py-2.5">
+                          <span className="rounded bg-border/40 px-2 py-0.5 font-mono text-xs">{POSITION_LABEL[p.position]}</span>
+                        </td>
+                        <td className="px-4 py-2.5 text-xs text-muted">{CULTURE_LABEL[t.culture] ?? t.culture}</td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex items-center gap-2">
+                            {t.flag && <img src={t.flag} alt="" className="h-5 w-5 rounded-sm object-cover shrink-0" />}
+                            <span className="text-sm truncate max-w-[100px]">{t.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-bold tabular-nums text-accent">{p.overall}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

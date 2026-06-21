@@ -5,7 +5,7 @@ export type Speed = 'instant' | '0.5' | '1' | '2' | '5';
 export type EventKind =
   | 'kickoff' | 'goal' | 'shot' | 'shotOnTarget' | 'save' | 'foul'
   | 'yellow' | 'red' | 'corner' | 'offside' | 'halftime' | 'fulltime' | 'keyPass'
-  | 'penalty' | 'freeKick' | 'header' | 'dribble' | 'clearance' | 'crossbar'
+  | 'penalty' | 'penalty_miss' | 'penalty_saved' | 'freeKick' | 'header' | 'dribble' | 'clearance' | 'crossbar'
   | 'substitution' | 'extraTime' | 'coachRed' | 'injury';
 
 export type TacticMods = {

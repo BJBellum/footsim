@@ -45,6 +45,10 @@ export function eventText(
       return `${minute}' — Passe clé de ${playerName ?? team}.`;
     case 'penalty':
       return `🔴 ${minute}' — Penalty pour ${team} ! ${playerName ?? ''} s'élance.`.trim();
+    case 'penalty_miss':
+      return `❌ ${minute}' — Penalty raté ! ${playerName ?? team} expédie le ballon hors du cadre.`;
+    case 'penalty_saved':
+      return `🧤 ${minute}' — Penalty arrêté ! Le gardien${playerName ? ` ${playerName}` : ''} sort le grand jeu !`;
     case 'freeKick':
       return `${minute}' — Coup franc dangereux pour ${team}${playerName ? ` (${playerName})` : ''}.`;
     case 'header':

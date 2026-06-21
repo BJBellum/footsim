@@ -276,15 +276,19 @@ export function generateLPMMatches(teamIds: string[]): CompMatch[] {
   if (teamIds.length !== 48) throw new Error('LPM requiert exactement 48 équipes.');
   const matches: CompMatch[] = [];
 
-  for (let round = 1; round <= 11; round++) {
-    // Fresh shuffle each round — each team plays exactly once per round
-    const shuffled = shuffle([...teamIds]);
-    for (let i = 0; i < 48; i += 2) {
+  // Round-robin partiel: générer les 47 journées complètes, prendre les 11 premières.
+  // Garantit qu'aucune paire ne se rencontre deux fois dans les 11 journées.
+  const shuffledIds = shuffle([...teamIds]);
+  const rrRounds = roundRobin(shuffledIds.length); // 47 journées pour 48 équipes
+
+  for (let ri = 0; ri < 11; ri++) {
+    const round = rrRounds[ri];
+    for (const [hi, ai] of round) {
       matches.push({
         id: makeId(),
-        homeTeamId: shuffled[i],
-        awayTeamId: shuffled[i + 1],
-        round,
+        homeTeamId: shuffledIds[hi],
+        awayTeamId: shuffledIds[ai],
+        round: ri + 1,
         phase: 'league',
         leg: 1,
         status: 'pending',

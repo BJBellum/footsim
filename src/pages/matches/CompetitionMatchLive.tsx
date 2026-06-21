@@ -270,8 +270,11 @@ export default function CompetitionMatchLive() {
         }
       }
 
+      // Only count matches that have both teams assigned (TBD slots don't block round advance)
       const nextRound = updatedMatches.every(
-        (m) => m.round <= snap!.currentRound ? m.status === 'completed' : true,
+        (m) => m.round <= snap!.currentRound
+          ? (!m.homeTeamId || !m.awayTeamId || m.status === 'completed')
+          : true,
       )
         ? snap!.currentRound + 1
         : snap!.currentRound;

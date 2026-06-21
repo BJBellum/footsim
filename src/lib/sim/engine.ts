@@ -182,6 +182,43 @@ function tryShot(
   }
 }
 
+function tryPenaltyShot(
+  state: MatchState,
+  ctx: EngineCtx,
+  possessing: 'home' | 'away',
+  opp: 'home' | 'away',
+  teamName: string,
+  oppName: string,
+  shooter: import('@/lib/types').Player | undefined,
+): void {
+  const oppGk = gkOf(opp, ctx, state);
+  const fin = shooter?.stats.technical.finishing ?? 10;
+  const com = shooter?.stats.mental.composure ?? 10;
+  const gkVal = oppGk?.overall ?? 50;
+  const pGoal = clamp(sigmoid((fin + com - gkVal * 0.5) / 8) * 1.4, 0.04, 0.75);
+  const ballZone = possessing === 'home' ? ZONE.awayBox : ZONE.homeBox;
+  state.shots[possessing]++;
+  const onTarget = chance(0.55);
+  if (onTarget) {
+    state.shotsOnTarget[possessing]++;
+    if (chance(pGoal)) {
+      state.score[possessing]++;
+      pushEvent(state, ctx, { type: 'goal', side: possessing, playerId: shooter?.id, ballPos: ballZone },
+        teamName, shooter ? `${shooter.firstName} ${shooter.lastName}` : undefined);
+      state.ball = ZONE.centre;
+      checkGoldenGoal(state, ctx);
+    } else {
+      // on target but saved
+      pushEvent(state, ctx, { type: 'penalty_saved', side: opp, playerId: oppGk?.id, ballPos: ballZone },
+        oppName, oppGk ? `${oppGk.firstName} ${oppGk.lastName}` : undefined);
+    }
+  } else {
+    // off target
+    pushEvent(state, ctx, { type: 'penalty_miss', side: possessing, playerId: shooter?.id, ballPos: ballZone },
+      teamName, shooter ? `${shooter.firstName} ${shooter.lastName}` : undefined);
+  }
+}
+
 function performAutoSubs(state: MatchState, ctx: EngineCtx, side: 'home' | 'away'): void {
   const subsUsed = side === 'home' ? state.homeSubs : state.awaySubs;
   if (subsUsed >= state.rules.maxSubs) return;
@@ -382,7 +419,7 @@ export function tick(state: MatchState, ctx: EngineCtx): MatchState {
       const penTaker = pickAttacker(possessing, ctx, state);
       pushEvent(state, ctx, { type: 'penalty', side: possessing, playerId: penTaker?.id, ballPos: pz },
         teamName, penTaker ? `${penTaker.firstName} ${penTaker.lastName}` : undefined);
-      tryShot(state, ctx, possessing, opp, teamName, oppName, 1.4, pz);
+      tryPenaltyShot(state, ctx, possessing, opp, teamName, oppName, penTaker ?? undefined);
     } else {
       const victimName = victimSide === 'home' ? ctx.home.team.name : ctx.away.team.name;
       // 3% chance: the fouled player (attacker from possessing side) gets injured
