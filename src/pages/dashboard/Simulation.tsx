@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { COACH_TRAIT_LABEL, COACH_TRAIT_DESCRIPTION, POSITIVE_TRAITS, NEGATIVE_TRAITS } from '@/lib/gen/coach';
 
-type Tab = 'moteur' | 'entraineurs';
+type Tab = 'moteur' | 'entraineurs' | 'moral';
 
 export default function Simulation() {
   const [tab, setTab] = useState<Tab>('moteur');
@@ -14,19 +14,20 @@ export default function Simulation() {
       </div>
 
       <div className="flex gap-1 border-b border-border">
-        {(['moteur', 'entraineurs'] as Tab[]).map((t) => (
+        {(['moteur', 'entraineurs', 'moral'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium transition-colors ${tab === t ? 'border-b-2 border-accent text-accent' : 'text-muted hover:text-text'}`}
           >
-            {t === 'moteur' ? 'Moteur de jeu' : 'Entraîneurs'}
+            {t === 'moteur' ? 'Moteur de jeu' : t === 'entraineurs' ? 'Entraîneurs' : 'Moral'}
           </button>
         ))}
       </div>
 
       {tab === 'moteur' && <MoteurTab />}
       {tab === 'entraineurs' && <EntraineurTab />}
+      {tab === 'moral' && <MoralTab />}
     </div>
   );
 }
@@ -101,7 +102,7 @@ function MoteurTab() {
             ['Dribble', '× 1,05'],
             ['Corner / coup de tête', '× 0,85'],
             ['Coup franc', '× 0,75'],
-            ['Penalty (match)', '× 1,40'],
+            ['Penalty (match)', '× 1,80'],
             ['Penalty (tirs au but)', '× 1,50 — clampé [50 %, 86 %]'],
           ]}
         />
@@ -293,6 +294,82 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <h2 className="font-display text-2xl">{title}</h2>
       <div className="space-y-2 text-sm leading-relaxed">{children}</div>
     </section>
+  );
+}
+
+function MoralTab() {
+  return (
+    <div className="space-y-10">
+      <Section title="1. Principe général">
+        <p>
+          Chaque équipe engagée dans une compétition possède une valeur de <strong>moral</strong> (1–100),
+          initialisée à <strong>50</strong> au début de la compétition. Ce moral évolue après chaque match
+          et influence légèrement les forces en jeu — c'est un modificateur de saveur, pas un décideur.
+        </p>
+      </Section>
+
+      <Section title="2. Évolution après un match">
+        <Table
+          headers={['Résultat', 'Gagnant', 'Perdant']}
+          rows={[
+            ["Victoire d'1 but", '+5', '−4'],
+            ['Victoire de 2 buts', '+6', '−5'],
+            ['Victoire de 3+ buts', '+7 à +9', '−6 à −8'],
+            ['Match nul', '+1', '+1'],
+          ]}
+        />
+        <p className="mt-3 text-sm text-muted">
+          Le malus est plafonné à −8 même pour de lourdes défaites.
+        </p>
+      </Section>
+
+      <Section title="3. Résilience des équipes en difficulté">
+        <p>
+          Pour éviter le spirale défaite → moral bas → défaite, deux mécanismes protègent les équipes en crise :
+        </p>
+        <ul className="mt-3 list-disc space-y-2 pl-5 text-sm">
+          <li>
+            <strong>Amortissement des pertes (B)</strong> — En dessous de 30 de moral, le malus après
+            une défaite est réduit proportionnellement. À moral = 1, seulement 20 % du malus normal s'applique.
+            À moral = 15, environ 60 % du malus s'applique.
+          </li>
+          <li>
+            <strong>Courbe asymétrique (A)</strong> — Le multiplicateur de force ne descend pas aussi bas
+            que la pénalité théorique le voudrait. En dessous de 30, la courbe se stabilise autour de 0,97
+            au lieu de continuer à baisser.
+          </li>
+        </ul>
+        <div className="mt-4 rounded-lg border border-accent/20 bg-accent/5 px-4 py-3 text-sm">
+          Effet combiné : une équipe à moral 5 joue à ~97 % de sa capacité (contre ~99 % à moral 50),
+          et ses défaites futures ne font presque plus baisser son moral — elle ne peut pas s'effondrer indéfiniment.
+        </div>
+      </Section>
+
+      <Section title="4. Effet sur le moteur">
+        <p>
+          Le moral est converti en multiplicateur appliqué aux ratings <strong>attaque</strong>,
+          <strong>milieu</strong> et <strong>défense</strong> avant chaque match :
+        </p>
+        <Table
+          headers={['Moral', 'Multiplicateur', 'Label']}
+          rows={[
+            ['85–100', '× 1,05', 'Excellent'],
+            ['70–84', '× 1,03 à 1,05', 'Bon'],
+            ['55–69', '× 1,00 à 1,03', 'Correct'],
+            ['40–54', '× 0,98 à 1,00', 'Fragile'],
+            ['30–39', '× 0,98', 'Bas'],
+            ['1–29', '× 0,97 à 0,98', 'En crise (plancher résilient)'],
+          ]}
+        />
+      </Section>
+
+      <Section title="5. Affichage">
+        <p className="text-sm text-muted">
+          Le moral de chaque équipe est visible dans l'onglet <strong>Compétitions</strong>, sur la fiche
+          de chaque équipe en compétition active. Il est aussi affiché dans les classements LPM.
+        </p>
+      </Section>
+    </div>
   );
 }
 

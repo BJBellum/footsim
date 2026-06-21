@@ -195,7 +195,7 @@ function tryPenaltyShot(
   const fin = shooter?.stats.technical.finishing ?? 10;
   const com = shooter?.stats.mental.composure ?? 10;
   const gkVal = oppGk?.overall ?? 50;
-  const pGoal = clamp(sigmoid((fin + com - gkVal * 0.5) / 8) * 1.4, 0.04, 0.75);
+  const pGoal = clamp(sigmoid((fin + com - gkVal * 0.5) / 8) * 1.8, 0.04, 0.75);
   const ballZone = possessing === 'home' ? ZONE.awayBox : ZONE.homeBox;
   state.shots[possessing]++;
   const onTarget = chance(0.55);
@@ -413,7 +413,7 @@ export function tick(state: MatchState, ctx: EngineCtx): MatchState {
       : opp;
     state.fouls[victimSide]++;
     const fouler = pickFouler(victimSide, ctx, state);
-    const penChance = corrActive && corr!.side === possessing ? 0.25 : 0.15;
+    const penChance = corrActive && corr!.side === possessing ? 0.18 : 0.08;
     if (chance(penChance) && fouler) {
       const pz = possessing === 'home' ? ZONE.awayBox : ZONE.homeBox;
       const penTaker = pickAttacker(possessing, ctx, state);

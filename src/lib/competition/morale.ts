@@ -24,20 +24,25 @@ export function updateMorale(
 
   const diff = homeGoals - awayGoals;
 
+  // B: dampen losses when morale is already low (resilience floor)
+  function applyMalus(id: string, raw: number) {
+    const cur = next[id];
+    // Below 30: malus reduced proportionally (at morale=1, only 20% of malus applies)
+    const dampened = cur < 30 ? Math.round(raw * (0.2 + 0.8 * (cur / 30))) : raw;
+    next[id] = clamp(cur - dampened);
+  }
+
   if (diff > 0) {
-    // Home wins
     const bonus = Math.min(9, 5 + Math.floor(diff / 2));
     const malus = Math.min(8, 4 + Math.floor(diff / 2));
     next[homeId] = clamp(next[homeId] + bonus);
-    next[awayId] = clamp(next[awayId] - malus);
+    applyMalus(awayId, malus);
   } else if (diff < 0) {
-    // Away wins
     const bonus = Math.min(9, 5 + Math.floor(-diff / 2));
     const malus = Math.min(8, 4 + Math.floor(-diff / 2));
     next[awayId] = clamp(next[awayId] + bonus);
-    next[homeId] = clamp(next[homeId] - malus);
+    applyMalus(homeId, malus);
   } else {
-    // Draw — slight bump for both
     next[homeId] = clamp(next[homeId] + 1);
     next[awayId] = clamp(next[awayId] + 1);
   }
@@ -55,11 +60,24 @@ export function initMorale(teamIds: string[]): Record<string, number> {
 }
 
 /**
- * Translate morale (1–100) to a small multiplier for attack/defense/midfield.
- * Range: 0.95–1.05 (max ±5% — won't decide matches).
+ * Translate morale (1–100) to a multiplier for attack/defense/midfield.
+ * High morale (>50): up to +5% (unchanged).
+ * Low morale (<30): asymmetric resilience boost — teams in crisis get a small
+ * pride/desperation bonus, so the curve never punishes them as hard as it rewards the top.
+ * Range effective: ~0.97–1.05.
  */
 export function moraleMult(morale: number): number {
-  return 1 + ((morale - 50) / 50) * 0.05;
+  if (morale >= 50) {
+    // 50→100 maps to 1.00→1.05
+    return 1 + ((morale - 50) / 50) * 0.05;
+  } else if (morale >= 30) {
+    // 30→50 maps to 0.98→1.00
+    return 1 - ((50 - morale) / 20) * 0.02;
+  } else {
+    // <30: resilience kick — curve flattens and partially reverses
+    // morale=30 → 0.98, morale=1 → 0.97 (instead of continuing down to 0.95)
+    return 0.97 + ((morale - 1) / 29) * 0.01;
+  }
 }
 
 export function moraleLabel(morale: number): { text: string; color: string } {
