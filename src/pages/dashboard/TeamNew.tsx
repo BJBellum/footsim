@@ -31,6 +31,7 @@ export default function TeamNew() {
   const [strength, setStrength] = useState(60);
   const [count, setCount] = useState(500);
   const [managerId, setManagerId] = useState('');
+  const [jerseyColor, setJerseyColor] = useState('#e63c3c');
 
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [generating, setGenerating] = useState(false);
@@ -117,6 +118,7 @@ export default function TeamNew() {
         formation: '4-3-3',
         managerDiscordId: managerId.trim() || undefined,
         coach: generatedCoach,
+        jerseyColor,
       };
 
       setDraft({ team, players });
@@ -157,6 +159,20 @@ export default function TeamNew() {
         <div className="block text-sm">
           <span className="mb-1 block text-muted">Drapeau (150×150)</span>
           <FlagUpload value={flag} onChange={(v) => setFlag(v || null)} />
+        </div>
+
+        <div className="block text-sm">
+          <span className="mb-1 block text-muted">Couleur du maillot</span>
+          <div className="flex items-center gap-3">
+            <input
+              type="color"
+              value={jerseyColor}
+              onChange={(e) => setJerseyColor(e.target.value)}
+              className="h-9 w-14 cursor-pointer rounded border border-border bg-transparent p-0.5"
+            />
+            <span className="font-mono text-xs text-muted">{jerseyColor}</span>
+            <div className="h-6 w-6 rounded-full border border-border" style={{ background: jerseyColor }} />
+          </div>
         </div>
 
         {/* Continents (max 2) */}

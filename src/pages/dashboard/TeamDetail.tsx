@@ -49,6 +49,7 @@ const [regenStrength, setRegenStrength] = useState(false);
   const [editFlag, setEditFlag] = useState<string | null>(null);
   const [editStrength, setEditStrength] = useState(60);
   const [editManagerId, setEditManagerId] = useState('');
+  const [editJerseyColor, setEditJerseyColor] = useState('#e63c3c');
 
   useEffect(() => {
     if (!ownerId) return;
@@ -388,6 +389,7 @@ async function applyNewStrength(strength: number) {
     setEditFlag(team.flag);
     setEditStrength(team.globalStrength);
     setEditManagerId(team.managerDiscordId ?? '');
+    setEditJerseyColor(team.jerseyColor ?? '#e63c3c');
     setTab('infos');
   }
 
@@ -406,6 +408,7 @@ async function applyNewStrength(strength: number) {
         continent: editContinent[0] ?? team.continent,
         continents: editContinent.length > 0 ? editContinent : undefined,
         managerDiscordId: editManagerId.trim() || undefined,
+        jerseyColor: editJerseyColor,
       },
       players,
     });
@@ -674,6 +677,8 @@ async function applyNewStrength(strength: number) {
           onChangeContinents={setEditContinent}
           managerId={editManagerId}
           onManagerId={setEditManagerId}
+          jerseyColor={editJerseyColor}
+          onJerseyColor={setEditJerseyColor}
           onSave={saveInfos}
         />
       )}
@@ -799,7 +804,8 @@ function CoachPanel({ coach, suspended, cultures, onSave, onToggleSuspension }: 
 
 function CultureEditPanel({
   name, onName, flag, onFlag, strength, onStrength,
-  cultures, continents, onChange, onChangeContinents, managerId, onManagerId, onSave,
+  cultures, continents, onChange, onChangeContinents, managerId, onManagerId,
+  jerseyColor, onJerseyColor, onSave,
 }: {
   name: string;
   onName: (v: string) => void;
@@ -813,6 +819,8 @@ function CultureEditPanel({
   onChangeContinents: (c: Continent[]) => void;
   managerId: string;
   onManagerId: (v: string) => void;
+  jerseyColor: string;
+  onJerseyColor: (v: string) => void;
   onSave: () => void;
 }) {
   const total = cultures.reduce((s, c) => s + c.weight, 0);
@@ -980,6 +988,20 @@ function CultureEditPanel({
           })}
         </div>
       )}
+
+      <div className="space-y-2 border-t border-border pt-4">
+        <label className="block text-sm text-muted">Couleur du maillot</label>
+        <div className="flex items-center gap-3">
+          <input
+            type="color"
+            value={jerseyColor}
+            onChange={(e) => onJerseyColor(e.target.value)}
+            className="h-9 w-14 cursor-pointer rounded border border-border bg-transparent p-0.5"
+          />
+          <span className="font-mono text-xs text-muted">{jerseyColor}</span>
+          <div className="h-6 w-6 rounded-full border border-border" style={{ background: jerseyColor }} />
+        </div>
+      </div>
 
       <div className="space-y-2 border-t border-border pt-4">
         <label className="block text-sm text-muted">Discord ID du manager</label>

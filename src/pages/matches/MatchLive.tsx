@@ -126,7 +126,13 @@ export default function MatchLive() {
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
         <div className="space-y-4">
-          <Pitch state={state} homeFormation={input.home.formation} awayFormation={input.away.formation} />
+          <Pitch
+            state={state}
+            homeFormation={input.home.formation}
+            awayFormation={input.away.formation}
+            homeColor={input.home.team.jerseyColor}
+            awayColor={input.away.team.jerseyColor}
+          />
           <SpeedControls
             speed={state.speed}
             paused={paused}

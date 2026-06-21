@@ -281,6 +281,8 @@ export type Team = {
   savedTactics?: SavedTactic[];
   /** ID of the active saved tactic */
   activeTacticId?: string;
+  /** Primary jersey color as CSS hex (e.g. "#e63c3c") */
+  jerseyColor?: string;
 };
 
 export type LeagueClub = {

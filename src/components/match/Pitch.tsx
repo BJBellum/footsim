@@ -6,7 +6,11 @@ type Props = {
   state: MatchState;
   homeFormation: Formation;
   awayFormation: Formation;
+  homeColor?: string;
+  awayColor?: string;
 };
+
+const SECOND_HALF_STATUSES = new Set(['secondHalf', 'extraTimeFirst', 'extraTimeHalfTime', 'extraTimeSecond', 'penalties']);
 
 const FORMATION_POSITIONS: Record<Formation, Array<{ x: number; y: number }>> = {
   '4-3-3': [
@@ -105,9 +109,14 @@ const BALL_R = 0.55;
 const BALL_TRANSITION = { type: 'tween', duration: 0.4, ease: 'easeOut' } as const;
 const PLAYER_TRANSITION = { type: 'tween', duration: 0.6, ease: 'easeOut' } as const;
 
-export function Pitch({ state, homeFormation, awayFormation }: Props) {
-  const homePositions = FORMATION_POSITIONS[homeFormation];
-  const awayPositions = FORMATION_POSITIONS[awayFormation].map(mirror);
+export function Pitch({ state, homeFormation, awayFormation, homeColor = '#F4F0E6', awayColor = '#C73E3E' }: Props) {
+  const flipped = SECOND_HALF_STATUSES.has(state.status);
+  const rawHome = FORMATION_POSITIONS[homeFormation];
+  const rawAway = FORMATION_POSITIONS[awayFormation];
+  // In 1st half: home attacks right, away attacks left (mirrored)
+  // In 2nd half: teams swap ends
+  const homePositions = flipped ? rawHome.map(mirror) : rawHome;
+  const awayPositions = flipped ? rawAway : rawAway.map(mirror);
 
   const ballX = state.ball?.x ?? 50;
   const ballY = state.ball?.y ?? 25;
@@ -136,7 +145,7 @@ export function Pitch({ state, homeFormation, awayFormation }: Props) {
           <motion.circle
             key={`h-${i}`}
             r="1.4"
-            fill="#F4F0E6"
+            fill={homeColor}
             stroke="#1A1A1A"
             strokeWidth="0.2"
             opacity="0.95"
@@ -154,7 +163,7 @@ export function Pitch({ state, homeFormation, awayFormation }: Props) {
           <motion.circle
             key={`a-${i}`}
             r="1.4"
-            fill="#C73E3E"
+            fill={awayColor}
             stroke="#1A1A1A"
             strokeWidth="0.2"
             opacity="0.95"

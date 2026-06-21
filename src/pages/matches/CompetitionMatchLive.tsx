@@ -334,7 +334,13 @@ export default function CompetitionMatchLive() {
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
         <div className="space-y-4">
-          <Pitch state={matchState} homeFormation={matchInput.home.formation} awayFormation={matchInput.away.formation} />
+          <Pitch
+            state={matchState}
+            homeFormation={matchInput.home.formation}
+            awayFormation={matchInput.away.formation}
+            homeColor={matchInput.home.team.jerseyColor}
+            awayColor={matchInput.away.team.jerseyColor}
+          />
           <SpeedControls
             speed={matchState.speed}
             paused={paused}
