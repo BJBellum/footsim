@@ -269,10 +269,9 @@ export default function CompetitionNew() {
               onChange={(e) => setHostTeamId(e.target.value)}
             >
               <option value="">— Aucun pays hôte —</option>
-              {selectedTeams.map((id) => {
-                const t = teams.find((x) => x.id === id);
-                return <option key={id} value={id}>{t?.name ?? id}</option>;
-              })}
+              {teams.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
             </select>
           </label>
         )}
