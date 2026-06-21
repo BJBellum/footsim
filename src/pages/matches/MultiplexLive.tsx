@@ -260,6 +260,7 @@ export default function MultiplexLive() {
     // Morale + press accumulation
     let updatedMorale = current.morale ?? initMorale(current.teamIds);
     let updatedPressItems = current.pressItems ?? [];
+    let updatedDopingSuspensions: import('@/lib/competition/injuries').Suspension[] = [];
     for (const slot of slots) {
       if (!slot.state || slot.state.status !== 'fulltime') continue;
       const compMatch = current.matches.find((m) => m.id === slot.compMatchId);
@@ -273,11 +274,12 @@ export default function MultiplexLive() {
         (tid === slot.away.id ? slot.away.name : null) ??
         tid;
       const baseSeed = `${current.id}-r${roundNum}-${slot.compMatchId}`;
+      const dopingBannedTeamIds = current.disqualifiedTeamIds ?? [];
       for (const [tid, goalsFor, goalsAgainst] of [
         [homeId, slot.state.score.home, slot.state.score.away],
         [awayId, slot.state.score.away, slot.state.score.home],
       ] as [string, number, number][]) {
-        const matchPress = generateMatchPressItem({
+        const { item: matchPress, dopingSuspension } = generateMatchPressItem({
           seed: `${baseSeed}-${tid}`,
           round: current.currentRound,
           teamId: tid,
@@ -286,8 +288,16 @@ export default function MultiplexLive() {
           goalsAgainst,
           moraleBefore: moraleBefore[tid] ?? MORALE_DEFAULT,
           moraleAfter: updatedMorale[tid] ?? MORALE_DEFAULT,
+          phase: compMatch.phase,
+          standing: current.standings[tid],
+          totalTeams: current.teamIds.length,
+          dopingBannedTeamIds,
         });
         updatedPressItems = [...updatedPressItems, matchPress];
+        if (dopingSuspension) {
+          updatedDopingSuspensions = [...updatedDopingSuspensions, dopingSuspension];
+          dopingBannedTeamIds.push(tid);
+        }
         const moralePress = generateMoralePressItem({
           seed: `${baseSeed}-${tid}-m`,
           round: current.currentRound,
@@ -301,7 +311,7 @@ export default function MultiplexLive() {
 
     // Injuries + suspensions accumulation
     let updatedInjuries = decrementInjuries(current.injuries ?? []);
-    let updatedSuspensions = decrementSuspensions(current.suspensions ?? []);
+    let updatedSuspensions = [...decrementSuspensions(current.suspensions ?? []), ...updatedDopingSuspensions];
 
     for (const slot of slots) {
       if (!slot.state || slot.state.status !== 'fulltime') continue;

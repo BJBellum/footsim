@@ -329,13 +329,19 @@ export default function CompetitionMatchLive() {
         (tid === matchInput!.away.team.id ? matchInput!.away.team.name : null) ??
         teamSnap[tid]?.name ?? tid;
 
+      // Injuries from match events (init early — doping suspension appended below)
+      let updatedInjuries = decrementInjuries(snap!.injuries ?? []);
+      let updatedSuspensions = decrementSuspensions(snap!.suspensions ?? []);
+
+      const dopingBannedTeamIds = snap!.disqualifiedTeamIds ?? [];
+
       for (const [tid, goalsFor, goalsAgainst] of [
         [homeTeamId, matchState!.score.home, matchState!.score.away],
         [awayTeamId, matchState!.score.away, matchState!.score.home],
       ] as [string, number, number][]) {
         if (!tid) continue;
         const tname = nameFor(tid);
-        const item = generateMatchPressItem({
+        const { item, dopingSuspension } = generateMatchPressItem({
           round,
           teamId: tid,
           teamName: tname,
@@ -344,8 +350,15 @@ export default function CompetitionMatchLive() {
           moraleBefore: prevMorale[tid] ?? MORALE_DEFAULT,
           moraleAfter: updatedMorale[tid] ?? MORALE_DEFAULT,
           seed: seed + tid,
+          phase: compMatch.phase,
+          standing: snap!.standings[tid],
+          totalTeams: snap!.teamIds.length,
+          dopingBannedTeamIds,
         });
         newPressItems.push(item);
+        if (dopingSuspension) {
+          updatedSuspensions = [...updatedSuspensions, dopingSuspension];
+        }
         const moraleItem = generateMoralePressItem({
           round,
           teamId: tid,
@@ -355,10 +368,6 @@ export default function CompetitionMatchLive() {
         });
         if (moraleItem) newPressItems.push(moraleItem);
       }
-
-      // Injuries from match events
-      let updatedInjuries = decrementInjuries(snap!.injuries ?? []);
-      let updatedSuspensions = decrementSuspensions(snap!.suspensions ?? []);
 
       const homePlayersMap = new Map(matchInput!.home.players.map((p) => [p.id, p]));
       const awayPlayersMap = new Map(matchInput!.away.players.map((p) => [p.id, p]));
