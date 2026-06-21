@@ -43,11 +43,11 @@ export default function CompetitionDetail() {
   const [knockoutDraw, setKnockoutDraw] = useState<DrawResult | null>(null);
   const [preMatchModal, setPreMatchModal] = useState<{ matchId: string; home: Team; away: Team } | null>(null);
 
-  const readToken = pat ?? env.githubReadToken ?? null;
+  // For public repos, reads work without a token. PAT only needed for writes.
+  const readToken = pat ?? env.githubReadToken ?? '';
 
   useEffect(() => {
     if (!id) { setLoading(false); return; }
-    if (!readToken) { setLoading(false); return; }
 
     const teamLoad = teams.length === 0 ? refreshTeams(ownerId, effectivePat) : Promise.resolve();
 
@@ -63,15 +63,6 @@ export default function CompetitionDetail() {
 
   if (loading) {
     return <div className="flex justify-center py-20"><Spinner className="h-6 w-6" /></div>;
-  }
-
-  if (!readToken) {
-    return (
-      <div className="space-y-4">
-        <Link to="/dashboard/competitions" className="text-sm text-muted hover:text-text">← Compétitions</Link>
-        <p className="text-muted">Un token GitHub est requis pour voir les compétitions. Configure-le dans Réglages.</p>
-      </div>
-    );
   }
 
   if (!current) {
