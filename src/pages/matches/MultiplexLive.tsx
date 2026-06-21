@@ -13,7 +13,7 @@ import { advanceBracket, applyResultToStandings, applyCorruptionDisqualification
 import { rulesForPhase } from '@/lib/competition/types';
 import { accumulateMatchStats, computeAwards } from '@/lib/competition/statsAccumulator';
 import { generateRefOffer, acceptOffer } from '@/lib/sim/corruption';
-import { loadLocalTactics } from '@/lib/localTactics';
+import { resolveActiveTactic } from '@/lib/localTactics';
 import { updateMorale, initMorale, MORALE_DEFAULT } from '@/lib/competition/morale';
 import { generateMatchPressItem, generateMoralePressItem, generatePresidencyReboundItem } from '@/lib/competition/press';
 import { createMatchInjury, createSuspension, decrementInjuries, decrementSuspensions, unavailableIds } from '@/lib/competition/injuries';
@@ -101,8 +101,8 @@ export default function MultiplexLive() {
           ]);
           if (!homeData || !awayData) continue;
 
-          const homeTactics = loadLocalTactics(homeData.team.id) ?? homeData.team.tactics;
-          const awayTactics = loadLocalTactics(awayData.team.id) ?? awayData.team.tactics;
+          const homeTactics = resolveActiveTactic(homeData.team);
+          const awayTactics = resolveActiveTactic(awayData.team);
           const mid = `comp-${competitionId}-${m.id}`;
           const moraleMap = comp.morale ?? initMorale(comp.teamIds);
           const compInjuries = comp.injuries ?? [];

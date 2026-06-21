@@ -18,7 +18,7 @@ import { useBackendArgs } from '@/hooks/useBackendArgs';
 import { saveMatch } from '@/lib/github/matches';
 import { advanceBracket, applyResultToStandings, applyCorruptionDisqualification } from '@/lib/competition/scheduler';
 import { rulesForPhase } from '@/lib/competition/types';
-import { loadLocalTactics } from '@/lib/localTactics';
+import { resolveActiveTactic } from '@/lib/localTactics';
 import { updateMorale, initMorale, MORALE_DEFAULT } from '@/lib/competition/morale';
 import { generateMatchPressItem, generateMoralePressItem, generatePresidencyReboundItem } from '@/lib/competition/press';
 import { createMatchInjury, createSuspension, decrementInjuries, decrementSuspensions, unavailableIds } from '@/lib/competition/injuries';
@@ -106,8 +106,8 @@ export default function CompetitionMatchLive() {
         const corruption = storedCorruption ? JSON.parse(storedCorruption) : undefined;
         sessionStorage.removeItem(`footsim.corruption.${matchId}`);
 
-        const homeTactics = loadLocalTactics(homeData.team.id) ?? homeData.team.tactics;
-        const awayTactics = loadLocalTactics(awayData.team.id) ?? awayData.team.tactics;
+        const homeTactics = resolveActiveTactic(homeData.team);
+        const awayTactics = resolveActiveTactic(awayData.team);
 
         const moraleMap = comp.morale ?? initMorale(comp.teamIds);
         const compInjuries = comp.injuries ?? [];
