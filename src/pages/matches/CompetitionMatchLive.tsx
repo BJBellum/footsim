@@ -51,6 +51,8 @@ export default function CompetitionMatchLive() {
   const startMatch = useMatch((s) => s.start);
 
   const dirty = useCompetition((s) => s.dirty);
+  const currentRef = useRef<typeof current>(null);
+  useEffect(() => { currentRef.current = current; }, [current]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [motm, setMotm] = useState<MotmResult | null>(null);
@@ -160,18 +162,19 @@ export default function CompetitionMatchLive() {
 
   // Save result to competition on finish
   useEffect(() => {
-    if (!finished || !matchState || !matchInput || !pat || !current || !matchId || savedRef.current) return;
+    const snap = currentRef.current ?? current;
+    if (!finished || !matchState || !matchInput || !pat || !snap || !matchId || savedRef.current) return;
     savedRef.current = true;
 
     async function persist() {
-      const compMatch = current!.matches.find((m) => m.id === matchId);
+      const compMatch = snap!.matches.find((m) => m.id === matchId);
       if (!compMatch) return;
 
       // Check corruption revelation before applying result
       const corruptionActive = matchState!.corruption?.accepted;
       const revealed = corruptionActive && isRevealed();
 
-      let updatedMatches = current!.matches.map((m) =>
+      let updatedMatches = snap!.matches.map((m) =>
         m.id === matchId
           ? {
               ...m,
@@ -187,7 +190,7 @@ export default function CompetitionMatchLive() {
           : m,
       );
 
-      let disqualifiedTeamIds = current!.disqualifiedTeamIds ?? [];
+      let disqualifiedTeamIds = snap!.disqualifiedTeamIds ?? [];
 
       if (revealed && compMatch.homeTeamId && compMatch.awayTeamId) {
         // Identify cheating team
@@ -205,7 +208,7 @@ export default function CompetitionMatchLive() {
         updatedMatches = advanceBracket(updatedMatches, matchId!);
       }
 
-      let updatedStandings = current!.standings;
+      let updatedStandings = snap!.standings;
 
       if (!revealed && (compMatch.phase === 'group' || compMatch.phase === 'league') && compMatch.homeTeamId && compMatch.awayTeamId) {
         updatedStandings = applyResultToStandings(
@@ -216,15 +219,12 @@ export default function CompetitionMatchLive() {
           matchState!.score.away,
         );
       } else if (revealed) {
-        // Recompute standings from scratch for all group/league matches
-        // (walkovers have replaced the real results in updatedMatches)
         const affectedTeamIds = new Set(
           updatedMatches
             .filter((m) => (m.phase === 'group' || m.phase === 'league') && m.homeTeamId && m.awayTeamId)
             .flatMap((m) => [m.homeTeamId!, m.awayTeamId!]),
         );
-        // Reset only affected standings entries
-        updatedStandings = { ...current!.standings };
+        updatedStandings = { ...snap!.standings };
         for (const tid of affectedTeamIds) {
           updatedStandings[tid] = { teamId: tid, played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0, points: 0 };
         }
@@ -241,10 +241,10 @@ export default function CompetitionMatchLive() {
       }
 
       const nextRound = updatedMatches.every(
-        (m) => m.round <= current!.currentRound ? m.status === 'completed' : true,
+        (m) => m.round <= snap!.currentRound ? m.status === 'completed' : true,
       )
-        ? current!.currentRound + 1
-        : current!.currentRound;
+        ? snap!.currentRound + 1
+        : snap!.currentRound;
 
       const allDone = updatedMatches.every((m) => m.status === 'completed');
       let winner: string | undefined;
@@ -254,14 +254,14 @@ export default function CompetitionMatchLive() {
           winner = finalMatch.result.home > finalMatch.result.away
             ? finalMatch.homeTeamId ?? undefined
             : finalMatch.awayTeamId ?? undefined;
-        } else if (current!.format === 'league') {
+        } else if (snap!.format === 'league') {
           const sorted = Object.values(updatedStandings).sort((a, b) => b.points - a.points);
           winner = sorted[0]?.teamId;
         }
       }
 
       const updatedPlayerStats = accumulateMatchStats(
-        current!.playerStats ?? {},
+        snap!.playerStats ?? {},
         matchState!,
         { team: matchInput!.home.team, players: matchInput!.home.players },
         { team: matchInput!.away.team, players: matchInput!.away.players },
@@ -273,11 +273,10 @@ export default function CompetitionMatchLive() {
         { team: matchInput!.away.team, players: matchInput!.away.players },
       ));
 
-      // Morale update
-      const compMatchForMorale = current!.matches.find((m) => m.id === matchId);
-      const homeTeamId = compMatchForMorale?.homeTeamId ?? '';
-      const awayTeamId = compMatchForMorale?.awayTeamId ?? '';
-      const prevMorale = current!.morale ?? initMorale(current!.teamIds);
+      // Morale update — use compMatch already found above
+      const homeTeamId = compMatch.homeTeamId ?? '';
+      const awayTeamId = compMatch.awayTeamId ?? '';
+      const prevMorale = snap!.morale ?? initMorale(snap!.teamIds);
       const updatedMorale = updateMorale(
         prevMorale,
         homeTeamId,
@@ -286,17 +285,23 @@ export default function CompetitionMatchLive() {
         matchState!.score.away,
       );
 
-      // Press generation
-      const teamSnap = current!.teamSnapshot ?? {};
-      const round = compMatchForMorale?.round ?? current!.currentRound;
-      const seed = `${current!.id}-${matchId}`;
-      const newPressItems = [...(current!.pressItems ?? [])];
+      // Press generation — prefer matchInput team names, fall back to snapshot
+      const teamSnap = snap!.teamSnapshot ?? {};
+      const round = compMatch.round;
+      const seed = `${snap!.id}-${matchId}`;
+      const newPressItems = [...(snap!.pressItems ?? [])];
+
+      const nameFor = (tid: string) =>
+        (tid === matchInput!.home.team.id ? matchInput!.home.team.name : null) ??
+        (tid === matchInput!.away.team.id ? matchInput!.away.team.name : null) ??
+        teamSnap[tid]?.name ?? tid;
 
       for (const [tid, goalsFor, goalsAgainst] of [
         [homeTeamId, matchState!.score.home, matchState!.score.away],
         [awayTeamId, matchState!.score.away, matchState!.score.home],
       ] as [string, number, number][]) {
-        const tname = teamSnap[tid]?.name ?? tid;
+        if (!tid) continue;
+        const tname = nameFor(tid);
         const item = generateMatchPressItem({
           round,
           teamId: tid,
@@ -319,11 +324,11 @@ export default function CompetitionMatchLive() {
       }
 
       const updated = {
-        ...current!,
+        ...snap!,
         matches: updatedMatches,
         standings: updatedStandings,
         playerStats: updatedPlayerStats,
-        awards: allDone ? computeAwards(updatedPlayerStats) : current!.awards,
+        awards: allDone ? computeAwards(updatedPlayerStats) : snap!.awards,
         currentRound: Math.min(nextRound, Math.max(...updatedMatches.map((m) => m.round))),
         status: allDone ? ('completed' as const) : ('ongoing' as const),
         winner,
