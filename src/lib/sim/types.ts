@@ -105,6 +105,9 @@ export type MatchState = {
   speed: Speed;
   homeOnPitch: string[];
   awayOnPitch: string[];
+  /** Initial bench IDs (set at kick-off, used for press/doping pool) */
+  homeBench: string[];
+  awayBench: string[];
   rules: MatchRules;
   homeSubs: number;
   awaySubs: number;

@@ -300,12 +300,40 @@ export default function MultiplexLive() {
         tid;
       const baseSeed = `${current.id}-r${roundNum}-${slot.compMatchId}`;
       let matchDopingOccurred = false;
+
+      // Standings rank for press context
+      const sortedStandings = Object.values(updatedStandings).sort(
+        (a, b) => b.points - a.points || (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst),
+      );
+      const rankOf = (tid: string) => sortedStandings.findIndex((s) => s.teamId === tid) + 1;
+      const totalTeams = current.teamIds.length;
+      const qualifyCount = current.config.qualifyPerGroup ?? Math.ceil(totalTeams / 4);
+      const totalRoundsInPhase = current.matches.filter((m) => m.phase === compMatch.phase).reduce((mx, m) => Math.max(mx, m.round), 0);
+
       for (const [tid, goalsFor, goalsAgainst] of [
         [homeId, slot.state.score.home, slot.state.score.away],
         [awayId, slot.state.score.away, slot.state.score.home],
       ] as [string, number, number][]) {
-        const teamPlayers = tid === homeId ? slot.homePlayers : slot.awayPlayers;
-        const teamCoach = tid === homeId ? slot.home.coach : slot.away.coach;
+        const isHome = tid === homeId;
+        const allPlayers = isHome ? slot.homePlayers : slot.awayPlayers;
+        const groupIds = new Set([
+          ...(isHome ? slot.state.homeOnPitch : slot.state.awayOnPitch),
+          ...(isHome ? slot.state.homeBench : slot.state.awayBench),
+        ]);
+        const teamPlayers = groupIds.size > 0 ? allPlayers.filter((p) => groupIds.has(p.id)) : allPlayers;
+        const teamCoach = isHome ? slot.home.coach : slot.away.coach;
+        const tidRank = rankOf(tid);
+        const tidStanding = updatedStandings[tid];
+        const remaining = Math.max(0, totalRoundsInPhase - current.currentRound);
+        const maxRemainingPts = (tidStanding?.points ?? 0) + remaining * 3;
+        const minPtsForSafeZone = sortedStandings[qualifyCount - 1]?.points ?? 0;
+        const isEliminated = (compMatch.phase === 'group' || compMatch.phase === 'league')
+          && !!tidStanding && tidStanding.played >= 3
+          && maxRemainingPts < minPtsForSafeZone;
+        const dangerThreshold = Math.max(qualifyCount + 1, Math.ceil(totalTeams * 0.75));
+        const isInDangerZone = (compMatch.phase === 'group' || compMatch.phase === 'league')
+          && tidRank > dangerThreshold;
+
         const { item: matchPress, dopingSuspension, teamDisqualified } = generateMatchPressItem({
           seed: `${baseSeed}-${tid}`,
           round: current.currentRound,
@@ -316,8 +344,11 @@ export default function MultiplexLive() {
           moraleBefore: moraleBefore[tid] ?? MORALE_DEFAULT,
           moraleAfter: updatedMorale[tid] ?? MORALE_DEFAULT,
           phase: compMatch.phase,
-          standing: current.standings[tid],
-          totalTeams: current.teamIds.length,
+          standing: tidStanding,
+          totalTeams,
+          rank: tidRank,
+          isEliminated,
+          isInDangerZone,
           dopingBannedTeamIds,
           dopingAlreadyThisMatch: matchDopingOccurred,
           players: teamPlayers,

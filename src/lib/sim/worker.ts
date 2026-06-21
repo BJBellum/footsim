@@ -95,6 +95,8 @@ self.onmessage = (ev: MessageEvent<Inbound>) => {
       state = initialState(msg.input.matchId, msg.input.speed, msg.input.rules);
       state.homeOnPitch = [...ctx.home.ratings.lineup];
       state.awayOnPitch = [...ctx.away.ratings.lineup];
+      state.homeBench = [...ctx.home.ratings.bench];
+      state.awayBench = [...ctx.away.ratings.bench];
       if (msg.input.corruption) state.corruption = msg.input.corruption;
       if (msg.input.leg1Score) state.leg1Score = msg.input.leg1Score;
       tick(state, ctx); // kickoff

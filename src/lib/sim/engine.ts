@@ -35,6 +35,8 @@ export function initialState(matchId: string, speed: MatchState['speed'], rules:
     speed,
     homeOnPitch: [],
     awayOnPitch: [],
+    homeBench: [],
+    awayBench: [],
     rules,
     homeSubs: 0,
     awaySubs: 0,

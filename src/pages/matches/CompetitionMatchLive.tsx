@@ -356,14 +356,45 @@ export default function CompetitionMatchLive() {
       const dopingBannedTeamIds = [...(snap!.disqualifiedTeamIds ?? [])];
       let matchDopingOccurred = false;
 
+      // Compute standings rank for press context (after standings update)
+      const sortedStandings = Object.values(updatedStandings).sort(
+        (a, b) => b.points - a.points || (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst),
+      );
+      const rankOf = (tid: string) => sortedStandings.findIndex((s) => s.teamId === tid) + 1;
+      const totalTeams = snap!.teamIds.length;
+
       for (const [tid, goalsFor, goalsAgainst] of [
         [homeTeamId, matchState!.score.home, matchState!.score.away],
         [awayTeamId, matchState!.score.away, matchState!.score.home],
       ] as [string, number, number][]) {
         if (!tid) continue;
         const tname = nameFor(tid);
-        const teamPlayers = tid === homeTeamId ? matchInput!.home.players : matchInput!.away.players;
-        const teamCoach = tid === homeTeamId ? matchInput!.home.team.coach : matchInput!.away.team.coach;
+        const isHome = tid === homeTeamId;
+        const allPlayers = isHome ? matchInput!.home.players : matchInput!.away.players;
+        const groupIds = new Set([
+          ...(isHome ? matchState!.homeOnPitch : matchState!.awayOnPitch),
+          ...(isHome ? matchState!.homeBench : matchState!.awayBench),
+        ]);
+        const teamPlayers = groupIds.size > 0 ? allPlayers.filter((p) => groupIds.has(p.id)) : allPlayers;
+        const teamCoach = isHome ? matchInput!.home.team.coach : matchInput!.away.team.coach;
+        const tidRank = rankOf(tid);
+        const tidStanding = updatedStandings[tid];
+        // isEliminated: top N qualify — can't mathematically reach qualification
+        const qualifyCount = snap!.config.qualifyPerGroup ?? Math.ceil(totalTeams / 4);
+        const maxRemainingPts = (() => {
+          const totalRounds = snap!.matches.filter((m) => m.phase === compMatch.phase).reduce((max, m) => Math.max(max, m.round), 0);
+          const remaining = Math.max(0, totalRounds - round);
+          return (tidStanding?.points ?? 0) + remaining * 3;
+        })();
+        const minPtsForSafeZone = sortedStandings[qualifyCount - 1]?.points ?? 0;
+        const isEliminated = (compMatch.phase === 'group' || compMatch.phase === 'league')
+          && !!tidStanding && tidStanding.played >= 3
+          && maxRemainingPts < minPtsForSafeZone;
+        // isInDangerZone: bottom 20% of table (or specific relegation zone)
+        const dangerThreshold = Math.max(qualifyCount + 1, Math.ceil(totalTeams * 0.75));
+        const isInDangerZone = (compMatch.phase === 'group' || compMatch.phase === 'league')
+          && tidRank > dangerThreshold;
+
         const { item, dopingSuspension, teamDisqualified } = generateMatchPressItem({
           round,
           teamId: tid,
@@ -374,8 +405,11 @@ export default function CompetitionMatchLive() {
           moraleAfter: updatedMorale[tid] ?? MORALE_DEFAULT,
           seed: seed + tid,
           phase: compMatch.phase,
-          standing: snap!.standings[tid],
-          totalTeams: snap!.teamIds.length,
+          standing: tidStanding,
+          totalTeams,
+          rank: tidRank,
+          isEliminated,
+          isInDangerZone,
           dopingBannedTeamIds,
           dopingAlreadyThisMatch: matchDopingOccurred,
           players: teamPlayers,

@@ -386,6 +386,44 @@ const STANDINGS_ELIMINATED_RISK = [
   '{team} doit gagner tous ses matchs restants et espérer des miracles. L\'équation est cruelle.',
 ];
 
+/** Élimination mathématique confirmée — groupe ou ligue */
+const ELIMINATED_HEADLINES = [
+  '{team} officiellement éliminé — le cauchemar est total',
+  'C\'est fini pour {team} — élimination mathématique confirmée',
+  '{team} dit adieu à la compétition — l\'heure du bilan',
+  'Fin de parcours pour {team} : les maths sont sans pitié',
+  '{team} éliminé — une campagne à oublier',
+  'Rideau pour {team} — une élimination précoce et humiliante',
+];
+const ELIMINATED_BODIES = [
+  'C\'est mathématiquement acté. {team} ne peut plus se qualifier. Une compétition à oublier au plus vite, dont les leçons devront pourtant être tirées. Le bilan est lourd : manque de caractère, résultats insuffisants, prestation globale indigne des attentes.',
+  'Les calculettes peuvent s\'arrêter. {team} est éliminé. Pas de miracle, pas de remontada — juste une succession de déceptions qui aboutissent à ce constat brutal. Le groupe va devoir se regarder en face.',
+  'Fini. Terminé. Éliminé. {team} quitte cette compétition par la petite porte, avec un bilan catastrophique que les joueurs devront digérer longtemps. Le staff a du travail cet été.',
+  'L\'élimination de {team} est officielle. Dans les coulisses, les questions fusent : qu\'est-ce qui a merdé ? Tout, ou presque. Une campagne à décortiquer dans les moindres détails pour ne plus jamais revivre ça.',
+  'On espérait mieux. {team} méritait mieux. Mais les résultats parlent d\'eux-mêmes : cette élimination est la conséquence logique d\'une compétition ratée de bout en bout. Amère conclusion.',
+];
+
+/** Danger zone — LPM barrages (25-40) ou fond de tableau ligue */
+const DANGER_ZONE_BODIES = [
+  'Le classement ne ment pas. {team} se retrouve dans une position délicate, avec le spectre des barrages qui se précise. Le prochain match aura des allures de finale. La pression est maximale.',
+  'Ce n\'était pas le scénario prévu. {team} se retrouve aspiré vers le bas, et chaque défaite rend la situation un peu plus critique. Il faut une réaction immédiate, forte, collective. Avant qu\'il ne soit trop tard.',
+  'La zone rouge. {team} la regarde désormais de très près. Un faux pas de plus et le scénario catastrophe devient réalité. Le vestiaire doit se serrer les coudes — ou tout s\'effondre.',
+  'Mauvaise passe pour {team} qui se retrouve dans les profondeurs du classement. La qualification est encore possible, mais le chemin va être long et douloureux. Il faut gagner, et vite.',
+];
+
+/** LPM élimination directe (41+) */
+const LPM_ELIMINATED_HEADLINES = [
+  '{team} relégué directement — fin de l\'aventure LPM',
+  'Disqualification sportive pour {team} — trop loin au classement',
+  '{team} éliminé sans même les barrages — une déroute totale',
+  'Le verdict est sans appel : {team} est sorti par le fond',
+];
+const LPM_ELIMINATED_BODIES = [
+  'Pas même les barrages. {team} termine si loin dans le classement qu\'aucune deuxième chance ne lui est accordée. Une campagne catastrophique que les mots peinent à décrire. L\'équipe rentre à la maison avec zéro point de plus et beaucoup de questions.',
+  '{team} n\'aura pas droit aux barrages de la peur. Le classement est sans appel : cette élimination directe est la sanction d\'une compétition ratée de A à Z. Dans les tribunes, les supporters ne cachent pas leur colère et leur honte.',
+  'Sortie par le fond. {team} termine dans les dernières places et dit au revoir à la compétition sans avoir jamais existé vraiment. Un résultat cruel mais mérité au vu des prestations affichées.',
+];
+
 // ── Templates contextuels — phases finales ───────────────────────────────────
 
 const KNOCKOUT_PHASE_LABEL: Record<string, string> = {
@@ -695,6 +733,12 @@ export function generateMatchPressItem(opts: {
   standing?: Standing;
   /** Total teams in the group/league (to compute rank context) */
   totalTeams?: number;
+  /** Rank of this team in its group/league (1 = first) */
+  rank?: number;
+  /** True if team is mathematically eliminated from qualification */
+  isEliminated?: boolean;
+  /** True if team is in relegation/playoff danger zone (LPM 25-40, league bottom) */
+  isInDangerZone?: boolean;
   /** teamIds already banned for doping this competition — prevents re-roll */
   dopingBannedTeamIds?: string[];
   /** If another team already had a doping event this match, skip player doping roll */
@@ -709,7 +753,7 @@ export function generateMatchPressItem(opts: {
   const isBigWin = diff >= 3;
   const isBigLoss = diff <= -3;
   const phase = opts.phase ?? 'league';
-  const isKnockout = !['group', 'league'].includes(phase);
+  const isKnockout = !['group', 'league', 'lpm_playoff'].includes(phase);
 
   let category: PressCategory;
   let headline: string;
@@ -883,46 +927,77 @@ export function generateMatchPressItem(opts: {
     }
   } else {
     // ── Phase de groupe ou ligue ─────────────────────────────────────────────
-    if (diff > 0) {
+    const isLPM = (phase === 'league' || phase === 'lpm_playoff') && opts.totalTeams && opts.totalTeams >= 40;
+    const isLPMEliminated = isLPM && opts.rank !== undefined && opts.rank > 40;
+    const isLPMDanger = isLPM && opts.rank !== undefined && opts.rank >= 25 && opts.rank <= 40;
+
+    // Élimination mathématique confirmée (groupe/ligue standard) — article dédié
+    if (opts.isEliminated) {
+      category = 'crise';
+      moraleShock = -(10 + Math.floor(r() * 8));
+      if (isLPMEliminated) {
+        headline = pick(LPM_ELIMINATED_HEADLINES, r).replace(/{team}/g, opts.teamName);
+        body = pick(LPM_ELIMINATED_BODIES, r).replace(/{team}/g, opts.teamName);
+      } else {
+        headline = pick(ELIMINATED_HEADLINES, r).replace(/{team}/g, opts.teamName);
+        body = pick(ELIMINATED_BODIES, r).replace(/{team}/g, opts.teamName);
+      }
+    } else if (diff > 0) {
       category = isBigWin ? 'exploit' : 'victoire';
       moraleBoost = isBigWin ? (8 + Math.floor(r() * 7)) : (4 + Math.floor(r() * 5));
       headline = pick(isBigWin ? BIG_WIN_HEADLINES : WIN_HEADLINES, r).replace(/{team}/g, opts.teamName);
       body = pick(isBigWin ? BIG_WIN_BODIES : WIN_BODIES, r).replace(/{team}/g, opts.teamName);
-      // Contexte classement
-      if (opts.standing && opts.totalTeams) {
-        const rank = opts.standing.points;
-        // Approximation rang : on n'a pas le rang calculé ici, on utilise les points
-        // Leader = le plus probable si points élevés → on enrichit le body avec un suffix
-        if (r() < 0.6) {
-          const suffix = pick(STANDINGS_LEADER_WIN, r).replace(/{team}/g, opts.teamName);
-          body += ' ' + suffix;
-        } else if (rank >= 2 && r() < 0.5) {
-          const suffix = pick(STANDINGS_CLIMB_WIN, r).replace(/{team}/g, opts.teamName);
-          body += ' ' + suffix;
+      // Contexte classement — seulement si encore en course
+      if (!opts.isEliminated) {
+        if (opts.rank === 1 && r() < 0.6) {
+          body += ' ' + pick(STANDINGS_LEADER_WIN, r).replace(/{team}/g, opts.teamName);
+        } else if (opts.rank && opts.rank >= 2 && r() < 0.5) {
+          body += ' ' + pick(STANDINGS_CLIMB_WIN, r).replace(/{team}/g, opts.teamName);
         }
       }
     } else if (diff < 0) {
       category = isBigLoss ? 'crise' : 'defaite';
       headline = pick(isBigLoss ? HEAVY_LOSS_HEADLINES : LOSS_HEADLINES, r).replace(/{team}/g, opts.teamName);
       body = pick(isBigLoss ? HEAVY_LOSS_BODIES : LOSS_BODIES, r).replace(/{team}/g, opts.teamName);
-      // Contexte classement danger
-      if (opts.standing && opts.totalTeams) {
-        const ptsPerGame = opts.standing.played > 0 ? opts.standing.points / opts.standing.played : 0;
-        if (ptsPerGame < 1 && r() < 0.65) {
-          const suffix = pick(
-            opts.standing.played >= 3 ? STANDINGS_ELIMINATED_RISK : STANDINGS_DANGER_LOSS,
-            r,
-          ).replace(/{team}/g, opts.teamName);
-          body += ' ' + suffix;
-        } else if (r() < 0.4) {
-          const suffix = pick(STANDINGS_DANGER_LOSS, r).replace(/{team}/g, opts.teamName);
-          body += ' ' + suffix;
+      // Suffixes standings/danger seulement si encore en course
+      if (!opts.isEliminated) {
+        if (opts.isInDangerZone || isLPMDanger) {
+          body += ' ' + pick(DANGER_ZONE_BODIES, r).replace(/{team}/g, opts.teamName);
+        } else if (opts.standing && opts.totalTeams) {
+          const ptsPerGame = opts.standing.played > 0 ? opts.standing.points / opts.standing.played : 0;
+          if (ptsPerGame < 1 && r() < 0.65) {
+            const suffix = pick(
+              opts.standing.played >= 3 ? STANDINGS_ELIMINATED_RISK : STANDINGS_DANGER_LOSS,
+              r,
+            ).replace(/{team}/g, opts.teamName);
+            body += ' ' + suffix;
+          } else if (r() < 0.4) {
+            body += ' ' + pick(STANDINGS_DANGER_LOSS, r).replace(/{team}/g, opts.teamName);
+          }
         }
       }
     } else {
       category = 'neutralite';
       headline = pick(DRAW_HEADLINES, r).replace(/{team}/g, opts.teamName);
       body = pick(DRAW_BODIES, r).replace(/{team}/g, opts.teamName);
+      // Nul en danger zone = mauvaise nouvelle (seulement si encore en course)
+      if (!opts.isEliminated && (opts.isInDangerZone || isLPMDanger)) {
+        body += ' ' + pick(STANDINGS_DANGER_LOSS, r).replace(/{team}/g, opts.teamName);
+      }
+    }
+  }
+
+  // ── Désillusion moral élevé ──────────────────────────────────────────────
+  // Équipe avec bon moral qui perd ou fait nul → presse amplifie la déception
+  if (!moraleShock && (diff <= 0) && opts.moraleBefore !== undefined) {
+    const mb = opts.moraleBefore;
+    // Seuils : moral ≥ 75 → 55% shock, 65-74 → 30%, 55-64 → 12%
+    const shockChance = mb >= 75 ? 0.55 : mb >= 65 ? 0.30 : mb >= 55 ? 0.12 : 0;
+    if (shockChance > 0 && r() < shockChance) {
+      // Amplitude proportionnelle au moral et à l'écart
+      const baseShock = mb >= 75 ? 8 : mb >= 65 ? 5 : 3;
+      const diffPenalty = Math.abs(diff) >= 3 ? 4 : Math.abs(diff) >= 2 ? 2 : 0;
+      moraleShock = -(baseShock + diffPenalty + Math.floor(r() * 4));
     }
   }
 
