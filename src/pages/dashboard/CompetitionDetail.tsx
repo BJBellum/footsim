@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { toast } from '@/components/ui/Toast';
@@ -23,6 +23,10 @@ import { env } from '@/lib/env';
 
 export default function CompetitionDetail() {
   const { id } = useParams<{ id: string }>();
+  const { pathname } = useLocation();
+  const isPublicView = pathname.startsWith('/competition-view');
+  const backTo = isPublicView ? '/my-team' : '/dashboard/competitions';
+  const backLabel = isPublicView ? '← My Team' : '← Compétitions';
   const load = useCompetition((s) => s.load);
   const save = useCompetition((s) => s.save);
   const remove = useCompetition((s) => s.remove);
@@ -68,7 +72,7 @@ export default function CompetitionDetail() {
   if (!current) {
     return (
       <div className="space-y-4">
-        <Link to="/dashboard/competitions" className="text-sm text-muted hover:text-text">← Compétitions</Link>
+        <Link to={backTo} className="text-sm text-muted hover:text-text">{backLabel}</Link>
         <p className="text-muted">Compétition introuvable.</p>
         {isAdmin && pat && id && (
           <Button
@@ -77,7 +81,7 @@ export default function CompetitionDetail() {
             onClick={async () => {
               try {
                 await remove(id, pat);
-                navigate('/dashboard/competitions');
+                navigate(backTo);
               } catch (err) {
                 toast('error', String(err));
               }
@@ -149,7 +153,7 @@ export default function CompetitionDetail() {
     setDeleting(true);
     try {
       await remove(current.id, pat);
-      navigate('/dashboard/competitions');
+      navigate(backTo);
     } catch (err) {
       toast('error', String(err));
       setDeleting(false);
@@ -225,7 +229,7 @@ export default function CompetitionDetail() {
     return (
       <div className="space-y-6">
         <div>
-          <Link to="/dashboard/competitions" className="text-sm text-muted hover:text-text">← Compétitions</Link>
+          <Link to={backTo} className="text-sm text-muted hover:text-text">{backLabel}</Link>
           <h1 className="mt-2 font-display text-4xl">Tirage — Phase finale</h1>
           <p className="text-muted text-sm mt-1">{current.name}</p>
         </div>
@@ -244,7 +248,7 @@ export default function CompetitionDetail() {
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <Link to="/dashboard/competitions" className="text-sm text-muted hover:text-text">← Compétitions</Link>
+          <Link to={backTo} className="text-sm text-muted hover:text-text">{backLabel}</Link>
           <h1 className="mt-2 font-display text-4xl">{current.name}</h1>
           <p className="text-muted text-sm mt-1">
             {current.format === 'league' ? 'Championnat' : current.format === 'cup' ? 'Coupe' : 'Groupes + Phase finale'}
