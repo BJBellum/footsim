@@ -88,6 +88,8 @@ export function saveCompetition(competition: Competition, token: string): Promis
       teamCount: competition.teamIds.length,
       createdAt: competition.createdAt,
       winner: competition.winner,
+      year: competition.year,
+      teamIds: competition.teamIds,
     };
     const list = idx?.data ?? [];
     const next = list.some((c) => c.id === competition.id)

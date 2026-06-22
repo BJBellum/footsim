@@ -300,6 +300,8 @@ export type Team = {
   jerseyColor?: string;
   /** Action sur le Foot: funding (M€, capped 250) → strength bonus 0–5 */
   actionFoot?: { rating: number; funding: number };
+  /** Competition history — populated when a competition is saved to GitHub */
+  compHistory?: import('@/lib/competition/types').CompHistoryEntry[];
 };
 
 export type LeagueClub = {

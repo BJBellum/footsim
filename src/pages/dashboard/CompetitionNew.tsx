@@ -43,6 +43,7 @@ export default function CompetitionNew() {
   const [knockoutRules, setKnockoutRules] = useState<MatchRules>({ ...DEFAULT_RULES, extraTime: true, penalties: true });
   const [drawResult, setDrawResult] = useState<ReturnType<typeof conductDraw> | null>(null);
   const [hostTeamId, setHostTeamId] = useState<string>('');
+  const [year, setYear] = useState<number | undefined>(undefined);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -126,6 +127,7 @@ export default function CompetitionNew() {
         id,
         name: name.trim(),
         format,
+        year,
         teamIds,
         matches,
         groups,
@@ -243,6 +245,17 @@ export default function CompetitionNew() {
         <label className="block text-sm">
           <span className="mb-1 block text-muted">Nom de la compétition</span>
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex : Coupe des Nations" />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block text-muted">Année (édition)</span>
+          <Input
+            type="number"
+            value={year ?? ''}
+            onChange={(e) => setYear(e.target.value ? Number(e.target.value) : undefined)}
+            placeholder="Ex : 2026"
+            min={1900}
+            max={2200}
+          />
         </label>
       </section>
 

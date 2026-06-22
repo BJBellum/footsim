@@ -16,7 +16,7 @@ import { listTeams, loadTeam } from '@/lib/github/store';
 import type { Continent } from '@/lib/types';
 import { FORMAT_LABEL } from '@/lib/competition/types';
 import type { Player, SavedTactic, Team, TeamTactics } from '@/lib/types';
-import type { CompetitionSummary } from '@/lib/competition/types';
+import type { CompetitionSummary, CompHistoryEntry } from '@/lib/competition/types';
 import type { CultureWeight } from '@/lib/gen/names';
 import { loadLocalTactics, loadLocalSavedTactics, saveLocalSavedTactics } from '@/lib/localTactics';
 import { env } from '@/lib/env';
@@ -36,7 +36,7 @@ const STATUS_COLOR: Record<string, string> = {
   completed: 'text-warning',
 };
 
-type Tab = 'tactique' | 'joueurs' | 'noms' | 'postes' | 'competitions' | 'top' | 'simulation';
+type Tab = 'tactique' | 'joueurs' | 'noms' | 'postes' | 'competitions' | 'palmares' | 'top' | 'simulation';
 
 export default function MyTeam() {
   const session = useSession((s) => s.session);
@@ -326,7 +326,7 @@ export default function MyTeam() {
 
       {/* Tabs */}
       <div className="flex flex-wrap items-center gap-1 border-b border-border">
-        {(['tactique', 'joueurs', 'noms', 'postes', 'competitions', 'top', 'simulation'] as Tab[]).map((t) => (
+        {(['tactique', 'joueurs', 'noms', 'postes', 'competitions', 'palmares', 'top', 'simulation'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -337,6 +337,7 @@ export default function MyTeam() {
               : t === 'noms' ? 'Noms'
               : t === 'postes' ? 'Postes'
               : t === 'competitions' ? 'Compétitions'
+              : t === 'palmares' ? 'Palmarès'
               : t === 'top' ? 'Meilleurs joueurs'
               : 'Simulation'}
           </button>
@@ -517,6 +518,10 @@ export default function MyTeam() {
           )}
         </div>
       )}
+      {/* Palmarès */}
+      {tab === 'palmares' && (
+        <MyTeamPalmaresTab compHistory={data.team.compHistory ?? []} />
+      )}
       {/* Meilleurs joueurs */}
       {tab === 'top' && (
         <div className="space-y-4">
@@ -693,6 +698,91 @@ function NomExportPanel({
       >
         {busy ? 'Génération…' : `↓ Télécharger JSON (${playerCount} joueurs)`}
       </button>
+    </div>
+  );
+}
+
+const RESULT_LABEL: Record<CompHistoryEntry['result'], string> = {
+  winner: '🏆 Vainqueur',
+  finalist: '🥈 Finaliste',
+  third: '🥉 3ème place',
+  semi: '4ème (demi-finale)',
+  participant: 'Participant',
+};
+const RESULT_COLOR: Record<CompHistoryEntry['result'], string> = {
+  winner: 'text-warning border-warning/40 bg-warning/10',
+  finalist: 'text-text border-border bg-surface',
+  third: 'text-accent border-accent/40 bg-accent/10',
+  semi: 'text-muted border-border bg-surface',
+  participant: 'text-muted border-border bg-surface',
+};
+
+function MyTeamPalmaresTab({ compHistory }: { compHistory: CompHistoryEntry[] }) {
+  if (compHistory.length === 0) {
+    return (
+      <div className="py-16 text-center text-muted text-sm">
+        Aucun palmarès enregistré. Les résultats apparaissent ici après chaque compétition sauvegardée.
+      </div>
+    );
+  }
+
+  const byName = compHistory.reduce<Record<string, CompHistoryEntry[]>>((acc, e) => {
+    (acc[e.compName] ??= []).push(e);
+    return acc;
+  }, {});
+
+  const wins = compHistory.filter((e) => e.result === 'winner').length;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap gap-4">
+        <div className="rounded-lg border border-warning/30 bg-warning/5 px-5 py-3 text-center">
+          <div className="font-display text-3xl text-warning">{wins}</div>
+          <div className="text-xs text-muted mt-0.5">Titre{wins > 1 ? 's' : ''}</div>
+        </div>
+        <div className="rounded-lg border border-border bg-surface px-5 py-3 text-center">
+          <div className="font-display text-3xl">{compHistory.length}</div>
+          <div className="text-xs text-muted mt-0.5">Participation{compHistory.length > 1 ? 's' : ''}</div>
+        </div>
+        <div className="rounded-lg border border-border bg-surface px-5 py-3 text-center">
+          <div className="font-display text-3xl">{Object.keys(byName).length}</div>
+          <div className="text-xs text-muted mt-0.5">Compétition{Object.keys(byName).length > 1 ? 's' : ''} différente{Object.keys(byName).length > 1 ? 's' : ''}</div>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {Object.entries(byName).map(([compName, entries]) => {
+          const entryWins = entries.filter((e) => e.result === 'winner').length;
+          const sorted = [...entries].sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+          return (
+            <div key={compName} className="rounded-lg border border-border bg-surface p-4 space-y-3">
+              <div>
+                <div className="font-medium flex items-center gap-2">
+                  {compName}
+                  {entryWins > 0 && (
+                    <span className="text-warning text-sm">
+                      {'🏆'.repeat(Math.min(entryWins, 5))}{entryWins > 5 ? ` ×${entryWins}` : ''}
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-muted mt-0.5">
+                  {FORMAT_LABEL[entries[0].format]} · {entries.length} participation{entries.length > 1 ? 's' : ''}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                {sorted.map((e, i) => (
+                  <div key={i} className="flex items-center justify-between gap-3 text-sm">
+                    <span className="text-muted text-xs">{e.year ?? '—'}</span>
+                    <span className={`rounded border px-2 py-0.5 text-xs font-medium ${RESULT_COLOR[e.result]}`}>
+                      {RESULT_LABEL[e.result]}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

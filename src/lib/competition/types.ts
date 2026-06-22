@@ -77,10 +77,22 @@ export type CompetitionAwards = {
   bestPlayer: string | null;
 };
 
+export type CompHistoryEntry = {
+  compId: string;
+  compName: string;
+  year?: number;
+  format: CompetitionFormat;
+  result: 'winner' | 'finalist' | 'third' | 'semi' | 'participant';
+  /** Phase reached (e.g. 'F', 'SF', 'QF', 'R16', 'group') */
+  phase?: string;
+};
+
 export type Competition = {
   id: string;
   name: string;
   format: CompetitionFormat;
+  /** Edition year (e.g. 2024) */
+  year?: number;
   teamIds: string[];
   matches: CompMatch[];
   groups?: CompGroup[];
@@ -117,6 +129,8 @@ export type CompetitionSummary = {
   teamCount: number;
   createdAt: string;
   winner?: string;
+  year?: number;
+  teamIds?: string[];
 };
 
 /** Pick the right MatchRules for a given match phase. */

@@ -10,6 +10,8 @@ import { PlayerEdit } from '@/components/team/PlayerEdit';
 import { TacticsPanel } from '@/components/team/TacticsPanel';
 import { TacticsSummary } from '@/components/team/TacticsSummary';
 import type { Player, SavedTactic, Team, TeamTactics, Culture, Continent } from '@/lib/types';
+import type { CompHistoryEntry } from '@/lib/competition/types';
+import { FORMAT_LABEL } from '@/lib/competition/types';
 import { CULTURE_LABEL, CONTINENT_LABEL, CULTURES_BY_CONTINENT } from '@/lib/types';
 import { FlagUpload } from '@/components/team/FlagUpload';
 import { Input } from '@/components/ui/Input';
@@ -39,7 +41,7 @@ export default function TeamDetail() {
   const [deleteCount, setDeleteCount] = useState(1);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [tab, setTab] = useState<'roster' | 'tactique' | 'entraineur' | 'infos'>('roster');
+  const [tab, setTab] = useState<'roster' | 'tactique' | 'entraineur' | 'infos' | 'palmares'>('roster');
   const [savedTactics, setSavedTactics] = useState<SavedTactic[]>([]);
   const [activeTacticId, setActiveTacticId] = useState<string | undefined>();
   const [editingTacticId, setEditingTacticId] = useState<string | null>(null);
@@ -548,13 +550,13 @@ async function applyNewStrength(strength: number) {
 
       {/* Tab bar */}
       <div className="flex items-center gap-1 border-b border-border">
-        {(['roster', 'tactique', 'entraineur'] as const).map((t) => (
+        {(['roster', 'tactique', 'entraineur', 'palmares'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium transition-colors ${tab === t ? 'border-b-2 border-accent text-accent' : 'text-muted hover:text-text'}`}
           >
-            {t === 'roster' ? 'Roster' : t === 'tactique' ? 'Tactique' : 'Entraîneur'}
+            {t === 'roster' ? 'Roster' : t === 'tactique' ? 'Tactique' : t === 'entraineur' ? 'Entraîneur' : 'Palmarès'}
           </button>
         ))}
         <div className="ml-auto">
@@ -708,6 +710,10 @@ async function applyNewStrength(strength: number) {
           onSave={(c: Coach) => mutate({ team: { ...team, coach: c }, players })}
           onToggleSuspension={() => mutate({ team: { ...team, coachSuspended: !team.coachSuspended }, players })}
         />
+      )}
+
+      {tab === 'palmares' && (
+        <PalmaresTab compHistory={team.compHistory ?? []} />
       )}
 
       {tab === 'infos' && editCultures !== null && (
@@ -1205,5 +1211,97 @@ function CultureEditPanel({
         Enregistrer (non publié)
       </Button>
     </section>
+  );
+}
+
+const RESULT_LABEL: Record<CompHistoryEntry['result'], string> = {
+  winner: '🏆 Vainqueur',
+  finalist: '🥈 Finaliste',
+  third: '🥉 3ème place',
+  semi: '4ème (demi-finale)',
+  participant: 'Participant',
+};
+
+const RESULT_COLOR: Record<CompHistoryEntry['result'], string> = {
+  winner: 'text-warning border-warning/40 bg-warning/10',
+  finalist: 'text-text border-border bg-surface',
+  third: 'text-accent border-accent/40 bg-accent/10',
+  semi: 'text-muted border-border bg-surface',
+  participant: 'text-muted border-border bg-surface',
+};
+
+function PalmaresTab({ compHistory }: { compHistory: CompHistoryEntry[] }) {
+  if (compHistory.length === 0) {
+    return (
+      <div className="py-16 text-center text-muted text-sm">
+        Aucun palmarès enregistré. Les résultats apparaissent ici quand une compétition terminée est sauvegardée sur GitHub.
+      </div>
+    );
+  }
+
+  // Group by competition name to count editions
+  const byName = compHistory.reduce<Record<string, CompHistoryEntry[]>>((acc, e) => {
+    (acc[e.compName] ??= []).push(e);
+    return acc;
+  }, {});
+
+  const wins = compHistory.filter((e) => e.result === 'winner');
+  const participations = compHistory.length;
+
+  return (
+    <div className="space-y-6">
+      {/* Summary banner */}
+      <div className="flex flex-wrap gap-4">
+        <div className="rounded-lg border border-warning/30 bg-warning/5 px-5 py-3 text-center">
+          <div className="font-display text-3xl text-warning">{wins.length}</div>
+          <div className="text-xs text-muted mt-0.5">Titre{wins.length > 1 ? 's' : ''}</div>
+        </div>
+        <div className="rounded-lg border border-border bg-surface px-5 py-3 text-center">
+          <div className="font-display text-3xl">{participations}</div>
+          <div className="text-xs text-muted mt-0.5">Participation{participations > 1 ? 's' : ''}</div>
+        </div>
+        <div className="rounded-lg border border-border bg-surface px-5 py-3 text-center">
+          <div className="font-display text-3xl">{Object.keys(byName).length}</div>
+          <div className="text-xs text-muted mt-0.5">Compétition{Object.keys(byName).length > 1 ? 's' : ''} différente{Object.keys(byName).length > 1 ? 's' : ''}</div>
+        </div>
+      </div>
+
+      {/* Grouped by competition name */}
+      <div className="space-y-4">
+        {Object.entries(byName).map(([compName, entries]) => {
+          const entryWins = entries.filter((e) => e.result === 'winner').length;
+          const sorted = [...entries].sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+          return (
+            <div key={compName} className="rounded-lg border border-border bg-surface p-4 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-medium flex items-center gap-2">
+                    {compName}
+                    {entryWins > 0 && (
+                      <span className="text-warning text-sm">
+                        {'🏆'.repeat(Math.min(entryWins, 5))}{entryWins > 5 ? ` ×${entryWins}` : ''}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted mt-0.5">
+                    {FORMAT_LABEL[entries[0].format]} · {entries.length} participation{entries.length > 1 ? 's' : ''}
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                {sorted.map((e, i) => (
+                  <div key={i} className="flex items-center justify-between gap-3 text-sm">
+                    <span className="text-muted text-xs">{e.year ?? '—'}</span>
+                    <span className={`rounded border px-2 py-0.5 text-xs font-medium ${RESULT_COLOR[e.result]}`}>
+                      {RESULT_LABEL[e.result]}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

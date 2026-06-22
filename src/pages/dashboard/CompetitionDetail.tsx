@@ -18,7 +18,7 @@ import { needsKnockoutDraw, getQualifiersByRank, seedKnockoutWithOrder, sortStan
 import { LPMDrawCeremony, type LPMPair } from '@/components/competition/LPMDrawCeremony';
 import { buildKnockoutPots, conductKnockoutDraw } from '@/lib/competition/draw';
 import type { DrawResult } from '@/lib/competition/draw';
-import type { Competition, CompMatch, PlayerCompStats } from '@/lib/competition/types';
+import type { Competition, CompMatch, PlayerCompStats, CompHistoryEntry } from '@/lib/competition/types';
 import type { CorruptionDeal } from '@/lib/sim/types';
 import type { Team } from '@/lib/types';
 import { env } from '@/lib/env';
@@ -26,6 +26,7 @@ import { moraleLabel, MORALE_DEFAULT } from '@/lib/competition/morale';
 import type { PressItem, PressMention, PressMentionPlayer, PressMentionCoach } from '@/lib/competition/press';
 import { PRESS_CATEGORY_COLOR, PRESS_CATEGORY_LABEL } from '@/lib/competition/press';
 import { COACH_TRAIT_LABEL, COACH_TRAIT_DESCRIPTION } from '@/lib/gen/coach';
+import { appendTeamCompHistory, removeTeamCompHistory } from '@/lib/github/store';
 import type { Injury, Suspension } from '@/lib/competition/injuries';
 import { SEVERITY_COLOR, CAUSE_LABEL } from '@/lib/competition/injuries';
 
@@ -126,6 +127,26 @@ export default function CompetitionDetail() {
     setSyncing(true);
     try {
       await save(current, pat);
+
+      // When competition is completed, append compHistory to each participating team
+      if (current.status === 'completed') {
+        const teamSlugs = teams
+          .filter((t) => current.teamIds.includes(t.id))
+          .map((t) => ({ id: t.id, slug: t.slug }));
+
+        await Promise.all(teamSlugs.map(async ({ id, slug }) => {
+          const entry: CompHistoryEntry = {
+            compId: current.id,
+            compName: current.name,
+            year: current.year,
+            format: current.format,
+            result: deriveTeamResult(id, current),
+            phase: deriveTeamPhase(id, current),
+          };
+          await appendTeamCompHistory(slug, entry, pat);
+        }));
+      }
+
       toast('success', 'Compétition sauvegardée sur GitHub.');
     } catch (err) {
       toast('error', String(err));
@@ -164,6 +185,11 @@ export default function CompetitionDetail() {
     setDeleting(true);
     try {
       await remove(current.id, pat);
+      // Strip compHistory entries from all participating teams
+      const teamSlugs = teams
+        .filter((t) => current.teamIds.includes(t.id))
+        .map((t) => t.slug);
+      await Promise.all(teamSlugs.map((slug) => removeTeamCompHistory(slug, current.id, pat)));
       navigate(backTo);
     } catch (err) {
       toast('error', String(err));
@@ -972,6 +998,43 @@ function PlayerCompPopup({ stat, teamMap, onClose }: { stat: import('@/lib/compe
       </div>
     </div>
   );
+}
+
+const PHASE_ORDER = ['group', 'league', 'lpm_playoff', 'R64', 'R32', 'R16', 'QF', 'SF', '3rd', 'F'];
+
+function deriveTeamPhase(teamId: string, comp: Competition): string | undefined {
+  const played = comp.matches.filter(
+    (m) => m.status === 'completed' && (m.homeTeamId === teamId || m.awayTeamId === teamId),
+  );
+  if (played.length === 0) return undefined;
+  return played.reduce((best, m) => {
+    const bi = PHASE_ORDER.indexOf(best);
+    const mi = PHASE_ORDER.indexOf(m.phase);
+    return mi > bi ? m.phase : best;
+  }, played[0].phase);
+}
+
+function deriveTeamResult(teamId: string, comp: Competition): CompHistoryEntry['result'] {
+  if (comp.winner === teamId) return 'winner';
+
+  const finalMatch = comp.matches.find((m) => m.phase === 'F' && m.status === 'completed');
+  if (finalMatch && (finalMatch.homeTeamId === teamId || finalMatch.awayTeamId === teamId)) {
+    return 'finalist';
+  }
+
+  const thirdMatch = comp.matches.find((m) => m.phase === '3rd' && m.status === 'completed');
+  if (thirdMatch) {
+    const thirdWinner = thirdMatch.result
+      ? (thirdMatch.result.home > thirdMatch.result.away ? thirdMatch.homeTeamId : thirdMatch.awayTeamId)
+      : null;
+    if (thirdWinner === teamId) return 'third';
+    if (thirdMatch.homeTeamId === teamId || thirdMatch.awayTeamId === teamId) return 'semi';
+  }
+
+  const sfMatches = comp.matches.filter((m) => m.phase === 'SF' && m.status === 'completed');
+  if (sfMatches.some((m) => m.homeTeamId === teamId || m.awayTeamId === teamId)) return 'semi';
+
+  return 'participant';
 }
 
 /** Replace mention names in text with clickable spans */
