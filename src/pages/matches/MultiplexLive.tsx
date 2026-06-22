@@ -724,6 +724,7 @@ export default function MultiplexLive() {
     const tab = tabQueue[tabIndex];
     return (
       <PenaltyShootout
+        key={tabIndex}
         state={tab.state}
         home={tab.home}
         away={tab.away}
