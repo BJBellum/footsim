@@ -52,6 +52,9 @@ const [regenStrength, setRegenStrength] = useState(false);
   const [editStrength, setEditStrength] = useState(60);
   const [editManagerId, setEditManagerId] = useState('');
   const [editJerseyColor, setEditJerseyColor] = useState('#e63c3c');
+  const [showActionFoot, setShowActionFoot] = useState(false);
+  const [actionFootRating, setActionFootRating] = useState(5);
+  const [actionFootFunding, setActionFootFunding] = useState(0);
 
   useEffect(() => {
     if (!ownerId) return;
@@ -383,6 +386,11 @@ async function applyNewStrength(strength: number) {
   const { team, players } = data;
   const editing = editingId ? players.find((p) => p.id === editingId) ?? null : null;
 
+  const actionFootBonus = team.actionFoot
+    ? Math.round((Math.min(team.actionFoot.funding, 250) / 250) * 5)
+    : 0;
+  const effectiveStrength = Math.min(100, team.globalStrength + actionFootBonus);
+
   // initialize culture/continent edit state when switching to infos tab
   function openInfos() {
     setEditCultures(team.cultures ?? [{ culture: team.culture, weight: 50 }]);
@@ -392,6 +400,9 @@ async function applyNewStrength(strength: number) {
     setEditStrength(team.globalStrength);
     setEditManagerId(team.managerDiscordId ?? '');
     setEditJerseyColor(team.jerseyColor ?? '#e63c3c');
+    setActionFootRating(team.actionFoot?.rating ?? 5);
+    setActionFootFunding(team.actionFoot?.funding ?? 0);
+    setShowActionFoot(false);
     setTab('infos');
   }
 
@@ -456,7 +467,7 @@ async function applyNewStrength(strength: number) {
             {(team.continents ?? (team.continent ? [team.continent] : [])).map((c) => CONTINENT_LABEL[c]).join(' · ')
               ? ` · ${(team.continents ?? (team.continent ? [team.continent] : [])).map((c) => CONTINENT_LABEL[c]).join(' · ')}`
               : ''}
-            {' '}· Force {team.globalStrength} ·{' '}
+            {' '}· Force {effectiveStrength}{actionFootBonus > 0 ? ` (${team.globalStrength}+${actionFootBonus})` : ''} ·{' '}
             {team.playerCount} joueurs · Formation {team.formation}
           </p>
           {newStrength === null ? (
@@ -709,23 +720,54 @@ async function applyNewStrength(strength: number) {
       )}
 
       {tab === 'infos' && editCultures !== null && (
-        <CultureEditPanel
-          name={editName}
-          onName={setEditName}
-          flag={editFlag}
-          onFlag={setEditFlag}
-          strength={editStrength}
-          onStrength={setEditStrength}
-          cultures={editCultures}
-          continents={editContinent}
-          onChange={setEditCultures}
-          onChangeContinents={setEditContinent}
-          managerId={editManagerId}
-          onManagerId={setEditManagerId}
-          jerseyColor={editJerseyColor}
-          onJerseyColor={setEditJerseyColor}
-          onSave={saveInfos}
-        />
+        <div className="space-y-6">
+          <CultureEditPanel
+            name={editName}
+            onName={setEditName}
+            flag={editFlag}
+            onFlag={setEditFlag}
+            strength={editStrength}
+            onStrength={setEditStrength}
+            cultures={editCultures}
+            continents={editContinent}
+            onChange={setEditCultures}
+            onChangeContinents={setEditContinent}
+            managerId={editManagerId}
+            onManagerId={setEditManagerId}
+            jerseyColor={editJerseyColor}
+            onJerseyColor={setEditJerseyColor}
+            onSave={saveInfos}
+          />
+
+          {/* Action sur le Foot */}
+          <div className="border-t border-border pt-6">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setShowActionFoot((v) => !v)}
+            >
+              {showActionFoot ? '▲' : '▼'} Action sur le Foot
+            </Button>
+
+            {showActionFoot && (
+              <ActionFootPanel
+                rating={actionFootRating}
+                funding={actionFootFunding}
+                onRating={setActionFootRating}
+                onFunding={setActionFootFunding}
+                current={team.actionFoot}
+                baseStrength={team.globalStrength}
+                onSave={() => {
+                  mutate({
+                    team: { ...team, actionFoot: { rating: actionFootRating, funding: actionFootFunding } },
+                    players,
+                  });
+                  toast('success', 'Action sur le Foot appliquée (non publié).');
+                }}
+              />
+            )}
+          </div>
+        </div>
       )}
 
 
@@ -844,6 +886,102 @@ function CoachPanel({ coach, suspended, cultures, onSave, onToggleSuspension }: 
         </div>
       </div>
     </section>
+  );
+}
+
+function ActionFootPanel({
+  rating, funding, onRating, onFunding, current, baseStrength, onSave,
+}: {
+  rating: number;
+  funding: number;
+  onRating: (v: number) => void;
+  onFunding: (v: number) => void;
+  current?: { rating: number; funding: number };
+  baseStrength: number;
+  onSave: () => void;
+}) {
+  const cappedFunding = Math.min(funding, 250);
+  const bonus = Math.round((cappedFunding / 250) * 5);
+  const effective = Math.min(100, baseStrength + bonus);
+
+  return (
+    <div className="mt-4 rounded-lg border border-border bg-surface p-5 space-y-5 max-w-lg">
+      <div className="space-y-1">
+        <h3 className="font-display text-lg">Action sur le Foot</h3>
+        <p className="text-xs text-muted">
+          Définit une note (1–10) et un financement (plafond 250 M€) qui octroie un bonus sur la force générale de l'équipe (0 à +5), sans modifier les joueurs.
+        </p>
+      </div>
+
+      {current && (
+        <div className="text-xs text-muted rounded border border-border px-3 py-2">
+          Actuel : note <span className="text-text font-medium">{current.rating}/10</span>
+          {' '}· financement <span className="text-text font-medium">{current.funding} M€</span>
+          {' '}· bonus <span className="text-accent font-medium">+{Math.round((Math.min(current.funding, 250) / 250) * 5)}</span>
+        </div>
+      )}
+
+      {/* Rating 1–10 */}
+      <label className="block text-sm">
+        <span className="mb-1 block text-muted">
+          Note d'action : <span className="text-text font-medium">{rating} / 10</span>
+        </span>
+        <div className="flex items-center gap-3">
+          <input
+            type="range" min={1} max={10} step={1} value={rating}
+            onChange={(e) => onRating(Number(e.target.value))}
+            className="flex-1 accent-[var(--accent)]"
+          />
+          <div className="flex gap-1">
+            {[...Array(10)].map((_, i) => (
+              <div
+                key={i}
+                className={`h-2 w-2 rounded-full ${i < rating ? 'bg-accent' : 'bg-border'}`}
+              />
+            ))}
+          </div>
+        </div>
+      </label>
+
+      {/* Funding */}
+      <label className="block text-sm">
+        <span className="mb-1 block text-muted">
+          Financement : <span className="text-text font-medium">{funding} M€</span>
+          {funding > 250 && <span className="ml-2 text-warning text-xs">(plafonné à 250 M€)</span>}
+        </span>
+        <div className="flex items-center gap-2">
+          <input
+            type="range" min={0} max={300} step={5} value={funding}
+            onChange={(e) => onFunding(Number(e.target.value))}
+            className="flex-1 accent-[var(--accent)]"
+          />
+          <input
+            type="number" min={0} max={9999} value={funding}
+            onChange={(e) => onFunding(Math.max(0, Number(e.target.value)))}
+            className="h-8 w-24 rounded border border-border bg-surface px-2 text-sm"
+          />
+          <span className="text-xs text-muted shrink-0">M€</span>
+        </div>
+      </label>
+
+      {/* Preview */}
+      <div className="rounded border border-accent/20 bg-accent/5 px-4 py-3 text-sm space-y-1">
+        <div className="flex justify-between">
+          <span className="text-muted">Financement effectif</span>
+          <span className="font-medium tabular-nums">{cappedFunding} M€</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted">Bonus force générale</span>
+          <span className="font-medium text-accent tabular-nums">+{bonus} / 5</span>
+        </div>
+        <div className="flex justify-between border-t border-border/50 pt-1">
+          <span className="text-muted">Force effective</span>
+          <span className="font-bold tabular-nums">{effective} / 100</span>
+        </div>
+      </div>
+
+      <Button onClick={onSave}>Appliquer (non publié)</Button>
+    </div>
   );
 }
 

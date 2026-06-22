@@ -287,6 +287,8 @@ export type Team = {
   activeTacticId?: string;
   /** Primary jersey color as CSS hex (e.g. "#e63c3c") */
   jerseyColor?: string;
+  /** Action sur le Foot: funding (M€, capped 250) → strength bonus 0–5 */
+  actionFoot?: { rating: number; funding: number };
 };
 
 export type LeagueClub = {
