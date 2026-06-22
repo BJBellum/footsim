@@ -65,9 +65,10 @@ export default function CompetitionNew() {
   function startDraw() {
     if (!valid) return;
     const selectedTeamObjs = teams.filter((t) => selectedTeams.includes(t.id));
-    const pots = buildPots(selectedTeamObjs);
+    const host = (format === 'groups_knockout' && hostTeamId && selectedTeams.includes(hostTeamId)) ? hostTeamId : undefined;
+    const pots = buildPots(selectedTeamObjs, host);
     const gc = format === 'cup' ? Math.ceil(selectedTeams.length / 2) : groupsCount;
-    const result = conductDraw(pots, gc);
+    const result = conductDraw(pots, gc, host);
     setDrawResult(result);
   }
 
@@ -135,7 +136,7 @@ export default function CompetitionNew() {
         status: 'ongoing',
         createdAt: new Date().toISOString(),
         teamSnapshot,
-        hostTeamId: (format === 'lpm' && hostTeamId && teamIds.includes(hostTeamId)) ? hostTeamId : undefined,
+        hostTeamId: ((format === 'lpm' || format === 'groups_knockout') && hostTeamId && teamIds.includes(hostTeamId)) ? hostTeamId : undefined,
       };
 
       saveLocal(comp);
@@ -162,8 +163,21 @@ export default function CompetitionNew() {
     setFormat('lpm');
     setLegs(1);
     setKnockoutRules({ ...DEFAULT_RULES, extraTime: true, penalties: true });
-    // Sélectionner jusqu'à 48 équipes (toutes si dispo)
     const ids = teams.slice(0, 48).map((t) => t.id);
+    setSelectedTeams(ids);
+    setHostTeamId('');
+  }
+
+  function applyWorldCupPreset() {
+    setName('Coupe du Monde');
+    setFormat('groups_knockout');
+    setGroupsCount(8);
+    setQualifyPerGroup(2);
+    setLegs(1);
+    setThirdPlace(true);
+    setRules({ ...DEFAULT_RULES });
+    setKnockoutRules({ ...DEFAULT_RULES, extraTime: true, penalties: true });
+    const ids = teams.slice(0, 32).map((t) => t.id);
     setSelectedTeams(ids);
   }
 
@@ -194,19 +208,34 @@ export default function CompetitionNew() {
         <p className="text-muted">Configure le format et les équipes participantes.</p>
       </div>
 
-      {/* Preset rapide LPM */}
-      <div className="rounded-lg border border-accent/30 bg-accent/5 p-4 flex items-start gap-4">
-        <div className="flex-1 min-w-0">
-          <div className="font-medium text-sm">Ligue Préliminaire Mondiale</div>
-          <div className="text-xs text-muted mt-0.5">48 équipes · 11 journées · barrages A/R · pré-remplit tout automatiquement</div>
+      {/* Presets */}
+      <div className="space-y-2">
+        <div className="rounded-lg border border-accent/30 bg-accent/5 p-4 flex items-start gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="font-medium text-sm">Ligue Préliminaire Mondiale</div>
+            <div className="text-xs text-muted mt-0.5">48 équipes · 11 journées · barrages A/R · pré-remplit tout automatiquement</div>
+          </div>
+          <button
+            type="button"
+            onClick={applyLPMPreset}
+            className="shrink-0 rounded-md border border-accent/40 bg-accent/10 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/20 transition-colors"
+          >
+            Preset LPM
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={applyLPMPreset}
-          className="shrink-0 rounded-md border border-accent/40 bg-accent/10 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/20 transition-colors"
-        >
-          Appliquer le preset LPM
-        </button>
+        <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-4 flex items-start gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="font-medium text-sm">Coupe du Monde</div>
+            <div className="text-xs text-muted mt-0.5">32 équipes · 8 groupes · 2 qualifiés/groupe · 8èmes → Finale · prolong. + TAB · match 3ème place</div>
+          </div>
+          <button
+            type="button"
+            onClick={applyWorldCupPreset}
+            className="shrink-0 rounded-md border border-yellow-500/40 bg-yellow-500/10 px-3 py-1.5 text-xs font-medium text-yellow-400 hover:bg-yellow-500/20 transition-colors"
+          >
+            Preset CdM
+          </button>
+        </div>
       </div>
 
       <section className="space-y-4 rounded-lg border border-border bg-surface p-5">
@@ -258,17 +287,21 @@ export default function CompetitionNew() {
             </select>
           </label>
         )}
-        {format === 'lpm' && (
+        {(format === 'lpm' || format === 'groups_knockout') && (
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Pays hôte de la Coupe du Monde</span>
-            <span className="text-xs text-muted block mb-2">Si qualifié d'office, sa place est réattribuée au suivant.</span>
+            <span className="mb-1 block text-muted">Pays hôte</span>
+            <span className="text-xs text-muted block mb-2">
+              {format === 'lpm'
+                ? 'Si qualifié d\'office, sa place est réattribuée au suivant.'
+                : 'Forcé dans le chapeau 1 et placé en tête du groupe A lors du tirage.'}
+            </span>
             <select
               className="h-9 rounded-md border border-border bg-surface px-3 text-sm w-full max-w-xs"
               value={hostTeamId}
               onChange={(e) => setHostTeamId(e.target.value)}
             >
               <option value="">— Aucun pays hôte —</option>
-              {teams.map((t) => (
+              {(format === 'groups_knockout' ? teams.filter((t) => selectedTeams.includes(t.id)) : teams).map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
             </select>

@@ -191,7 +191,7 @@ const PHASE_ORDER: Record<string, number> = {
 };
 
 const PHASE_LABEL: Record<string, string> = {
-  R64: '64ème', R32: '32ème', R16: '16ème', QF: 'Quarts', SF: 'Demies', '3rd': '3ème place', F: 'Finale',
+  R64: '32ème', R32: '16ème', R16: '8ème', QF: 'Quarts', SF: 'Demies', '3rd': '3ème place', F: 'Finale',
 };
 
 export function BracketView({ matches, teams, onSimulate }: Props) {

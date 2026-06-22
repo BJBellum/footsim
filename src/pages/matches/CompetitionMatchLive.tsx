@@ -403,6 +403,7 @@ export default function CompetitionMatchLive() {
         const isInDangerZone = (compMatch.phase === 'group' || compMatch.phase === 'league')
           && tidRank > dangerThreshold;
 
+        const isWorldCup = !!(snap?.name && /coupe du monde|world cup/i.test(snap.name));
         const { item, dopingSuspension, teamDisqualified } = generateMatchPressItem({
           round,
           teamId: tid,
@@ -422,6 +423,7 @@ export default function CompetitionMatchLive() {
           dopingAlreadyThisMatch: matchDopingOccurred,
           players: teamPlayers,
           coach: teamCoach,
+          isWorldCup,
         });
         newPressItems.push(item);
         if (item.moraleShock && item.moraleShock < 0) {

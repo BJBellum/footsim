@@ -427,8 +427,9 @@ const LPM_ELIMINATED_BODIES = [
 // ── Templates contextuels — phases finales ───────────────────────────────────
 
 const KNOCKOUT_PHASE_LABEL: Record<string, string> = {
-  R32: 'huitièmes de finale',
-  R16: 'seizièmes de finale',
+  R64: 'trente-deuxièmes de finale',
+  R32: 'seizièmes de finale',
+  R16: 'huitièmes de finale',
   QF: 'quarts de finale',
   SF: 'demi-finales',
   F: 'finale',
@@ -559,7 +560,260 @@ const KO_LOSS_BODIES: Record<string, string[]> = {
   ],
 };
 
-// ── Templates dopage — joueur (suspension individuelle) ──────────────────────
+// ── Templates spécifiques Coupe du Monde ─────────────────────────────────────
+
+// Phase de groupes — victoire
+const WC_GROUP_WIN_HEADLINES = [
+  '{team} démarre sa Coupe du Monde du bon pied',
+  'Victoire cruciale de {team} dans le groupe — la qualification se dessine',
+  '{team} prend les trois points : le Mondial sourit déjà',
+  'Premier succès mondial pour {team} — le groupe retient son souffle',
+  '{team} s\'impose et met la pression sur le reste du groupe',
+  'Coup d\'envoi réussi : {team} débute son Mondial en fanfare',
+  '{team} l\'emporte et garde son destin en main dans ce groupe',
+  'Victoire capitale de {team} : trois points d\'or dans cette poule serrée',
+];
+const WC_GROUP_WIN_BODIES = [
+  'Trois points, c\'est le nerf de la guerre à ce stade. {team} les a pris avec sérieux et application. Le Mondial peut commencer pour de bon.',
+  'Dans la fournaise d\'une phase de groupes sans pitié, {team} a su faire le dos rond et saisir sa chance. Le vestiaire exulte, mais le staff tempère : "Le plus dur reste à faire."',
+  'Cette victoire en phase de poules pourrait bien être le tournant de la compétition pour {team}. L\'équipe avait besoin de ce succès pour installer sa confiance. C\'est chose faite.',
+  'Le stade bruissait d\'impatience. {team} n\'a pas déçu. Une victoire sobre mais essentielle dans la course à la qualification. Chaque point compte à la Coupe du Monde.',
+  'Sur la scène mondiale, {team} a prouvé ce soir qu\'il avait sa place. Victoire méritée, organisation irréprochable, et un vestiaire qui commence à y croire vraiment.',
+  '"On sait ce qu\'on vaut. On l\'a montré." Le capitaine de {team} avait les mots justes après cette victoire fondatrice dans la compétition planétaire.',
+];
+
+// Phase de groupes — défaite
+const WC_GROUP_LOSS_HEADLINES = [
+  '{team} perd en phase de groupes — le Mondial commence mal',
+  'Défaite amère pour {team} : la qualification prend une claque',
+  '{team} trébuche d\'entrée sur la scène mondiale',
+  'Le rêve mondial de {team} déjà menacé après cette défaite',
+  '{team} mal embarqué dans ce Mondial — la réaction est urgente',
+  'Coup dur pour {team} : trois points perdus qui font mal dans ce groupe',
+  '{team} n\'a pas trouvé les ressources : élimination qui se profile',
+  'Début de Mondial raté pour {team} — le groupe s\'impatiente',
+];
+const WC_GROUP_LOSS_BODIES = [
+  'La Coupe du Monde est impitoyable. {team} vient de l\'apprendre à ses dépens. Une défaite en phase de groupes qui remet tout en question — il faudra gagner les prochains matchs sans état d\'âme.',
+  'Les supporters de {team} avaient fait le voyage en espérant autre chose. Ils repartent silencieux. La qualification est encore possible, mais le chemin vient de se compliquer sérieusement.',
+  'Sur la plus grande scène du football mondial, {team} n\'a pas été à la hauteur. La pression, l\'enjeu, l\'adversaire — tout a semblé peser trop lourd. Il faudra une autre équipe pour le prochain match.',
+  '"On n\'a pas le droit de refaire ça." Le sélectionneur de {team} n\'a pas mâché ses mots après la défaite. Le vestiaire est plongé dans le silence. Le Mondial n\'attend pas.',
+  'Une défaite en phase de poules à la Coupe du Monde, ça marque. {team} devra puiser dans ses ressources mentales pour rebondir. Le temps presse, les points manquent.',
+];
+
+// Phase de groupes — nul
+const WC_GROUP_DRAW_HEADLINES = [
+  '{team} se contente du nul — est-ce suffisant pour la qualification ?',
+  'Partage des points pour {team} : un résultat qui interroge à ce stade',
+  '{team} accroche le match nul mais reste sur sa faim en phase de groupes',
+  'Nul décevant de {team} : le compte à rebours de la qualification est lancé',
+  '{team} n\'avance pas — un nul qui complique les calculs de qualification',
+];
+const WC_GROUP_DRAW_BODIES = [
+  'Un point. Est-ce suffisant ? Dans une poule aussi serrée, {team} ne peut pas se permettre trop de nuls. La qualification reste ouverte, mais le scénario se complique.',
+  'On attendait que {team} fasse le jeu, prenne des risques, aille chercher les trois points. Il a reculé, calculé, et reparti avec un match nul. À ce niveau, ça ne suffit peut-être pas.',
+  'Le nul n\'est pas un drame, mais il n\'est pas non plus un exploit. {team} doit impérativement gagner son prochain match de phase de groupes pour garder son destin en main. La pression monte.',
+];
+
+// 8ème de finale (R16 = round of 16 = 16 équipes = 8ème)
+const WC_R16_WIN_HEADLINES = [
+  '{team} qualifié pour les quarts de finale de la Coupe du Monde !',
+  'MONDIAL : {team} passe les 8èmes et s\'offre un quart de finale !',
+  '{team} en quarts de finale — la folie mondiale commence',
+  'Qualification historique pour {team} : les quarts de finale sont là !',
+  '{team} franchit les 8èmes de finale — le rêve continue',
+  'Scènes de liesse : {team} se qualifie pour les quarts de la Coupe du Monde',
+];
+const WC_R16_WIN_BODIES = [
+  'Les 8èmes de finale de la Coupe du Monde, c\'est déjà un piège. {team} en est sorti la tête haute. Les quarts de finale se profilent, et avec eux, une nouvelle dimension de compétition.',
+  'Ce soir, {team} a montré qu\'il avait le caractère d\'un quart de finaliste mondial. Rien n\'a été facile, tout a été bataillé — mais la victoire est là, et elle compte double sur la scène planétaire.',
+  'Le monde entier regardait. {team} n\'a pas vacillé. Qualification méritée, match âprement disputé, vestiaire en délire. Les quarts de finale de la Coupe du Monde, c\'est une autre planète — et {team} y est.',
+  '"Je suis tellement fier de ces joueurs." Le sélectionneur de {team} avait les yeux humides au coup de sifflet final. Ses hommes venaient de décrocher une place en quarts de finale mondiale. Un accomplissement immense.',
+];
+const WC_R16_LOSS_HEADLINES = [
+  '{team} éliminé en 8èmes de finale — le Mondial s\'arrête là',
+  'Fin du rêve mondial pour {team} : sortie aux 8èmes de finale',
+  '{team} ne verra pas les quarts — l\'aventure mondiale est terminée',
+  'Élimination en 8èmes pour {team} : la Coupe du Monde est cruelle',
+  '{team} aux portes des quarts, mais la porte s\'est fermée',
+];
+const WC_R16_LOSS_BODIES = [
+  'Les 8èmes de finale de la Coupe du Monde ont eu raison de {team}. L\'aventure s\'arrête ici, dans ce stade qui restera gravé dans les mémoires. La déception est immense, mais le parcours méritait mieux que ça.',
+  '{team} rentre à la maison. Les valises se font en silence dans le vestiaire. Les 8èmes de finale d\'un Mondial, c\'est déjà une performance — mais dans la tête des joueurs, c\'est une occasion manquée qui ne reviendra pas.',
+  'Cruel. {team} avait tout pour passer ce tour. La préparation, le talent, la cohérence — mais le football est parfois injuste. L\'élimination aux 8èmes laisse un goût amer que les années ne feront qu\'amplifier.',
+];
+
+// Quarts de finale
+const WC_QF_WIN_HEADLINES = [
+  '{team} EN DEMI-FINALE DE LA COUPE DU MONDE — exploit retentissant !',
+  'MONDIAL : {team} fait tomber les géants et file en demies !',
+  '{team} dans le dernier carré mondial — le pays est en fête !',
+  'HISTORIQUE : {team} atteint les demi-finales de la Coupe du Monde !',
+  'Scènes de folie : {team} qualifié pour les demies du Mondial !',
+  '{team} écrit l\'histoire : les demi-finales mondiales sont là !',
+];
+const WC_QF_WIN_BODIES = [
+  'Les demi-finales de la Coupe du Monde. Ces quatre mots ont une résonance particulière pour {team}. Ce soir, ils sont devenus réalité. Un exploit que peu auraient prédit en début de tournoi.',
+  'Dans les rues, les gens pleuraient de joie. Sur le terrain, les joueurs de {team} s\'étreignaient, incrédules. Demi-finaliste d\'un Mondial — c\'est une phrase que ce groupe gardera toute sa vie.',
+  '"C\'est le plus beau jour de ma carrière." Ces mots, dits par le capitaine de {team} dans le vestiaire, résument tout. Les demi-finales d\'un Mondial, c\'est une promesse tenue. Et cette équipe a promis des choses.',
+  'Le sélectionneur de {team} a fondu en larmes. Ses joueurs l\'ont entouré. La demi-finale d\'un Mondial — c\'était le rêve secret que personne n\'osait formuler. Ce soir, il est devenu réalité.',
+];
+const WC_QF_LOSS_HEADLINES = [
+  '{team} sort en quarts de finale — si proche des demies',
+  'Le Mondial s\'arrête en quarts pour {team} — cruel épilogue',
+  '{team} éliminé aux quarts de finale : le rêve demi-finale s\'envole',
+  'Quarts fatals pour {team} — la Coupe du Monde prend fin ici',
+  '{team} n\'ira pas en demi-finale : défaite douloureuse en quarts',
+];
+const WC_QF_LOSS_BODIES = [
+  'Les demi-finales étaient si proches. {team} a tout donné, mais l\'adversaire a été plus fort. C\'est la loi des quarts de finale mondiaux — il n\'y a pas de place pour les regrets, seulement pour les certitudes : ce groupe a marqué l\'histoire de son football national.',
+  'Sortir en quarts de finale d\'un Mondial, c\'est à la fois une réussite et une déchirure. Pour {team}, les deux coexistent ce soir. Les larmes dans le vestiaire disent tout ce que les mots ne peuvent pas.',
+  '"On avait notre chance. On n\'a pas su la saisir." Le sélectionneur de {team} était droit dans ses bottes, malgré la douleur. Son équipe avait atteint les quarts d\'un Mondial — c\'est déjà une performance historique pour ce pays.',
+];
+
+// Demi-finales
+const WC_SF_WIN_HEADLINES = [
+  '{team} EN FINALE DE LA COUPE DU MONDE — LA NATION EST EN DÉLIRE !',
+  'FINALE MONDIALE POUR {team} — LE RÊVE EST DEVENU RÉALITÉ !',
+  '{team} DISPUTERA LA FINALE DU MONDIAL — ÉVÉNEMENT HISTORIQUE !',
+  'LE PAYS RETIENT SON SOUFFLE : {team} est en finale de la Coupe du Monde !',
+  'INCROYABLE : {team} en finale mondiale après un parcours épique !',
+];
+const WC_SF_WIN_BODIES = [
+  'La finale de la Coupe du Monde. Quatre mots qui résonnent comme un tonnerre dans tout le pays de {team}. Dans les rues, les gens ne dormiront pas cette nuit. Sur le terrain, les joueurs ont du mal à réaliser ce qu\'ils viennent d\'accomplir. La finale mondiale est là.',
+  'Il était une fois une équipe qui croyait. {team} disputera la finale de la Coupe du Monde. Ce n\'est plus un rêve, ce n\'est plus un objectif — c\'est une réalité. Et cette équipe l\'a construite point par point, match après match, avec foi et caractère.',
+  'Le sélectionneur de {team} cherchait ses mots dans le vestiaire. Autour de lui, ses joueurs pleuraient, criaient, s\'étreignaient. La finale de la Coupe du Monde arrive rarement dans une carrière. Ces hommes la vivront. Ensemble.',
+  '"On ne lâche rien, jamais." La devise de {team} tout au long de ce Mondial. Elle leur a valu une place en finale mondiale. La plus belle récompense que le football puisse offrir.',
+];
+const WC_SF_LOSS_HEADLINES = [
+  '{team} battu en demi-finale — le titre mondial attendra',
+  'La finale de la Coupe du Monde s\'échappe pour {team}',
+  '{team} éliminé à une victoire de la finale mondiale',
+  'Demi-finale cruelle pour {team} : le rêve d\'une finale s\'éteint',
+  '{team} ne sera pas en finale — douleur immense après les demies',
+];
+const WC_SF_LOSS_BODIES = [
+  'La finale était à portée de main. {team} ne la jouera pas. C\'est probablement la plus grande douleur qu\'un footballeur puisse ressentir — être à une victoire du plus grand match du monde, et ne pas pouvoir y accéder. Le groupe repartira avec une médaille de bronze à jouer, mais les cœurs seront ailleurs.',
+  'Dans le vestiaire, le silence était total. Personne n\'osait bouger. Puis le capitaine a pris la parole : "On a tout donné. Tout. Levez la tête." Les larmes coulaient quand même. {team} ne jouera pas la finale de la Coupe du Monde — et ça fait mal comme jamais.',
+  'Perdre une demi-finale de Coupe du Monde, c\'est une blessure qui ne se referme pas vraiment. {team} devra trouver la force de jouer le match pour la troisième place avec dignity. Pas facile quand le rêve de finale vient de s\'écrouler.',
+];
+
+// Finale
+const WC_F_WIN_HEADLINES = [
+  'CHAMPION DU MONDE ! {team} SOULÈVE LE TROPHÉE — LÉGENDE !',
+  '{team} CHAMPION DU MONDE — UNE NUIT QUI RESTERA DANS L\'HISTOIRE POUR TOUJOURS !',
+  'LE TITRE MONDIAL POUR {team} — UN SACRE DIGNE DES PLUS GRANDS !',
+  'SACRÉ : {team} EST CHAMPION DU MONDE — LA PLANÈTE ENTIÈRE A LES YEUX SUR EUX !',
+  'IMMORTELS : {team} CHAMPION DU MONDE, LES JOUEURS ENTRENT DANS LA LÉGENDE !',
+];
+const WC_F_WIN_BODIES = [
+  'Champions du Monde. {team}. Ces trois mots forment désormais une phrase qui ne s\'effacera jamais. Le trophée est dans leurs mains, les larmes sur leurs visages, et l\'histoire dans leurs cœurs. Ce groupe a accompli l\'impossible — et ils le savaient depuis le début.',
+  'Le coup de sifflet final. L\'explosion de joie. Les joueurs de {team} s\'effondraient les uns sur les autres, épuisés et heureux. Champions du Monde. La plus haute distinction que le football puisse offrir. Ils l\'ont méritée chaque minute de chaque match.',
+  'Dans les rues, les gens pleuraient, chantaient, s\'embrassaient. {team} venait de décrocher le titre mondial, et le pays entier le vivait comme un rêve éveillé. Le sélectionneur, les joueurs, le staff — une génération dorée qui entrera dans l\'histoire.',
+  '"Je ne sais pas quoi dire. On est champions du monde." Le capitaine de {team} tenait le trophée, tremblant. Derrière lui, ses coéquipiers criaient, pleuraient, riaient. Il n\'y a rien au-dessus d\'un titre de Coupe du Monde. Rien.',
+  'Cette Coupe du Monde avait un roi. Il s\'appelle {team}. Un parcours sans faute, un caractère en acier, une qualité collective au-dessus de tout le monde. Champions du Monde — et pour longtemps dans les mémoires.',
+];
+const WC_F_LOSS_HEADLINES = [
+  '{team} vice-champion du monde — la douleur de la finale',
+  'La Coupe du Monde échappe à {team} en finale — déchirement immense',
+  '{team} s\'incline en finale du Mondial — si proche du sacre mondial',
+  'Finaliste mais pas champion : {team} repartira avec le cœur brisé',
+  '{team} perd la finale de la Coupe du Monde — la plus cruelle des défaites',
+];
+const WC_F_LOSS_BODIES = [
+  'Vice-champion du monde. C\'est un titre qui n\'existe pas, et pourtant {team} devra vivre avec. La finale de la Coupe du Monde, c\'est soit le paradis soit l\'enfer. Ce soir, c\'est l\'enfer. Et il faudra du temps — beaucoup de temps — pour s\'en remettre.',
+  'Perdre une finale de Coupe du Monde, c\'est une blessure à part. {team} avait tout pour gagner. Le talent, la préparation, le mental. Mais ce soir, l\'adversaire a été légèrement au-dessus. "Légèrement" — un mot qui résume toute la cruauté du football.',
+  '"Je suis fier de chacun d\'eux." Le sélectionneur de {team} avait les yeux rouges mais la voix ferme. Finaliste d\'une Coupe du Monde, c\'est extraordinaire. Les joueurs le savent. Mais ce soir, la douleur est plus forte que la fierté.',
+  'Dans le vestiaire, les médailles d\'argent traînaient au sol. Personne ne voulait les regarder. {team} avait rêvé d\'or et repartait avec de l\'argent. Le football peut être terriblement injuste. Ce soir, il l\'était.',
+];
+
+// Scandales spécifiques CdM
+const WC_SCANDAL_PAIRS: [string, string][] = [
+  [
+    'CORRUPTION À LA COUPE DU MONDE — {team} au cœur d\'une affaire explosive',
+    'Une enquête de la FIFA vise des membres de la délégation de {team}. Des soupçons de corruption lors du tirage au sort et des arrangements d\'avant-match circulent dans les couloirs. L\'équipe nie en bloc, mais la machine médiatique est lancée. Le Mondial a son premier scandale.',
+  ],
+  [
+    'AFFAIRE {team} : des paris suspects entourent leur dernier match',
+    'Le bureau de la lutte contre la manipulation des matchs a ouvert une enquête après des anomalies détectées sur les cotes de paris avant la rencontre de {team}. Le joueur concerné nie toute implication. La fédération internationale a été saisie. L\'ombre du scandale plane sur ce Mondial.',
+  ],
+  [
+    '{team} : incident diplomatique en pleine Coupe du Monde',
+    'Ce qui devait rester dans le vestiaire est sorti dans les médias. Des propos tenus par un joueur de {team} à l\'encontre d\'une nation adverse ont provoqué un incident diplomatique. La FIFA a ouvert une procédure disciplinaire. Les deux fédérations tentent de calmer le jeu.',
+  ],
+  [
+    'BAGARRE GÉNÉRALE dans les couloirs du stade — {team} au centre de la polémique',
+    'Des images de vidéosurveillance ont fuité : des membres de la délégation {team} étaient impliqués dans une altercation avec des officiels d\'une nation concurrente après le match. Les deux parties campent sur leurs positions. La FIFA est en train d\'examiner les images. Le Mondial a son scandale du jour.',
+  ],
+  [
+    '{team} accusé de triche — le VAR au cœur de la polémique mondiale',
+    'La rencontre de {team} laisse un arrière-goût amer. Plusieurs décisions arbitrales controversées, des accusations de simulation flagrante, et une communauté footballistique en ébullition. Les réseaux sociaux s\'enflamment. La FIFA promet une "analyse approfondie". {team} préfère ne pas commenter.',
+  ],
+  [
+    'FUITE DE VESTIAIRE : des secrets de {team} révélés à la presse mondiale',
+    'Un document confidentiel contenant les plans tactiques et les informations médicales privées de {team} a été transmis à plusieurs médias internationaux. Une taupe dans le groupe ? Un espionnage organisé ? L\'enquête interne est ouverte. Le staff de {team} est sous le choc.',
+  ],
+  [
+    '{team} : le gardien suspendu pour geste grossier envers le public adverse',
+    'Les images ont fait le tour du monde en moins d\'une heure. Le gardien de {team}, à l\'issue du match, a adressé un geste obscène aux supporters adverses. Convoqué en urgence par la commission disciplinaire de la FIFA, il écope d\'une suspension immédiate. Le staff de {team} présente ses excuses, mais le mal est fait.',
+  ],
+  [
+    'SCANDALE RACISTE : un joueur de {team} visé par une enquête internationale',
+    'Des propos à caractère raciste auraient été tenus par un membre de la sélection {team} lors d\'une altercation sur le terrain. La FIFA a ouvert une enquête. Le joueur en question nie les faits. Les associations antiracisme du monde entier réclament une sanction exemplaire. Le Mondial s\'arrête ce soir pour de mauvaises raisons.',
+  ],
+];
+
+// Critiques CdM
+const WC_CRITIQUE_HEADLINES = [
+  '{team} : prestation honteuse sur la scène mondiale',
+  '{team} — venu pour quoi, au juste ? La honte du Mondial',
+  '{team} ridiculisé devant la planète entière',
+  '{team} : ce qu\'on a vu ce soir ne méritait pas d\'être vu',
+  'La pire équipe de ce Mondial ? {team} postule sérieusement',
+  '{team} devrait rembourser les téléspectateurs du monde entier',
+  'Nulle, inutile, sans âme : {team} salit son image mondiale',
+  '{team} : une honte internationale confirmée ce soir',
+];
+const WC_CRITIQUE_BODIES = [
+  'Sur la scène du football mondial, {team} a livré une prestation que personne n\'osait imaginer aussi catastrophique. Pas de pressing, pas d\'organisation, pas de volonté. La planète entière a regardé. La planète entière a vu. Honteux.',
+  'On ne participe pas à une Coupe du Monde pour faire de la figuration. {team} semble l\'avoir oublié. Ce soir, face au monde entier, cette équipe a montré l\'étendue de ses lacunes. Les réseaux sociaux s\'enflamment. La presse internationale fustige. Et c\'est mérité.',
+  'Chronique d\'un désastre annoncé. {team} arrive dans ce Mondial sans préparation sérieuse, sans cohérence tactique, et repart avec exactement ce qu\'il méritait. Une correction. Mondiale. Publique. Méritée.',
+  '{team} a eu la chance d\'être sur la plus grande scène du football. Il n\'en a pas profité. Une équipe sans idées, sans combativité, sans caractère — et surtout, sans aucune excuse valable. Sur un plateau mondial, ce niveau est inacceptable.',
+];
+
+// Exploit / grande victoire CdM
+const WC_EXPLOIT_HEADLINES = [
+  'SÉISME MONDIAL : {team} réalise le résultat du siècle à la Coupe du Monde !',
+  'CHOC : {team} humilie un favori et affole la planète football !',
+  '{team} fait tomber un géant — le Mondial a son premier exploit !',
+  'INCROYABLE : {team} signe la performance de cette Coupe du Monde !',
+  'LE MIRACLE EXISTE : {team} atomise son adversaire sur la scène mondiale !',
+  'CARNAGE MONDIAL : {team} inflige un résultat qui restera dans les annales !',
+];
+const WC_EXPLOIT_BODIES = [
+  'Les statistiques ne mentent pas. {team} vient d\'infliger l\'une des défaites les plus lourdes de l\'histoire récente de ce tournoi à son adversaire du soir. La planète football est sous le choc. Les favoris tremblent. {team} est désormais une équipe à craindre.',
+  'Ce résultat va traverser les décennies. {team} n\'a pas seulement gagné ce soir — il a dominé, écrasé, humilié. Sur la scène mondiale. Devant des milliards de téléspectateurs. Un exploit qui dépasse tout ce qu\'on pouvait espérer.',
+  'Dans les vestiaires adverses, c\'est la sidération. {team} a mis un coup de pied dans la fourmilière mondiale. Ce groupe déborde de talent, de confiance, et d\'une envie dévorante de bousculer les hiérarchies établies. Ce soir, c\'est mission accomplie.',
+  '"On était là pour gagner, pas pour participer." Ces mots du capitaine de {team}, prononcés avant le tournoi, prennent ce soir une résonance particulière. Cette démonstration de force va marquer ce Mondial. Pour longtemps.',
+];
+
+// Élimination de groupe (après le dernier match)
+const WC_ELIMINATED_HEADLINES = [
+  '{team} éliminé de la Coupe du Monde — le rêve mondial s\'achève',
+  'Le Mondial dit au revoir à {team} — une aventure trop courte',
+  '{team} rentre à la maison — la phase de groupes l\'a eu',
+  'Élimination en phase de poules pour {team} : la CdM est cruelle',
+  '{team} quitte la Coupe du Monde — une sortie par la petite porte',
+  'Fin du voyage mondial pour {team} — l\'élimination est officielle',
+];
+const WC_ELIMINATED_BODIES = [
+  'Le billet de retour est pris. {team} quitte la Coupe du Monde après la phase de groupes. Une élimination qui fait mal, car ce groupe avait les arguments pour aller plus loin. Mais dans le football mondial, les intentions ne suffisent pas.',
+  'Le Mondial continue sans {team}. Dans le vestiaire, les joueurs peinent à réaliser. Ils sont venus avec des rêves plein la tête — certains ne reviendront jamais sur cette scène. La Coupe du Monde est sans pitié pour ceux qui ne saisissent pas leur chance.',
+  '{team} était venu pour marquer les esprits à la Coupe du Monde. Il repart avec une élimination précoce et beaucoup de questions. Qu\'est-ce qui a raté ? Les résultats. Et les résultats, sur la scène mondiale, ne mentent pas.',
+  '"On a tout donné, mais ce n\'était pas assez." Le capitaine de {team} avait le regard vide en quittant le terrain pour la dernière fois dans ce Mondial. Une élimination en phase de groupes reste une blessure qui met du temps à cicatriser.',
+];
+
+// Templates dopage — joueur (suspension individuelle) ──────────────────────
 
 const DOPING_PAIRS: [string, string][] = [
   [
@@ -747,6 +1001,8 @@ export function generateMatchPressItem(opts: {
   players?: Player[];
   /** Head coach of this team — mentioned in body with overall */
   coach?: Coach;
+  /** True if this match is part of a Coupe du Monde competition */
+  isWorldCup?: boolean;
 }): MatchPressResult {
   const r = rng(opts.seed);
   const diff = opts.goalsFor - opts.goalsAgainst;
@@ -754,6 +1010,7 @@ export function generateMatchPressItem(opts: {
   const isBigLoss = diff <= -3;
   const phase = opts.phase ?? 'league';
   const isKnockout = !['group', 'league', 'lpm_playoff'].includes(phase);
+  const isWorldCup = opts.isWorldCup ?? false;
 
   let category: PressCategory;
   let headline: string;
@@ -805,6 +1062,11 @@ export function generateMatchPressItem(opts: {
     headline = h.replace(/{team}/g, opts.teamName);
     body = b.replace(/{team}/g, opts.teamName);
     teamDisqualified = true;
+  } else if (scandalize && isWorldCup) {
+    category = 'scandale';
+    const [h, b] = pick(WC_SCANDAL_PAIRS, r);
+    headline = h.replace(/{team}/g, opts.teamName);
+    body = b.replace(/{team}/g, opts.teamName);
   } else if (isPlayerDoping) {
     category = 'scandale';
     // Pick a specific player (non-GK, from pool already computed)
@@ -897,11 +1159,22 @@ export function generateMatchPressItem(opts: {
     const koLossBodies = KO_LOSS_BODIES[phase] ?? KO_LOSS_BODIES['QF'];
     const phaseLabel = KNOCKOUT_PHASE_LABEL[phase] ?? phase;
 
+    // Tables CdM par phase (50% chance d'utiliser si isWorldCup)
+    const wcWinHeads: Record<string, string[]> = { R16: WC_R16_WIN_HEADLINES, QF: WC_QF_WIN_HEADLINES, SF: WC_SF_WIN_HEADLINES, F: WC_F_WIN_HEADLINES };
+    const wcWinBodies: Record<string, string[]> = { R16: WC_R16_WIN_BODIES, QF: WC_QF_WIN_BODIES, SF: WC_SF_WIN_BODIES, F: WC_F_WIN_BODIES };
+    const wcLossHeads: Record<string, string[]> = { R16: WC_R16_LOSS_HEADLINES, QF: WC_QF_LOSS_HEADLINES, SF: WC_SF_LOSS_HEADLINES, F: WC_F_LOSS_HEADLINES };
+    const wcLossBodies: Record<string, string[]> = { R16: WC_R16_LOSS_BODIES, QF: WC_QF_LOSS_BODIES, SF: WC_SF_LOSS_BODIES, F: WC_F_LOSS_BODIES };
+
     if (diff > 0) {
       category = isBigWin ? 'exploit' : 'victoire';
-      moraleBoost = isBigWin ? (8 + Math.floor(r() * 7)) : (4 + Math.floor(r() * 5)); // exploit: +8-14, victoire: +4-8
-      // 50% chance d'utiliser le template KO spécifique, sinon template générique enrichi
-      if (r() < 0.5 && koWinHeads.length) {
+      moraleBoost = isBigWin ? (8 + Math.floor(r() * 7)) : (4 + Math.floor(r() * 5));
+      if (isWorldCup && isBigWin && r() < 0.65) {
+        headline = pick(WC_EXPLOIT_HEADLINES, r).replace(/{team}/g, opts.teamName);
+        body = pick(WC_EXPLOIT_BODIES, r).replace(/{team}/g, opts.teamName);
+      } else if (isWorldCup && wcWinHeads[phase] && r() < 0.70) {
+        headline = pick(wcWinHeads[phase], r).replace(/{team}/g, opts.teamName);
+        body = pick(wcWinBodies[phase] ?? BIG_WIN_BODIES, r).replace(/{team}/g, opts.teamName);
+      } else if (r() < 0.5 && koWinHeads.length) {
         headline = pick(koWinHeads, r).replace(/{team}/g, opts.teamName);
         body = pick(koWinBodies.length ? koWinBodies : BIG_WIN_BODIES, r).replace(/{team}/g, opts.teamName);
       } else {
@@ -911,7 +1184,14 @@ export function generateMatchPressItem(opts: {
       }
     } else if (diff < 0) {
       category = isBigLoss ? 'crise' : 'defaite';
-      if (r() < 0.5 && koLossHeads.length) {
+      if (isWorldCup && isBigLoss && r() < 0.65) {
+        headline = pick(WC_CRITIQUE_HEADLINES, r).replace(/{team}/g, opts.teamName);
+        body = pick(WC_CRITIQUE_BODIES, r).replace(/{team}/g, opts.teamName);
+        moraleShock = -(12 + Math.floor(r() * 8));
+      } else if (isWorldCup && wcLossHeads[phase] && r() < 0.70) {
+        headline = pick(wcLossHeads[phase], r).replace(/{team}/g, opts.teamName);
+        body = pick(wcLossBodies[phase] ?? HEAVY_LOSS_BODIES, r).replace(/{team}/g, opts.teamName);
+      } else if (r() < 0.5 && koLossHeads.length) {
         headline = pick(koLossHeads, r).replace(/{team}/g, opts.teamName);
         body = pick(koLossBodies.length ? koLossBodies : HEAVY_LOSS_BODIES, r).replace(/{team}/g, opts.teamName);
       } else {
@@ -920,7 +1200,6 @@ export function generateMatchPressItem(opts: {
         body += ` En ${phaseLabel}, il n'y a pas de lendemain. {team} le sait désormais.`.replace(/{team}/g, opts.teamName);
       }
     } else {
-      // Nul en phase finale = prolongations/pénaltys — traitement identique à victoire/défaite finale
       category = 'neutralite';
       headline = pick(DRAW_HEADLINES, r).replace(/{team}/g, opts.teamName);
       body = pick(DRAW_BODIES, r).replace(/{team}/g, opts.teamName);
@@ -938,6 +1217,9 @@ export function generateMatchPressItem(opts: {
       if (isLPMEliminated) {
         headline = pick(LPM_ELIMINATED_HEADLINES, r).replace(/{team}/g, opts.teamName);
         body = pick(LPM_ELIMINATED_BODIES, r).replace(/{team}/g, opts.teamName);
+      } else if (isWorldCup) {
+        headline = pick(WC_ELIMINATED_HEADLINES, r).replace(/{team}/g, opts.teamName);
+        body = pick(WC_ELIMINATED_BODIES, r).replace(/{team}/g, opts.teamName);
       } else {
         headline = pick(ELIMINATED_HEADLINES, r).replace(/{team}/g, opts.teamName);
         body = pick(ELIMINATED_BODIES, r).replace(/{team}/g, opts.teamName);
@@ -945,8 +1227,16 @@ export function generateMatchPressItem(opts: {
     } else if (diff > 0) {
       category = isBigWin ? 'exploit' : 'victoire';
       moraleBoost = isBigWin ? (8 + Math.floor(r() * 7)) : (4 + Math.floor(r() * 5));
-      headline = pick(isBigWin ? BIG_WIN_HEADLINES : WIN_HEADLINES, r).replace(/{team}/g, opts.teamName);
-      body = pick(isBigWin ? BIG_WIN_BODIES : WIN_BODIES, r).replace(/{team}/g, opts.teamName);
+      if (isWorldCup && isBigWin && r() < 0.65) {
+        headline = pick(WC_EXPLOIT_HEADLINES, r).replace(/{team}/g, opts.teamName);
+        body = pick(WC_EXPLOIT_BODIES, r).replace(/{team}/g, opts.teamName);
+      } else if (isWorldCup && r() < 0.55) {
+        headline = pick(isBigWin ? WC_EXPLOIT_HEADLINES : WC_GROUP_WIN_HEADLINES, r).replace(/{team}/g, opts.teamName);
+        body = pick(isBigWin ? WC_EXPLOIT_BODIES : WC_GROUP_WIN_BODIES, r).replace(/{team}/g, opts.teamName);
+      } else {
+        headline = pick(isBigWin ? BIG_WIN_HEADLINES : WIN_HEADLINES, r).replace(/{team}/g, opts.teamName);
+        body = pick(isBigWin ? BIG_WIN_BODIES : WIN_BODIES, r).replace(/{team}/g, opts.teamName);
+      }
       // Contexte classement — seulement si encore en course
       if (!opts.isEliminated) {
         if (opts.rank === 1 && r() < 0.6) {
@@ -957,8 +1247,17 @@ export function generateMatchPressItem(opts: {
       }
     } else if (diff < 0) {
       category = isBigLoss ? 'crise' : 'defaite';
-      headline = pick(isBigLoss ? HEAVY_LOSS_HEADLINES : LOSS_HEADLINES, r).replace(/{team}/g, opts.teamName);
-      body = pick(isBigLoss ? HEAVY_LOSS_BODIES : LOSS_BODIES, r).replace(/{team}/g, opts.teamName);
+      if (isWorldCup && isBigLoss && r() < 0.65) {
+        headline = pick(WC_CRITIQUE_HEADLINES, r).replace(/{team}/g, opts.teamName);
+        body = pick(WC_CRITIQUE_BODIES, r).replace(/{team}/g, opts.teamName);
+        moraleShock = -(12 + Math.floor(r() * 8));
+      } else if (isWorldCup && r() < 0.55) {
+        headline = pick(WC_GROUP_LOSS_HEADLINES, r).replace(/{team}/g, opts.teamName);
+        body = pick(WC_GROUP_LOSS_BODIES, r).replace(/{team}/g, opts.teamName);
+      } else {
+        headline = pick(isBigLoss ? HEAVY_LOSS_HEADLINES : LOSS_HEADLINES, r).replace(/{team}/g, opts.teamName);
+        body = pick(isBigLoss ? HEAVY_LOSS_BODIES : LOSS_BODIES, r).replace(/{team}/g, opts.teamName);
+      }
       // Suffixes standings/danger seulement si encore en course
       if (!opts.isEliminated) {
         if (opts.isInDangerZone || isLPMDanger) {
@@ -978,8 +1277,13 @@ export function generateMatchPressItem(opts: {
       }
     } else {
       category = 'neutralite';
-      headline = pick(DRAW_HEADLINES, r).replace(/{team}/g, opts.teamName);
-      body = pick(DRAW_BODIES, r).replace(/{team}/g, opts.teamName);
+      if (isWorldCup && r() < 0.60) {
+        headline = pick(WC_GROUP_DRAW_HEADLINES, r).replace(/{team}/g, opts.teamName);
+        body = pick(WC_GROUP_DRAW_BODIES, r).replace(/{team}/g, opts.teamName);
+      } else {
+        headline = pick(DRAW_HEADLINES, r).replace(/{team}/g, opts.teamName);
+        body = pick(DRAW_BODIES, r).replace(/{team}/g, opts.teamName);
+      }
       // Nul en danger zone = mauvaise nouvelle (seulement si encore en course)
       if (!opts.isEliminated && (opts.isInDangerZone || isLPMDanger)) {
         body += ' ' + pick(STANDINGS_DANGER_LOSS, r).replace(/{team}/g, opts.teamName);

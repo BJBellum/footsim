@@ -13,22 +13,29 @@ export type DrawResult = {
   groups: Record<string, string[]>;
 };
 
-/** Assign teams to up to 4 pots by globalStrength (descending). Ties broken randomly. */
-export function buildPots(teams: Team[]): Pot[] {
-  const sorted = [...teams]
+/** Assign teams to up to 4 pots by globalStrength (descending). Ties broken randomly.
+ *  If hostTeamId is provided, the host is forced into pot 1 regardless of strength. */
+export function buildPots(teams: Team[], hostTeamId?: string): Pot[] {
+  const host = hostTeamId ? teams.find((t) => t.id === hostTeamId) : undefined;
+  const others = host ? teams.filter((t) => t.id !== hostTeamId) : teams;
+  const sorted = [...others]
     .map((t) => ({ t, r: Math.random() }))
     .sort((a, b) => b.t.globalStrength - a.t.globalStrength || a.r - b.r)
     .map(({ t }) => t);
-  const total = sorted.length;
-  // distribute as evenly as possible across min(4, ...) pots
+  const total = teams.length;
   const potCount = Math.min(4, total);
   const pots: Pot[] = Array.from({ length: potCount }, (_, i) => ({
     number: (i + 1) as 1 | 2 | 3 | 4,
     teamIds: [],
   }));
 
+  // Host always goes to pot 1 first
+  if (host) pots[0].teamIds.push(host.id);
+
   sorted.forEach((team, i) => {
-    const potIdx = Math.floor((i / total) * potCount);
+    // offset index by 1 to account for host already in pot 1
+    const adjustedTotal = total;
+    const potIdx = Math.floor(((host ? i + 1 : i) / adjustedTotal) * potCount);
     pots[Math.min(potIdx, potCount - 1)].teamIds.push(team.id);
   });
 
@@ -47,9 +54,10 @@ function rng<T>(arr: T[]): T[] {
 /**
  * Draw teams from pots into groups.
  * Rule: one team per pot per group (when possible).
+ * If hostTeamId is provided, the host is placed in group_0 first (before shuffle).
  * Returns draw result with animated reveal order (pot 1 first, then 2...).
  */
-export function conductDraw(pots: Pot[], groupCount: number): DrawResult {
+export function conductDraw(pots: Pot[], groupCount: number, hostTeamId?: string): DrawResult {
   const shuffledPots = pots.map((p) => ({ ...p, teamIds: rng(p.teamIds) }));
   const groups: Record<string, string[]> = {};
   for (let g = 0; g < groupCount; g++) {
@@ -57,6 +65,19 @@ export function conductDraw(pots: Pot[], groupCount: number): DrawResult {
   }
 
   const order: string[] = [];
+
+  // Host goes into group_0 first, removed from pot 1 before draw
+  if (hostTeamId) {
+    for (const pot of shuffledPots) {
+      const idx = pot.teamIds.indexOf(hostTeamId);
+      if (idx !== -1) {
+        pot.teamIds.splice(idx, 1);
+        groups['group_0'].push(hostTeamId);
+        order.push(hostTeamId);
+        break;
+      }
+    }
+  }
 
   for (const pot of shuffledPots) {
     const potTeams = [...pot.teamIds];
@@ -66,13 +87,11 @@ export function conductDraw(pots: Pot[], groupCount: number): DrawResult {
     );
     for (const gKey of groupKeys) {
       if (potTeams.length === 0) break;
-      // pick random team from remaining pot
       const idx = Math.floor(Math.random() * potTeams.length);
       const [team] = potTeams.splice(idx, 1);
       groups[gKey].push(team);
       order.push(team);
     }
-    // any leftover (uneven) go to groups with least teams
     for (const team of potTeams) {
       const gKey = Object.keys(groups).sort(
         (a, b) => groups[a].length - groups[b].length,

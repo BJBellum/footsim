@@ -340,6 +340,7 @@ export default function MultiplexLive() {
         const isInDangerZone = (compMatch.phase === 'group' || compMatch.phase === 'league')
           && tidRank > dangerThreshold;
 
+        const isWorldCup = !!(current.name && /coupe du monde|world cup/i.test(current.name));
         const { item: matchPress, dopingSuspension, teamDisqualified } = generateMatchPressItem({
           seed: `${baseSeed}-${tid}`,
           round: current.currentRound,
@@ -359,6 +360,7 @@ export default function MultiplexLive() {
           dopingAlreadyThisMatch: matchDopingOccurred,
           players: teamPlayers,
           coach: teamCoach,
+          isWorldCup,
         });
         updatedPressItems = [...updatedPressItems, matchPress];
         if (matchPress.moraleShock && matchPress.moraleShock < 0) {
