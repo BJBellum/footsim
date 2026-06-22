@@ -233,12 +233,12 @@ export default function MultiplexLive() {
     }
 
     const nextRound = updatedMatches.every(
-      (m) => m.round <= current.currentRound
+      (m) => m.round <= roundNum
         ? (!m.homeTeamId || !m.awayTeamId || m.status === 'completed')
         : true,
     )
-      ? current.currentRound + 1
-      : current.currentRound;
+      ? roundNum + 1
+      : roundNum;
 
     const allDone = updatedMatches.every((m) => m.status === 'completed');
     let winner: string | undefined;

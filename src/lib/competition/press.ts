@@ -57,6 +57,8 @@ export type PressItem = {
   createdAt: string;
   /** Named persons mentioned in headline/body — used for clickable pop-ups */
   mentions?: PressMention[];
+  /** Journalist name + affiliation (critique articles) */
+  journalist?: { name: string; outlet: string };
 };
 
 function rng(seed: string): () => number {
@@ -731,7 +733,7 @@ const WC_F_LOSS_BODIES = [
 const WC_SCANDAL_PAIRS: [string, string][] = [
   [
     'CORRUPTION À LA COUPE DU MONDE — {team} au cœur d\'une affaire explosive',
-    'Une enquête de la FIFA vise des membres de la délégation de {team}. Des soupçons de corruption lors du tirage au sort et des arrangements d\'avant-match circulent dans les couloirs. L\'équipe nie en bloc, mais la machine médiatique est lancée. Le Mondial a son premier scandale.',
+    'Une enquête de la CMF vise des membres de la délégation de {team}. Des soupçons de corruption lors du tirage au sort et des arrangements d\'avant-match circulent dans les couloirs. L\'équipe nie en bloc, mais la machine médiatique est lancée. Le Mondial a son premier scandale.',
   ],
   [
     'AFFAIRE {team} : des paris suspects entourent leur dernier match',
@@ -739,15 +741,15 @@ const WC_SCANDAL_PAIRS: [string, string][] = [
   ],
   [
     '{team} : incident diplomatique en pleine Coupe du Monde',
-    'Ce qui devait rester dans le vestiaire est sorti dans les médias. Des propos tenus par un joueur de {team} à l\'encontre d\'une nation adverse ont provoqué un incident diplomatique. La FIFA a ouvert une procédure disciplinaire. Les deux fédérations tentent de calmer le jeu.',
+    'Ce qui devait rester dans le vestiaire est sorti dans les médias. Des propos tenus par un joueur de {team} à l\'encontre d\'une nation adverse ont provoqué un incident diplomatique. La CMF a ouvert une procédure disciplinaire. Les deux fédérations tentent de calmer le jeu.',
   ],
   [
     'BAGARRE GÉNÉRALE dans les couloirs du stade — {team} au centre de la polémique',
-    'Des images de vidéosurveillance ont fuité : des membres de la délégation {team} étaient impliqués dans une altercation avec des officiels d\'une nation concurrente après le match. Les deux parties campent sur leurs positions. La FIFA est en train d\'examiner les images. Le Mondial a son scandale du jour.',
+    'Des images de vidéosurveillance ont fuité : des membres de la délégation {team} étaient impliqués dans une altercation avec des officiels d\'une nation concurrente après le match. Les deux parties campent sur leurs positions. La CMF est en train d\'examiner les images. Le Mondial a son scandale du jour.',
   ],
   [
     '{team} accusé de triche — le VAR au cœur de la polémique mondiale',
-    'La rencontre de {team} laisse un arrière-goût amer. Plusieurs décisions arbitrales controversées, des accusations de simulation flagrante, et une communauté footballistique en ébullition. Les réseaux sociaux s\'enflamment. La FIFA promet une "analyse approfondie". {team} préfère ne pas commenter.',
+    'La rencontre de {team} laisse un arrière-goût amer. Plusieurs décisions arbitrales controversées, des accusations de simulation flagrante, et une communauté footballistique en ébullition. La presse mondiale s\'enflamme. La CMF promet une "analyse approfondie". {team} préfère ne pas commenter.',
   ],
   [
     'FUITE DE VESTIAIRE : des secrets de {team} révélés à la presse mondiale',
@@ -755,11 +757,11 @@ const WC_SCANDAL_PAIRS: [string, string][] = [
   ],
   [
     '{team} : le gardien suspendu pour geste grossier envers le public adverse',
-    'Les images ont fait le tour du monde en moins d\'une heure. Le gardien de {team}, à l\'issue du match, a adressé un geste obscène aux supporters adverses. Convoqué en urgence par la commission disciplinaire de la FIFA, il écope d\'une suspension immédiate. Le staff de {team} présente ses excuses, mais le mal est fait.',
+    'Les images ont fait le tour du monde en moins d\'une heure. Le gardien de {team}, à l\'issue du match, a adressé un geste obscène aux supporters adverses. Convoqué en urgence par la commission disciplinaire de la CMF, il écope d\'une suspension immédiate. Le staff de {team} présente ses excuses, mais le mal est fait.',
   ],
   [
     'SCANDALE RACISTE : un joueur de {team} visé par une enquête internationale',
-    'Des propos à caractère raciste auraient été tenus par un membre de la sélection {team} lors d\'une altercation sur le terrain. La FIFA a ouvert une enquête. Le joueur en question nie les faits. Les associations antiracisme du monde entier réclament une sanction exemplaire. Le Mondial s\'arrête ce soir pour de mauvaises raisons.',
+    'Des propos à caractère raciste auraient été tenus par un membre de la sélection {team} lors d\'une altercation sur le terrain. La CMF a ouvert une enquête. Le joueur en question nie les faits. Les associations antiracisme du monde entier réclament une sanction exemplaire. Le Mondial s\'arrête ce soir pour de mauvaises raisons.',
   ],
 ];
 
@@ -776,7 +778,7 @@ const WC_CRITIQUE_HEADLINES = [
 ];
 const WC_CRITIQUE_BODIES = [
   'Sur la scène du football mondial, {team} a livré une prestation que personne n\'osait imaginer aussi catastrophique. Pas de pressing, pas d\'organisation, pas de volonté. La planète entière a regardé. La planète entière a vu. Honteux.',
-  'On ne participe pas à une Coupe du Monde pour faire de la figuration. {team} semble l\'avoir oublié. Ce soir, face au monde entier, cette équipe a montré l\'étendue de ses lacunes. Les réseaux sociaux s\'enflamment. La presse internationale fustige. Et c\'est mérité.',
+  'On ne participe pas à une Coupe du Monde pour faire de la figuration. {team} semble l\'avoir oublié. Ce soir, face au monde entier, cette équipe a montré l\'étendue de ses lacunes. Les chroniqueurs s\'enflamment. La presse internationale fustige. Et c\'est mérité.',
   'Chronique d\'un désastre annoncé. {team} arrive dans ce Mondial sans préparation sérieuse, sans cohérence tactique, et repart avec exactement ce qu\'il méritait. Une correction. Mondiale. Publique. Méritée.',
   '{team} a eu la chance d\'être sur la plus grande scène du football. Il n\'en a pas profité. Une équipe sans idées, sans combativité, sans caractère — et surtout, sans aucune excuse valable. Sur un plateau mondial, ce niveau est inacceptable.',
 ];
@@ -859,6 +861,25 @@ const TEAM_DOPING_PAIRS: [string, string][] = [
   ],
 ];
 
+
+// ── Journalistes fictifs pour les critiques ───────────────────────────────────
+const JOURNALISTS: { name: string; outlet: string }[] = [
+  { name: 'Marco Ferreira', outlet: 'Gazette Sportive Mondiale' },
+  { name: 'Élodie Marchetti', outlet: 'Le Quotidien du Ballon' },
+  { name: 'Dmitri Volkov', outlet: 'Sport Tribune International' },
+  { name: 'Hassan Al-Rashid', outlet: 'Revue Football Global' },
+  { name: 'Ingrid Svensson', outlet: 'Le Monde du Football' },
+  { name: 'Paulo Nascimento', outlet: 'Football Hebdomadaire' },
+  { name: 'Yuki Tanaka', outlet: 'Analyse Sport' },
+  { name: 'Christophe Duval', outlet: 'L\'Observateur Sportif' },
+  { name: 'Amara Diallo', outlet: 'Tribune des Nations' },
+  { name: 'Elena Kovaleva', outlet: 'Sport & Vérité' },
+  { name: 'Jorge Mendoza', outlet: 'Le Panorama Footballistique' },
+  { name: 'Lukas Bauer', outlet: 'Foot Analyse Europe' },
+  { name: 'Fatima Okonkwo', outlet: 'L\'Indépendant Sportif' },
+  { name: 'René Delacroix', outlet: 'La Plume du Stade' },
+  { name: 'Soo-Jin Park', outlet: 'Revue Internationale du Sport' },
+];
 
 // ── Presse hostile / critique ─────────────────────────────────────────────────
 // Niveau 1 : défaite normale — ton journalistique acerbe
@@ -1399,6 +1420,10 @@ export function generateMatchPressItem(opts: {
     }
   }
 
+  const journalist = category === 'critique'
+    ? pick(JOURNALISTS, r)
+    : undefined;
+
   return {
     item: {
       id: crypto.randomUUID(),
@@ -1413,6 +1438,7 @@ export function generateMatchPressItem(opts: {
       moraleBoost,
       createdAt: new Date().toISOString(),
       mentions: mentions.length > 0 ? mentions : undefined,
+      journalist,
     },
     dopingSuspension,
     teamDisqualified,

@@ -1110,6 +1110,11 @@ function PressTab({
                       <p className="text-xs text-muted mt-1 leading-relaxed">
                         {renderBodyWithMentions(item.body, item.mentions, setActiveMention)}
                       </p>
+                      {item.journalist && (
+                        <p className="text-[10px] text-muted/60 mt-1.5 italic">
+                          — {item.journalist.name} · {item.journalist.outlet}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </article>
