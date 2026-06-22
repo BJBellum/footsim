@@ -122,10 +122,10 @@ export function DrawCeremony({ result, teams, groupCount, onConfirm, knockoutMod
         {current && (
           <motion.div
             key={current}
-            initial={{ scale: 0.4, opacity: 0, y: -20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 1.3, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
             className="flex items-center gap-4 rounded-xl border border-border bg-surface p-4 shadow-lg"
           >
             {(() => {
@@ -169,10 +169,9 @@ export function DrawCeremony({ result, teams, groupCount, onConfirm, knockoutMod
                 const isRevealed = revealed.has(tid);
                 const isCurrent = current === tid;
                 return (
-                  <motion.div
+                  <div
                     key={tid}
-                    layout
-                    className={`flex items-center gap-2 rounded px-2 py-1.5 text-sm transition-all ${
+                    className={`flex items-center gap-2 rounded px-2 py-1.5 text-sm transition-colors ${
                       isCurrent ? 'ring-1 ring-accent bg-accent/10' : ''
                     }`}
                   >
@@ -193,7 +192,7 @@ export function DrawCeremony({ result, teams, groupCount, onConfirm, knockoutMod
                         {isCurrent ? '…' : '—'}
                       </span>
                     )}
-                  </motion.div>
+                  </div>
                 );
               })}
             </div>

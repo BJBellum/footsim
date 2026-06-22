@@ -16,6 +16,7 @@ import { useBackendArgs } from '@/hooks/useBackendArgs';
 import { useSession } from '@/stores/session';
 import { needsKnockoutDraw, getQualifiersByRank, seedKnockoutWithOrder, sortStandings, seedLPMPlayoffs } from '@/lib/competition/scheduler';
 import { LPMDrawCeremony, type LPMPair } from '@/components/competition/LPMDrawCeremony';
+import { LPMScheduleDraw } from '@/components/competition/LPMScheduleDraw';
 import { buildKnockoutPots, conductKnockoutDraw } from '@/lib/competition/draw';
 import type { DrawResult } from '@/lib/competition/draw';
 import type { Competition, CompMatch, PlayerCompStats, CompHistoryEntry } from '@/lib/competition/types';
@@ -65,15 +66,21 @@ export default function CompetitionDetail() {
   useEffect(() => {
     if (!id) { setLoading(false); return; }
 
-    const teamLoad = teams.length === 0 ? refreshTeams(ownerId, effectivePat) : Promise.resolve();
+    async function init() {
+      // Load competition first (usually instant from localStorage)
+      const comp = current?.id === id ? current : await load(id!, readToken);
 
-    // Si la compétition est déjà en mémoire (mise à jour optimiste), on ne recharge pas depuis GitHub
-    if (current?.id === id) {
-      teamLoad.finally(() => setLoading(false));
-      return;
+      // If teamSnapshot covers all teamIds, skip the expensive listTeams call entirely.
+      // Teams store is still loaded lazily when admin needs it (handleSync, handleDelete use teams directly).
+      const snapshotIds = new Set(Object.keys(comp?.teamSnapshot ?? {}));
+      const allCovered = comp != null && comp.teamIds.every((tid) => snapshotIds.has(tid));
+
+      if (!allCovered && teams.length === 0) {
+        await refreshTeams(ownerId, effectivePat ?? null);
+      }
     }
 
-    Promise.all([load(id, readToken), teamLoad]).finally(() => setLoading(false));
+    init().finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, readToken]);
 
@@ -123,8 +130,38 @@ export default function CompetitionDetail() {
 
   const allStandings = Object.values(current.standings);
 
+  // LPM schedule draw ceremony — shown to admin before competition starts
+  if (isLPM && isAdmin && !current.drawRevealed && current.status === 'setup') {
+    async function handleDrawConfirm() {
+      if (!pat) return;
+      const updated = { ...current!, drawRevealed: true };
+      setCurrent(updated);
+      try {
+        await save(updated, pat);
+        toast('success', 'Tirage confirmé — compétition prête.');
+      } catch (err) {
+        toast('error', String(err));
+      }
+    }
+    return (
+      <div className="max-w-5xl mx-auto space-y-6 py-4">
+        <Link to={backTo} className="text-sm text-muted hover:text-text">{backLabel}</Link>
+        <LPMScheduleDraw
+          competition={current}
+          teamMap={teamMap}
+          onConfirm={handleDrawConfirm}
+        />
+      </div>
+    );
+  }
+
+  async function ensureTeams() {
+    if (teams.length === 0) await refreshTeams(ownerId, effectivePat);
+  }
+
   async function handleSync() {
     if (!pat || !current) return;
+    await ensureTeams();
     setSyncing(true);
     try {
       await save(current, pat);
@@ -166,10 +203,11 @@ export default function CompetitionDetail() {
 
   async function handlePatchSnapshot() {
     if (!pat || !current) return;
-    const snapshot: Record<string, { name: string; flag: string }> = {};
+    await ensureTeams();
+    const snapshot: Record<string, { name: string; flag: string; slug?: string }> = {};
     for (const id of current.teamIds) {
       const t = teams.find((x) => x.id === id);
-      if (t) snapshot[id] = { name: t.name, flag: t.flag };
+      if (t) snapshot[id] = { name: t.name, flag: t.flag, slug: t.slug };
     }
     if (Object.keys(snapshot).length === 0) {
       toast('error', 'Aucune équipe chargée — impossible de réparer.');
@@ -191,6 +229,7 @@ export default function CompetitionDetail() {
   async function handleDelete() {
     if (!pat || !current) return;
     if (!confirm(`Supprimer « ${current.name} » ? Cette action est irréversible.`)) return;
+    await ensureTeams();
     setDeleting(true);
     try {
       await remove(current.id, pat);
@@ -729,6 +768,7 @@ function RoundMatchRow({
   onSimulate: () => void;
   disqualifiedTeamIds?: string[];
 }) {
+  const [expanded, setExpanded] = useState(false);
   const home = match.homeTeamId ? teamMap[match.homeTeamId] : null;
   const away = match.awayTeamId ? teamMap[match.awayTeamId] : null;
   const done = match.status === 'completed';
@@ -738,43 +778,124 @@ function RoundMatchRow({
   const isWalkover = homeDisq || awayDisq;
 
   const canSim = canSimulate && match.status === 'pending' && match.homeTeamId && match.awayTeamId && !isWalkover;
+  const hasSummary = done && !!match.matchSummary;
 
   return (
-    <div className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-sm ${
+    <div className={`rounded-lg border text-sm ${
       isWalkover
         ? 'border-green-800/40 bg-green-950/30'
         : done
         ? 'border-border/50 bg-surface/50'
         : 'border-border bg-surface'
     }`}>
-      <TeamCell team={home} side="home" dimmed={homeDisq} />
-      <div className="flex-1 text-center font-display tabular-nums">
-        {isWalkover ? (
-          <span className="text-xs font-medium text-green-500 uppercase tracking-wider">Tapis vert</span>
-        ) : done && match.result ? (
-          <span>
-            {match.result.home} – {match.result.away}
-            {match.result.penalties && (
-              <span className="ml-1 text-xs text-muted">
-                ({match.result.penalties.home}–{match.result.penalties.away} tab)
-              </span>
-            )}
-          </span>
-        ) : (
-          <span className="text-muted">vs</span>
+      <div
+        className={`flex items-center gap-3 px-4 py-3 ${hasSummary ? 'cursor-pointer select-none' : ''}`}
+        onClick={() => hasSummary && setExpanded((v) => !v)}
+      >
+        <TeamCell team={home} side="home" dimmed={homeDisq} />
+        <div className="flex-1 text-center font-display tabular-nums">
+          {isWalkover ? (
+            <span className="text-xs font-medium text-green-500 uppercase tracking-wider">Tapis vert</span>
+          ) : done && match.result ? (
+            <span>
+              {match.result.home} – {match.result.away}
+              {match.result.penalties && (
+                <span className="ml-1 text-xs text-muted">
+                  ({match.result.penalties.home}–{match.result.penalties.away} tab)
+                </span>
+              )}
+            </span>
+          ) : (
+            <span className="text-muted">vs</span>
+          )}
+        </div>
+        <TeamCell team={away} side="away" dimmed={awayDisq} />
+        {canSim && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onSimulate(); }}
+            className="ml-2 shrink-0 text-xs text-accent hover:text-accent/70 transition-colors"
+          >
+            ▶
+          </button>
+        )}
+        {!match.homeTeamId && !match.awayTeamId && (
+          <span className="ml-2 shrink-0 text-xs text-muted">À définir</span>
+        )}
+        {hasSummary && (
+          <span className="ml-1 shrink-0 text-xs text-muted">{expanded ? '▲' : '▼'}</span>
         )}
       </div>
-      <TeamCell team={away} side="away" dimmed={awayDisq} />
-      {canSim && (
-        <button
-          onClick={onSimulate}
-          className="ml-2 shrink-0 text-xs text-accent hover:text-accent/70 transition-colors"
-        >
-          ▶
-        </button>
+
+      {expanded && match.matchSummary && (
+        <div className="border-t border-border/40 px-4 py-4 space-y-4">
+          {match.matchSummary.motm && (
+            <div className="flex items-center gap-3 rounded-md bg-warning/5 border border-warning/20 px-3 py-2">
+              <span className="text-lg">⭐</span>
+              <div>
+                <div className="text-xs text-muted uppercase tracking-wide">Homme du match</div>
+                <div className="font-medium text-sm">{match.matchSummary.motm.playerName}</div>
+                <div className="text-xs text-muted">{match.matchSummary.motm.teamName} · {match.matchSummary.motm.rating.toFixed(1)}/10</div>
+              </div>
+            </div>
+          )}
+          <MatchSummaryStatsInline
+            snap={match.matchSummary.stats}
+            homeName={home?.name ?? 'Domicile'}
+            awayName={away?.name ?? 'Extérieur'}
+          />
+        </div>
       )}
-      {!match.homeTeamId && !match.awayTeamId && (
-        <span className="ml-2 shrink-0 text-xs text-muted">À définir</span>
+    </div>
+  );
+}
+
+function MatchSummaryStatsInline({ snap, homeName, awayName }: {
+  snap: import('@/lib/competition/types').MatchStatSnapshot;
+  homeName: string;
+  awayName: string;
+}) {
+  const rows: Array<{ label: string; home: number; away: number; isBar?: boolean; suffix?: string }> = [
+    { label: 'Possession', home: snap.possession.home, away: snap.possession.away, isBar: true, suffix: '%' },
+    { label: 'Tirs', home: snap.shots.home, away: snap.shots.away, isBar: true },
+    { label: 'Tirs cadrés', home: snap.shotsOnTarget.home, away: snap.shotsOnTarget.away, isBar: true },
+    { label: 'Arrêts', home: snap.saves.home, away: snap.saves.away, isBar: true },
+    { label: 'Passes', home: snap.passes.home, away: snap.passes.away, isBar: true },
+    { label: 'Fautes', home: snap.fouls.home, away: snap.fouls.away, isBar: true },
+    { label: 'Corners', home: snap.corners.home, away: snap.corners.away, isBar: true },
+    { label: 'Hors-jeu', home: snap.offsides.home, away: snap.offsides.away, isBar: true },
+    { label: 'Passes clés', home: snap.keyPasses.home, away: snap.keyPasses.away, isBar: true },
+    { label: 'Dribbles', home: snap.dribbles.home, away: snap.dribbles.away, isBar: true },
+    { label: 'Dégagements', home: snap.clearances.home, away: snap.clearances.away, isBar: true },
+    { label: '🟨', home: snap.yellowCards.home, away: snap.yellowCards.away },
+    { label: '🟥', home: snap.redCards.home, away: snap.redCards.away },
+  ];
+
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-between text-[10px] font-medium text-muted mb-1">
+        <span>{homeName}</span>
+        <span>{awayName}</span>
+      </div>
+      {rows.map(({ label, home, away, isBar, suffix }) =>
+        isBar ? (
+          <div key={label} className="space-y-0.5">
+            <div className="flex items-center justify-between text-[11px] text-muted">
+              <span className="tabular-nums">{home}{suffix ?? ''}</span>
+              <span className="uppercase tracking-widest text-[10px]">{label}</span>
+              <span className="tabular-nums">{away}{suffix ?? ''}</span>
+            </div>
+            <div className="flex h-1 overflow-hidden rounded-full bg-border">
+              <div className="bg-accent" style={{ width: `${(home / (home + away || 1)) * 100}%` }} />
+              <div className="bg-text" style={{ width: `${(away / (home + away || 1)) * 100}%` }} />
+            </div>
+          </div>
+        ) : (
+          <div key={label} className="flex items-center justify-between text-[11px]">
+            <span className="tabular-nums font-medium">{home}</span>
+            <span>{label}</span>
+            <span className="tabular-nums font-medium">{away}</span>
+          </div>
+        )
       )}
     </div>
   );

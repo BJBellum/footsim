@@ -102,13 +102,26 @@ export type MatchState = {
   events: MatchEvent[];
   shots: { home: number; away: number };
   shotsOnTarget: { home: number; away: number };
+  saves: { home: number; away: number };
+  passes: { home: number; away: number };
   fouls: { home: number; away: number };
+  corners: { home: number; away: number };
+  offsides: { home: number; away: number };
+  freekicks: { home: number; away: number };
+  dribbles: { home: number; away: number };
+  clearances: { home: number; away: number };
+  keyPasses: { home: number; away: number };
   cards: {
     home: { yellow: string[]; red: string[] };
     away: { yellow: string[]; red: string[] };
   };
   possession: { home: number; away: number };
   possessionTicks: { home: number; away: number };
+  /** Per-player event counts for rating computation */
+  playerKeyPasses: Record<string, number>;
+  playerSaves: Record<string, number>;
+  playerDribbles: Record<string, number>;
+  playerClearances: Record<string, number>;
   ball: { x: number; y: number };
   speed: Speed;
   homeOnPitch: string[];

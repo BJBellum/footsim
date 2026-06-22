@@ -18,6 +18,7 @@ import { useBackendArgs } from '@/hooks/useBackendArgs';
 import { saveMatch } from '@/lib/github/matches';
 import { advanceBracket, applyResultToStandings, applyCorruptionDisqualification } from '@/lib/competition/scheduler';
 import { rulesForPhase } from '@/lib/competition/types';
+import type { MatchSummary } from '@/lib/competition/types';
 import { resolveActiveTactic } from '@/lib/localTactics';
 import { updateMorale, initMorale, MORALE_DEFAULT } from '@/lib/competition/morale';
 import { generateMatchPressItem, generateMoralePressItem, generatePresidencyReboundItem } from '@/lib/competition/press';
@@ -87,10 +88,15 @@ export default function CompetitionMatchLive() {
           return;
         }
 
-        if (teamsStore.length === 0) await refreshTeams(ownerId, effectivePat);
+        // Resolve slug from teamSnapshot first (no listTeams needed), fall back to store
+        const snapHome = comp.teamSnapshot?.[compMatch.homeTeamId]?.slug;
+        const snapAway = comp.teamSnapshot?.[compMatch.awayTeamId]?.slug;
+        if ((!snapHome || !snapAway) && teamsStore.length === 0) {
+          await refreshTeams(ownerId, effectivePat);
+        }
 
-        const homeSlug = teamsStore.find((t) => t.id === compMatch.homeTeamId)?.slug;
-        const awaySlug = teamsStore.find((t) => t.id === compMatch.awayTeamId)?.slug;
+        const homeSlug = snapHome ?? teamsStore.find((t) => t.id === compMatch.homeTeamId)?.slug;
+        const awaySlug = snapAway ?? teamsStore.find((t) => t.id === compMatch.awayTeamId)?.slug;
 
         if (!homeSlug || !awaySlug) { toast('error', 'Équipes introuvables.'); return; }
 
@@ -212,6 +218,32 @@ export default function CompetitionMatchLive() {
       const corruptionActive = matchState!.corruption?.accepted;
       const revealed = corruptionActive && isRevealed();
 
+      const motmResult = computeMotm(
+        matchState!,
+        { team: matchInput!.home.team, players: matchInput!.home.players },
+        { team: matchInput!.away.team, players: matchInput!.away.players },
+      );
+      const ms = matchState!;
+      const matchSummary: MatchSummary = {
+        motm: motmResult ?? undefined,
+        stats: {
+          shots: ms.shots,
+          shotsOnTarget: ms.shotsOnTarget,
+          saves: ms.saves ?? { home: 0, away: 0 },
+          passes: ms.passes ?? { home: 0, away: 0 },
+          fouls: ms.fouls,
+          corners: ms.corners ?? { home: 0, away: 0 },
+          offsides: ms.offsides ?? { home: 0, away: 0 },
+          freekicks: ms.freekicks ?? { home: 0, away: 0 },
+          dribbles: ms.dribbles ?? { home: 0, away: 0 },
+          clearances: ms.clearances ?? { home: 0, away: 0 },
+          keyPasses: ms.keyPasses ?? { home: 0, away: 0 },
+          possession: ms.possession,
+          yellowCards: { home: ms.cards.home.yellow.length, away: ms.cards.away.yellow.length },
+          redCards: { home: ms.cards.home.red.length, away: ms.cards.away.red.length },
+        },
+      };
+
       let updatedMatches = snap!.matches.map((m) =>
         m.id === matchId
           ? {
@@ -222,6 +254,7 @@ export default function CompetitionMatchLive() {
                 away: matchState!.score.away,
                 penalties: matchState!.penaltyScore,
               },
+              matchSummary,
               matchFileId: matchState!.matchId,
               simulatedAt: new Date().toISOString(),
             }

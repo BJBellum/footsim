@@ -6,6 +6,34 @@ export type CompetitionFormat = 'league' | 'cup' | 'groups_knockout' | 'lpm';
 export type CompetitionStatus = 'setup' | 'ongoing' | 'completed';
 export type CompMatchStatus = 'pending' | 'completed';
 
+export type MatchStatSnapshot = {
+  shots: { home: number; away: number };
+  shotsOnTarget: { home: number; away: number };
+  saves: { home: number; away: number };
+  passes: { home: number; away: number };
+  fouls: { home: number; away: number };
+  corners: { home: number; away: number };
+  offsides: { home: number; away: number };
+  freekicks: { home: number; away: number };
+  dribbles: { home: number; away: number };
+  clearances: { home: number; away: number };
+  keyPasses: { home: number; away: number };
+  possession: { home: number; away: number };
+  yellowCards: { home: number; away: number };
+  redCards: { home: number; away: number };
+};
+
+export type MatchSummary = {
+  motm?: {
+    playerId: string;
+    playerName: string;
+    teamId: string;
+    teamName: string;
+    rating: number;
+  };
+  stats: MatchStatSnapshot;
+};
+
 export type CompMatch = {
   id: string;
   homeTeamId: string | null;   // null = TBD (winner not yet known)
@@ -22,6 +50,7 @@ export type CompMatch = {
     away: number;
     penalties?: { home: number; away: number };
   };
+  matchSummary?: MatchSummary;
   matchFileId?: string;
   simulatedAt?: string;
 };
@@ -105,8 +134,8 @@ export type Competition = {
   createdAt: string;
   winner?: string;
   disqualifiedTeamIds?: string[];
-  /** Name + flag snapshot so non-admin viewers can display team info without GitHub PAT. */
-  teamSnapshot?: Record<string, { name: string; flag: string }>;
+  /** Name + flag + slug snapshot so match pages can load rosters without fetching all teams. */
+  teamSnapshot?: Record<string, { name: string; flag: string; slug?: string }>;
   /** Morale per teamId — 1 to 100, starts at 50 */
   morale?: Record<string, number>;
   /** Press articles generated after each match */
@@ -119,6 +148,8 @@ export type Competition = {
   hostTeamId?: string;
   /** teamId → round at which presidency rebound press fires (after destitution event) */
   pendingPresidencyRebound?: Record<string, number>;
+  /** LPM: true once the schedule draw ceremony has been completed */
+  drawRevealed?: boolean;
 };
 
 export type CompetitionSummary = {

@@ -20,7 +20,10 @@ function computeMatchRating(
 ): number {
   const opp: 'home' | 'away' = side === 'home' ? 'away' : 'home';
   const conceded = state.score[opp];
-  const shotsBlocked = Math.max(0, state.shotsOnTarget[opp] - conceded);
+  const playerSaves = state.playerSaves?.[player.id] ?? 0;
+  const playerKeyPasses = state.playerKeyPasses?.[player.id] ?? 0;
+  const playerDribbles = state.playerDribbles?.[player.id] ?? 0;
+  const playerClearances = state.playerClearances?.[player.id] ?? 0;
 
   let rating = 6.0;
 
@@ -30,16 +33,18 @@ function computeMatchRating(
   rating -= playerReds * 1.5;
 
   if (player.position === 'GK') {
-    // +0.25 par arrêt estimé
-    rating += shotsBlocked * 0.25;
+    rating += playerSaves * 0.3;
     if (conceded === 0) rating += 0.8;
     if (conceded >= 3) rating -= 0.6;
   } else if (isDefensive(player.position)) {
+    rating += playerClearances * 0.15;
     if (conceded === 0) rating += 0.4;
     if (conceded >= 3) rating -= 0.3;
+  } else {
+    rating += playerKeyPasses * 0.2;
+    rating += playerDribbles * 0.1;
   }
 
-  // Légère pénalité si remplaçant (moins de minutes)
   if (isSub) rating -= 0.3;
 
   return clamp(Math.round(rating * 10) / 10, 1, 10);
@@ -125,7 +130,7 @@ export function computeMotm(
         matchReds.get(pid) ?? 0,
         isSub,
       );
-      if (!best || rating > best.rating) {
+      if (!best || rating > best.rating || (rating === best.rating && (matchGoals.get(pid) ?? 0) > (matchGoals.get(best.playerId) ?? 0))) {
         best = {
           playerId: pid,
           playerName: `${playerData.firstName} ${playerData.lastName}`,

@@ -102,10 +102,10 @@ export function LPMDrawCeremony({ pairs, teams, title, subtitle, pairLabels, onC
           {currentId && currentTeam && (
             <motion.div
               key={currentId}
-              initial={{ scale: 0.5, opacity: 0, y: -16 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 1.2, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
               className="flex items-center gap-4 rounded-xl border border-accent/40 bg-accent/5 p-4 shadow-lg"
             >
               {currentTeam.flag && (
@@ -145,9 +145,8 @@ export function LPMDrawCeremony({ pairs, teams, title, subtitle, pairLabels, onC
           const pairDone = awayRevealed(i);
           const pairActive = currentPairIdx === i && !done;
           return (
-            <motion.div
+            <div
               key={i}
-              layout
               className={`rounded-lg border p-3 transition-colors ${
                 pairActive ? 'border-accent/50 bg-accent/5' : pairDone ? 'border-border bg-surface' : 'border-border/40 bg-surface/50'
               }`}
@@ -180,7 +179,7 @@ export function LPMDrawCeremony({ pairs, teams, title, subtitle, pairLabels, onC
                   </span>
                 </div>
               </div>
-            </motion.div>
+            </div>
           );
         })}
       </div>

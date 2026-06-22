@@ -11,7 +11,8 @@ import { useCredentials } from '@/stores/credentials';
 import { useBackendArgs } from '@/hooks/useBackendArgs';
 import { advanceBracket, applyResultToStandings, applyCorruptionDisqualification } from '@/lib/competition/scheduler';
 import { rulesForPhase } from '@/lib/competition/types';
-import { accumulateMatchStats, computeAwards } from '@/lib/competition/statsAccumulator';
+import type { MatchSummary } from '@/lib/competition/types';
+import { accumulateMatchStats, computeAwards, computeMotm } from '@/lib/competition/statsAccumulator';
 import { generateRefOffer, acceptOffer } from '@/lib/sim/corruption';
 import { resolveActiveTactic } from '@/lib/localTactics';
 import { updateMorale, initMorale, MORALE_DEFAULT } from '@/lib/competition/morale';
@@ -81,18 +82,30 @@ export default function MultiplexLive() {
         const comp = await load(competitionId!, pat!);
         if (!comp) { toast('error', 'Compétition introuvable.'); return; }
 
-        if (teamsStore.length === 0) await refreshTeams(ownerId, effectivePat);
-
         const roundMatches = comp.matches.filter(
           (m) => m.round === roundNum && m.status === 'pending' && m.homeTeamId && m.awayTeamId,
         );
         if (roundMatches.length === 0) { toast('error', 'Aucun match à simuler.'); return; }
 
+        // Resolve slugs from teamSnapshot first (no listTeams needed), fall back to store
+        function resolveSlug(teamId: string): string | undefined {
+          const snap = comp!.teamSnapshot?.[teamId];
+          if (snap?.slug) return snap.slug;
+          if (teamsStore.length === 0) return undefined;
+          return teamsStore.find((t) => t.id === teamId)?.slug;
+        }
+
+        // Check if all slugs resolvable without store; if not, load store once
+        const needStore = roundMatches.some(
+          (m) => !comp.teamSnapshot?.[m.homeTeamId!]?.slug || !comp.teamSnapshot?.[m.awayTeamId!]?.slug,
+        );
+        if (needStore && teamsStore.length === 0) await refreshTeams(ownerId, effectivePat);
+
         const inputs: Array<{ compMatchId: string; input: MatchInput }> = [];
 
         for (const m of roundMatches) {
-          const homeSlug = teamsStore.find((t) => t.id === m.homeTeamId)?.slug;
-          const awaySlug = teamsStore.find((t) => t.id === m.awayTeamId)?.slug;
+          const homeSlug = resolveSlug(m.homeTeamId!);
+          const awaySlug = resolveSlug(m.awayTeamId!);
           if (!homeSlug || !awaySlug) continue;
 
           const [homeData, awayData] = await Promise.all([
@@ -197,6 +210,32 @@ export default function MultiplexLive() {
       const compMatch = current.matches.find((m) => m.id === slot.compMatchId);
       if (!compMatch) continue;
 
+      const slotMotm = computeMotm(
+        slot.state,
+        { team: slot.home, players: slot.homePlayers },
+        { team: slot.away, players: slot.awayPlayers },
+      );
+      const ss = slot.state;
+      const slotSummary: MatchSummary = {
+        motm: slotMotm ?? undefined,
+        stats: {
+          shots: ss.shots,
+          shotsOnTarget: ss.shotsOnTarget,
+          saves: ss.saves ?? { home: 0, away: 0 },
+          passes: ss.passes ?? { home: 0, away: 0 },
+          fouls: ss.fouls,
+          corners: ss.corners ?? { home: 0, away: 0 },
+          offsides: ss.offsides ?? { home: 0, away: 0 },
+          freekicks: ss.freekicks ?? { home: 0, away: 0 },
+          dribbles: ss.dribbles ?? { home: 0, away: 0 },
+          clearances: ss.clearances ?? { home: 0, away: 0 },
+          keyPasses: ss.keyPasses ?? { home: 0, away: 0 },
+          possession: ss.possession,
+          yellowCards: { home: ss.cards.home.yellow.length, away: ss.cards.away.yellow.length },
+          redCards: { home: ss.cards.home.red.length, away: ss.cards.away.red.length },
+        },
+      };
+
       updatedMatches = updatedMatches.map((m) =>
         m.id === slot.compMatchId
           ? {
@@ -207,6 +246,7 @@ export default function MultiplexLive() {
                 away: slot.state!.score.away,
                 penalties: slot.state!.penaltyScore,
               },
+              matchSummary: slotSummary,
               simulatedAt: new Date().toISOString(),
             }
           : m,
@@ -759,6 +799,7 @@ function MatchCard({ slot }: { slot: import('@/stores/multiplex').MultiplexSlot 
 
   const prevScoreRef = useRef({ home: 0, away: 0 });
   const [flash, setFlash] = useState(false);
+  const [showStats, setShowStats] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -832,9 +873,38 @@ function MatchCard({ slot }: { slot: import('@/stores/multiplex').MultiplexSlot 
       {/* Mini stats bar */}
       {state && (state.shots.home + state.shots.away) > 0 && (
         <div className="border-t border-border/50 pt-2 space-y-1">
-          <StatBar label="Possession" home={state.possession.home} away={state.possession.away} percent />
-          <StatBar label="Tirs" home={state.shots.home} away={state.shots.away} />
-          <StatBar label="Cadrés" home={state.shotsOnTarget.home} away={state.shotsOnTarget.away} />
+          {!showStats ? (
+            <>
+              <StatBar label="Possession" home={state.possession.home} away={state.possession.away} percent />
+              <StatBar label="Tirs" home={state.shots.home} away={state.shots.away} />
+              <StatBar label="Cadrés" home={state.shotsOnTarget.home} away={state.shotsOnTarget.away} />
+            </>
+          ) : (
+            <>
+              <StatBar label="Possession" home={state.possession.home} away={state.possession.away} percent />
+              <StatBar label="Tirs" home={state.shots.home} away={state.shots.away} />
+              <StatBar label="Cadrés" home={state.shotsOnTarget.home} away={state.shotsOnTarget.away} />
+              <StatBar label="Arrêts" home={state.saves?.home ?? 0} away={state.saves?.away ?? 0} />
+              <StatBar label="Passes" home={state.passes?.home ?? 0} away={state.passes?.away ?? 0} />
+              <StatBar label="Fautes" home={state.fouls.home} away={state.fouls.away} />
+              <StatBar label="Corners" home={state.corners?.home ?? 0} away={state.corners?.away ?? 0} />
+              <StatBar label="Hors-jeu" home={state.offsides?.home ?? 0} away={state.offsides?.away ?? 0} />
+              <StatBar label="Passes clés" home={state.keyPasses?.home ?? 0} away={state.keyPasses?.away ?? 0} />
+              <StatBar label="Dribbles" home={state.dribbles?.home ?? 0} away={state.dribbles?.away ?? 0} />
+              <StatBar label="Dégagements" home={state.clearances?.home ?? 0} away={state.clearances?.away ?? 0} />
+              <div className="flex justify-between text-[10px] text-muted pt-0.5">
+                <span>🟨 {state.cards.home.yellow.length} / 🟥 {state.cards.home.red.length}</span>
+                <span>Cartons</span>
+                <span>🟨 {state.cards.away.yellow.length} / 🟥 {state.cards.away.red.length}</span>
+              </div>
+            </>
+          )}
+          <button
+            onClick={() => setShowStats((v) => !v)}
+            className="w-full text-center text-[10px] text-muted/60 hover:text-muted pt-0.5 transition-colors"
+          >
+            {showStats ? '▲ Moins' : '▼ Toutes les stats'}
+          </button>
         </div>
       )}
 
