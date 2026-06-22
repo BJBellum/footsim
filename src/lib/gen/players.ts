@@ -118,13 +118,30 @@ export function generatePlayers(opts: GenerateOptions): Player[] {
   return positions.map((pos) => generatePlayerForPosition(pos, opts));
 }
 
+function scaleStats<T extends Record<string, number>>(group: T, ratio: number): T {
+  return Object.fromEntries(
+    Object.entries(group).map(([k, v]) => [k, clamp(Math.round(v * ratio), 1, 20)])
+  ) as T;
+}
+
 export function reratePlayers(players: Player[], opts: RerateOptions): Player[] {
+  const newMean = 6 + opts.globalStrength / 10;
   return players.map((player) => {
-    const rerated = generatePlayerForPosition(player.position, opts);
+    const currentOverall = player.overall || computeOverall(player);
+    const currentMean = currentOverall / 5;
+    const ratio = currentMean > 0 ? newMean / currentMean : 1;
+
+    const stats = {
+      technical: scaleStats(player.stats.technical, ratio),
+      mental: scaleStats(player.stats.mental, ratio),
+      physical: scaleStats(player.stats.physical, ratio),
+      goalkeeping: player.stats.goalkeeping ? scaleStats(player.stats.goalkeeping, ratio) : null,
+    };
+
     return {
       ...player,
-      stats: rerated.stats,
-      overall: computeOverall({ position: player.position, stats: rerated.stats }),
+      stats,
+      overall: computeOverall({ position: player.position, stats }),
     };
   });
 }
