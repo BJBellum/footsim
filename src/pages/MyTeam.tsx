@@ -9,7 +9,9 @@ import { TacticsPanel } from '@/components/team/TacticsPanel';
 import { StartingXI } from '@/components/team/StartingXI';
 import { TacticsSummary } from '@/components/team/TacticsSummary';
 import { useSession } from '@/stores/session';
+import { useCredentials } from '@/stores/credentials';
 import { GithubTeamBackend } from '@/lib/github/backend';
+import { saveTeamWithRoster } from '@/lib/github/store';
 import { listCompetitions } from '@/lib/github/competitions';
 import { POSITIONS, POSITION_LABEL, POSITION_FULL, CULTURES_BY_CONTINENT, CULTURE_LABEL } from '@/lib/types';
 import { listTeams, loadTeam } from '@/lib/github/store';
@@ -43,6 +45,7 @@ type Tab = 'tactique' | 'joueurs' | 'noms' | 'postes' | 'competitions' | 'palmar
 export default function MyTeam() {
   const session = useSession((s) => s.session);
   const isAdmin = useSession((s) => s.isAdmin());
+  const pat = useCredentials((s) => s.githubPat);
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<{ team: Team; players: Player[] } | null>(null);
@@ -167,6 +170,14 @@ export default function MyTeam() {
     setSavedTactics(next);
     setActiveTacticId(activeId);
     saveLocalSavedTactics(data.team.id, next, activeId);
+    // Also persist to GitHub so other clients (multiplex, competition match) see the active tactic
+    if (isAdmin && pat) {
+      const updatedTeam: Team = { ...data.team, savedTactics: next, activeTacticId: activeId };
+      setData({ ...data, team: updatedTeam });
+      saveTeamWithRoster(updatedTeam, data.players, pat).catch(() => {
+        // non-blocking — localStorage is the source of truth for local sessions
+      });
+    }
   }
 
   async function saveTactics(tactics: TeamTactics) {
