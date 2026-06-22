@@ -211,6 +211,8 @@ export default function MyTeam() {
             id: t.id ?? crypto.randomUUID(),
             name: t.name ?? 'Importée',
             lineup: Array.isArray(t.lineup) ? t.lineup.map((p: { id: string } | string) => typeof p === 'string' ? p : p.id) : [],
+            bench: Array.isArray(t.bench) ? t.bench : undefined,
+            plannedSubs: Array.isArray(t.plannedSubs) ? t.plannedSubs : undefined,
           }));
           // merge: add imported if id not already present
           const existing = new Set(savedTactics.map((t) => t.id));

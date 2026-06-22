@@ -316,6 +316,8 @@ async function applyNewStrength(strength: number) {
             id: t.id ?? crypto.randomUUID(),
             name: t.name ?? 'Importée',
             lineup: Array.isArray(t.lineup) ? t.lineup.map((p: { id: string } | string) => typeof p === 'string' ? p : p.id) : [],
+            bench: Array.isArray(t.bench) ? t.bench : undefined,
+            plannedSubs: Array.isArray(t.plannedSubs) ? t.plannedSubs : undefined,
           }));
           const existing = new Set(savedTactics.map((t) => t.id));
           const toAdd = imported.filter((t) => !existing.has(t.id));
