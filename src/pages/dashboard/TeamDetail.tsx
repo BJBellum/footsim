@@ -53,7 +53,7 @@ const [regenStrength, setRegenStrength] = useState(false);
   const [editManagerId, setEditManagerId] = useState('');
   const [editJerseyColor, setEditJerseyColor] = useState('#e63c3c');
   const [showActionFoot, setShowActionFoot] = useState(false);
-  const [actionFootRating, setActionFootRating] = useState(5);
+  const [actionFootRating, setActionFootRating] = useState(0);
   const [actionFootFunding, setActionFootFunding] = useState(0);
 
   useEffect(() => {
@@ -901,7 +901,7 @@ function ActionFootPanel({
   onSave: (bonus: number) => void;
 }) {
   const cappedFunding = Math.min(funding, 250);
-  const bonus = Math.round((cappedFunding / 250) * 5);
+  const bonus = Math.round((rating / 10) * (cappedFunding / 250) * 5);
   const effective = Math.min(100, baseStrength + bonus);
 
   return (
@@ -909,7 +909,7 @@ function ActionFootPanel({
       <div className="space-y-1">
         <h3 className="font-display text-lg">Action sur le Foot</h3>
         <p className="text-xs text-muted">
-          Définit une note (1–10) et un financement (plafond 250 M€) qui octroie un bonus sur la force générale de l'équipe (0 à +5), sans modifier les joueurs.
+          Définit une note (0–10) et un financement (plafond 250 M€) qui octroie un bonus sur la force générale de l'équipe (0 à +5), sans modifier les joueurs.
         </p>
       </div>
 
@@ -928,7 +928,7 @@ function ActionFootPanel({
         </span>
         <div className="flex items-center gap-3">
           <input
-            type="range" min={1} max={10} step={1} value={rating}
+            type="range" min={0} max={10} step={1} value={rating}
             onChange={(e) => onRating(Number(e.target.value))}
             className="flex-1 accent-[var(--accent)]"
           />
