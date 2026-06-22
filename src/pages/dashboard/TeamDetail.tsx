@@ -20,7 +20,7 @@ import { useTeams } from '@/stores/teams';
 import { useBackendArgs } from '@/hooks/useBackendArgs';
 import type { CultureWeight } from '@/lib/gen/names';
 import { pickName, pickNameMixed } from '@/lib/gen/names';
-import { generateCoach, COACH_TRAIT_LABEL, COACH_TRAIT_DESCRIPTION, type Coach } from '@/lib/gen/coach';
+import { generateCoach, COACH_TRAIT_LABEL, COACH_TRAIT_DESCRIPTION, POSITIVE_TRAITS, NEGATIVE_TRAITS, type Coach, type CoachStats, type PositiveTrait, type NegativeTrait } from '@/lib/gen/coach';
 
 const ADD_COUNTS = [100, 200, 500, 1000];
 
@@ -810,11 +810,62 @@ function CoachPanel({ coach, suspended, cultures, onSave, onToggleSuspension }: 
   onToggleSuspension: () => void;
 }) {
   const [current, setCurrent] = useState<Coach | null>(coach);
+  const [editing, setEditing] = useState(false);
+  const [editFirstName, setEditFirstName] = useState('');
+  const [editLastName, setEditLastName] = useState('');
+  const [editStats, setEditStats] = useState<CoachStats | null>(null);
+  const [editPos, setEditPos] = useState<PositiveTrait[]>([]);
+  const [editNeg, setEditNeg] = useState<NegativeTrait[]>([]);
+
+  const statKeys = ['motivation', 'tactique', 'offensive', 'defensif', 'mentalite', 'gestion'] as const;
+  const statLabel: Record<typeof statKeys[number], string> = {
+    motivation: 'Motivation', tactique: 'Tactique', offensive: 'Offensive',
+    defensif: 'Défensif', mentalite: 'Mentalité', gestion: 'Gestion',
+  };
 
   function regen() {
     const c = generateCoach(cultures);
     setCurrent(c);
     onSave(c);
+    setEditing(false);
+  }
+
+  function openEdit() {
+    if (!current) return;
+    setEditFirstName(current.firstName);
+    setEditLastName(current.lastName);
+    setEditStats({ ...current.stats });
+    setEditPos(current.positiveTraits ?? (current.trait ? [current.trait as PositiveTrait] : []));
+    setEditNeg(current.negativeTraits ?? []);
+    setEditing(true);
+  }
+
+  function saveEdit() {
+    if (!current || !editStats) return;
+    const updated: Coach = {
+      ...current,
+      firstName: editFirstName.trim() || current.firstName,
+      lastName: editLastName.trim() || current.lastName,
+      stats: editStats,
+      positiveTraits: editPos,
+      negativeTraits: editNeg,
+      overall: Math.round((Object.values(editStats).reduce((s, v) => s + v, 0) / 6) * 5),
+    };
+    setCurrent(updated);
+    onSave(updated);
+    setEditing(false);
+  }
+
+  function togglePos(t: PositiveTrait) {
+    setEditPos((prev) =>
+      prev.includes(t) ? prev.filter((x) => x !== t) : prev.length < 2 ? [...prev, t] : prev
+    );
+  }
+
+  function toggleNeg(t: NegativeTrait) {
+    setEditNeg((prev) =>
+      prev.includes(t) ? prev.filter((x) => x !== t) : prev.length < 3 ? [...prev, t] : prev
+    );
   }
 
   if (!current) {
@@ -827,20 +878,121 @@ function CoachPanel({ coach, suspended, cultures, onSave, onToggleSuspension }: 
     );
   }
 
-  const statKeys = ['motivation', 'tactique', 'offensive', 'defensif', 'mentalite', 'gestion'] as const;
-  const statLabel: Record<typeof statKeys[number], string> = {
-    motivation: 'Motivation', tactique: 'Tactique', offensive: 'Offensive',
-    defensif: 'Défensif', mentalite: 'Mentalité', gestion: 'Gestion',
-  };
-
   const pos = current.positiveTraits ?? (current.trait ? [current.trait] : []);
   const neg = current.negativeTraits ?? [];
+
+  if (editing && editStats) {
+    return (
+      <section className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="font-display text-xl">Modifier l'entraîneur</h2>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={saveEdit}>Enregistrer</Button>
+            <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>Annuler</Button>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-border bg-surface p-5 space-y-6">
+          {/* Nom / Prénom */}
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block text-sm">
+              <span className="mb-1 block text-muted">Prénom</span>
+              <Input value={editFirstName} onChange={(e) => setEditFirstName(e.target.value)} placeholder="Prénom" />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block text-muted">Nom</span>
+              <Input value={editLastName} onChange={(e) => setEditLastName(e.target.value)} placeholder="Nom" />
+            </label>
+          </div>
+
+          {/* Stats sliders */}
+          <div>
+            <div className="text-xs uppercase tracking-widest text-muted mb-3">Stats (1–20)</div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {statKeys.map((k) => (
+                <div key={k} className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted">{statLabel[k]}</span>
+                    <span className="tabular-nums font-semibold w-6 text-right">{editStats[k]}</span>
+                  </div>
+                  <input
+                    type="range" min={1} max={20} value={editStats[k]}
+                    onChange={(e) => setEditStats({ ...editStats, [k]: Number(e.target.value) })}
+                    className="w-full accent-[var(--accent)]"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Positive traits */}
+          <div>
+            <div className="text-xs uppercase tracking-widest text-muted mb-2">
+              Traits positifs <span className="opacity-60">(max 2, {editPos.length}/2)</span>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+              {POSITIVE_TRAITS.map((t) => {
+                const active = editPos.includes(t);
+                const disabled = !active && editPos.length >= 2;
+                return (
+                  <button
+                    key={t}
+                    onClick={() => togglePos(t)}
+                    disabled={disabled}
+                    title={COACH_TRAIT_DESCRIPTION[t]}
+                    className={`rounded border px-2.5 py-1.5 text-left text-xs transition-colors ${
+                      active ? 'border-green-500/50 bg-green-500/10 text-green-400'
+                      : disabled ? 'cursor-not-allowed border-border opacity-40'
+                      : 'border-border hover:border-green-500/30'
+                    }`}
+                  >
+                    {COACH_TRAIT_LABEL[t]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Negative traits */}
+          <div>
+            <div className="text-xs uppercase tracking-widest text-muted mb-2">
+              Traits négatifs <span className="opacity-60">(max 3, {editNeg.length}/3)</span>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+              {NEGATIVE_TRAITS.map((t) => {
+                const active = editNeg.includes(t);
+                const disabled = !active && editNeg.length >= 3;
+                return (
+                  <button
+                    key={t}
+                    onClick={() => toggleNeg(t)}
+                    disabled={disabled}
+                    title={COACH_TRAIT_DESCRIPTION[t]}
+                    className={`rounded border px-2.5 py-1.5 text-left text-xs transition-colors ${
+                      active ? 'border-danger/50 bg-danger/10 text-danger'
+                      : disabled ? 'cursor-not-allowed border-border opacity-40'
+                      : 'border-border hover:border-danger/30'
+                    }`}
+                  >
+                    {COACH_TRAIT_LABEL[t]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="font-display text-xl">Entraîneur</h2>
-        <Button size="sm" variant="ghost" onClick={regen}>Regénérer</Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="ghost" onClick={openEdit}>Modifier</Button>
+          <Button size="sm" variant="ghost" onClick={regen}>Regénérer</Button>
+        </div>
       </div>
 
       <div className="rounded-lg border border-border bg-surface p-5 space-y-5">
