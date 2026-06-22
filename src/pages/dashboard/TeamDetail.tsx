@@ -225,6 +225,8 @@ async function applyNewStrength(strength: number) {
     }
   }
 
+  const originalCulturesRef = useRef<CultureWeight[]>([]);
+
   const tacticsImportRef = useRef<HTMLInputElement>(null);
   const namesImportRef = useRef<HTMLInputElement>(null);
 
@@ -390,7 +392,9 @@ async function applyNewStrength(strength: number) {
 
   // initialize culture/continent edit state when switching to infos tab
   function openInfos() {
-    setEditCultures(team.cultures ?? [{ culture: team.culture, weight: 50 }]);
+    const initCultures = team.cultures ?? [{ culture: team.culture, weight: 50 }];
+    setEditCultures(initCultures);
+    originalCulturesRef.current = initCultures;
     setEditContinent(team.continents ?? (team.continent ? [team.continent] : []));
     setEditName(team.name);
     setEditFlag(team.flag);
@@ -409,7 +413,7 @@ async function applyNewStrength(strength: number) {
     const primary = editCultures[0].culture;
 
     // Detect culture change — regen names if cultures differ
-    const prevCultureKey = JSON.stringify((team.cultures ?? [{ culture: team.culture, weight: 50 }]).map((c) => c.culture).sort());
+    const prevCultureKey = JSON.stringify(originalCulturesRef.current.map((c) => c.culture).sort());
     const nextCultureKey = JSON.stringify(editCultures.map((c) => c.culture).sort());
     const culturesChanged = prevCultureKey !== nextCultureKey;
 
