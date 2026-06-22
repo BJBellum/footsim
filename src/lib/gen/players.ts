@@ -11,7 +11,7 @@ export type GenerateOptions = {
   globalStrength: number;
 };
 
-export type RerateOptions = Omit<GenerateOptions, 'count'>;
+export type RerateOptions = Omit<GenerateOptions, 'count'> & { fromStrength?: number };
 
 const POSITION_FAMILIES: Record<Position, Position[]> = {
   GK: [],
@@ -125,14 +125,13 @@ function shiftStats<T extends Record<string, number>>(group: T, delta: number): 
 }
 
 export function reratePlayers(players: Player[], opts: RerateOptions): Player[] {
-  // delta in stat points: globalStrength maps to mean stat via mean = 6 + strength/10
+  // shift all stats by the delta between old and new strength means
+  // preserves relative differences between players
   const newMean = 6 + opts.globalStrength / 10;
-  return players.map((player) => {
-    const currentOverall = player.overall || computeOverall(player);
-    // estimate current mean from overall (overall ≈ mean * 5)
-    const currentMean = currentOverall / 5;
-    const delta = newMean - currentMean;
+  const oldMean = 6 + (opts.fromStrength ?? opts.globalStrength) / 10;
+  const delta = newMean - oldMean;
 
+  return players.map((player) => {
     const stats = {
       technical: shiftStats(player.stats.technical, delta),
       mental: shiftStats(player.stats.mental, delta),
