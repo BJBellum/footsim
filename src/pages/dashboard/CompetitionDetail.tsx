@@ -704,50 +704,92 @@ function RoundsView({
   onSimulateRound: (round: number) => void;
   onSimulateMatch: (matchId: string) => void;
 }) {
-  const rounds = Array.from(
-    new Set(competition.matches.map((m) => m.round)),
-  ).sort((a, b) => a - b);
+  const rounds = Array.from(new Set(competition.matches.map((m) => m.round))).sort((a, b) => a - b);
+  const currentRound = competition.currentRound;
+  const [openRounds, setOpenRounds] = useState<Set<number>>(() => new Set([currentRound]));
+
+  function toggleRound(r: number) {
+    setOpenRounds((prev) => {
+      const next = new Set(prev);
+      next.has(r) ? next.delete(r) : next.add(r);
+      return next;
+    });
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-2">
       {rounds.map((round) => {
         const roundMatches = competition.matches.filter((m) => m.round === round);
-        const hasPending = roundMatches.some(
-          (m) => m.status === 'pending' && m.homeTeamId && m.awayTeamId,
-        );
-        const label = competition.format === 'league' || (competition.format === 'lpm' && roundMatches[0]?.phase === 'league')
-          ? `Journée ${round}`
-          : competition.format === 'lpm' && roundMatches[0]?.phase === 'lpm_playoff'
-          ? (roundMatches[0]?.leg === 1 ? 'Barrages — Match aller' : 'Barrages — Match retour')
-          : roundMatches[0]?.phase === 'group'
-          ? `Phase de groupes — J${round}`
-          : `Tour ${round} — ${roundMatches[0]?.phase ?? ''}`;
+        const completed = roundMatches.filter((m) => m.status === 'completed').length;
+        const total = roundMatches.length;
+        const hasPending = roundMatches.some((m) => m.status === 'pending' && m.homeTeamId && m.awayTeamId);
+        const canMultiplex = canSimulate && hasPending && roundMatches.filter((m) => m.homeTeamId && m.awayTeamId).length > 1;
+        const isOpen = openRounds.has(round);
+        const isCurrent = round === currentRound;
+
+        const phase = roundMatches[0]?.phase;
+        const label =
+          competition.format === 'league' || (competition.format === 'lpm' && phase === 'league')
+            ? `Journée ${round}`
+            : competition.format === 'lpm' && phase === 'lpm_playoff'
+            ? (roundMatches[0]?.leg === 1 ? 'Barrages · Aller' : 'Barrages · Retour')
+            : phase === 'group'
+            ? `Poules — J${round}`
+            : `Tour ${round}${phase ? ` · ${phase}` : ''}`;
 
         return (
-          <div key={round} className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-medium text-muted uppercase tracking-wide">{label}</div>
-              {canSimulate && hasPending && roundMatches.filter((m) => m.homeTeamId && m.awayTeamId).length > 1 && (
+          <div
+            key={round}
+            className={`rounded-lg border transition-colors ${
+              isCurrent && completed < total
+                ? 'border-accent/40 bg-accent/3'
+                : 'border-border bg-surface'
+            }`}
+          >
+            {/* Round header */}
+            <button
+              className="w-full flex items-center gap-3 px-4 py-3 text-left select-none"
+              onClick={() => toggleRound(round)}
+            >
+              <span className={`text-sm font-semibold ${isCurrent && completed < total ? 'text-accent' : ''}`}>
+                {label}
+              </span>
+              <span className="text-xs text-muted tabular-nums">
+                {completed === total
+                  ? <span className="text-green-500">✓ Terminé</span>
+                  : `${completed} / ${total}`}
+              </span>
+              {canMultiplex && (
                 <button
-                  onClick={() => onSimulateRound(round)}
-                  className="text-xs text-accent hover:text-accent/70 transition-colors"
+                  onClick={(e) => { e.stopPropagation(); onSimulateRound(round); }}
+                  className="ml-auto text-xs font-medium text-accent hover:text-accent/70 transition-colors flex items-center gap-1 shrink-0"
                 >
-                  ▶ Simuler tous en multiplex
+                  ▶ Multiplex
                 </button>
               )}
-            </div>
-            <div className="grid gap-2">
-              {roundMatches.map((m) => (
-                <RoundMatchRow
-                  key={m.id}
-                  match={m}
-                  teamMap={teamMap}
-                  canSimulate={canSimulate}
-                  onSimulate={() => onSimulateMatch(m.id)}
-                  disqualifiedTeamIds={competition.disqualifiedTeamIds ?? []}
-                />
-              ))}
-            </div>
+              {!canMultiplex && (
+                <span className="ml-auto text-xs text-muted/40">{isOpen ? '▲' : '▼'}</span>
+              )}
+              {canMultiplex && (
+                <span className="text-xs text-muted/40 ml-1">{isOpen ? '▲' : '▼'}</span>
+              )}
+            </button>
+
+            {/* Match list */}
+            {isOpen && (
+              <div className="border-t border-border/40 divide-y divide-border/30">
+                {roundMatches.map((m) => (
+                  <RoundMatchRow
+                    key={m.id}
+                    match={m}
+                    teamMap={teamMap}
+                    canSimulate={canSimulate}
+                    onSimulate={() => onSimulateMatch(m.id)}
+                    disqualifiedTeamIds={competition.disqualifiedTeamIds ?? []}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         );
       })}
@@ -772,68 +814,78 @@ function RoundMatchRow({
   const home = match.homeTeamId ? teamMap[match.homeTeamId] : null;
   const away = match.awayTeamId ? teamMap[match.awayTeamId] : null;
   const done = match.status === 'completed';
-
   const homeDisq = !!match.homeTeamId && disqualifiedTeamIds.includes(match.homeTeamId);
   const awayDisq = !!match.awayTeamId && disqualifiedTeamIds.includes(match.awayTeamId);
   const isWalkover = homeDisq || awayDisq;
-
-  const canSim = canSimulate && match.status === 'pending' && match.homeTeamId && match.awayTeamId && !isWalkover;
+  const canSim = canSimulate && !done && match.homeTeamId && match.awayTeamId && !isWalkover;
   const hasSummary = done && !!match.matchSummary;
 
   return (
-    <div className={`rounded-lg border text-sm ${
-      isWalkover
-        ? 'border-green-800/40 bg-green-950/30'
-        : done
-        ? 'border-border/50 bg-surface/50'
-        : 'border-border bg-surface'
-    }`}>
+    <div>
       <div
-        className={`flex items-center gap-3 px-4 py-3 ${hasSummary ? 'cursor-pointer select-none' : ''}`}
+        className={`flex items-center gap-2 px-4 py-2.5 text-sm ${hasSummary ? 'cursor-pointer hover:bg-surface/60' : ''}`}
         onClick={() => hasSummary && setExpanded((v) => !v)}
       >
-        <TeamCell team={home} side="home" dimmed={homeDisq} />
-        <div className="flex-1 text-center font-display tabular-nums">
+        {/* Home */}
+        <div className="flex flex-1 items-center gap-2 min-w-0 justify-end flex-row-reverse">
+          {home?.flag
+            ? <img src={home.flag} alt="" className={`h-5 w-5 rounded-sm object-cover shrink-0 ${homeDisq ? 'opacity-40' : ''}`} />
+            : <div className="h-5 w-5 rounded-sm bg-border/40 shrink-0" />}
+          <span className={`truncate text-right text-[13px] ${homeDisq ? 'line-through text-muted' : 'font-medium'}`}>
+            {home?.name ?? (match.homeTeamId ? '…' : 'À définir')}
+          </span>
+        </div>
+
+        {/* Score / status */}
+        <div className="shrink-0 w-20 text-center font-display tabular-nums text-[13px]">
           {isWalkover ? (
-            <span className="text-xs font-medium text-green-500 uppercase tracking-wider">Tapis vert</span>
+            <span className="text-[10px] font-medium text-green-500 uppercase tracking-wider">Tapis vert</span>
           ) : done && match.result ? (
-            <span>
-              {match.result.home} – {match.result.away}
+            <span className={`font-bold ${match.result.home > match.result.away ? 'text-accent' : match.result.home < match.result.away ? 'text-muted' : ''}`}>
+              {match.result.home}
+              <span className="text-muted font-normal mx-0.5">–</span>
+              {match.result.away}
               {match.result.penalties && (
-                <span className="ml-1 text-xs text-muted">
-                  ({match.result.penalties.home}–{match.result.penalties.away} tab)
-                </span>
+                <div className="text-[10px] text-muted font-normal leading-none mt-0.5">
+                  {match.result.penalties.home}–{match.result.penalties.away} tab
+                </div>
               )}
             </span>
+          ) : canSim ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); onSimulate(); }}
+              className="text-accent hover:text-accent/70 transition-colors text-xs font-medium"
+            >
+              ▶ Jouer
+            </button>
           ) : (
-            <span className="text-muted">vs</span>
+            <span className="text-muted/40 text-xs">vs</span>
           )}
         </div>
-        <TeamCell team={away} side="away" dimmed={awayDisq} />
-        {canSim && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onSimulate(); }}
-            className="ml-2 shrink-0 text-xs text-accent hover:text-accent/70 transition-colors"
-          >
-            ▶
-          </button>
-        )}
-        {!match.homeTeamId && !match.awayTeamId && (
-          <span className="ml-2 shrink-0 text-xs text-muted">À définir</span>
-        )}
+
+        {/* Away */}
+        <div className="flex flex-1 items-center gap-2 min-w-0">
+          {away?.flag
+            ? <img src={away.flag} alt="" className={`h-5 w-5 rounded-sm object-cover shrink-0 ${awayDisq ? 'opacity-40' : ''}`} />
+            : <div className="h-5 w-5 rounded-sm bg-border/40 shrink-0" />}
+          <span className={`truncate text-[13px] ${awayDisq ? 'line-through text-muted' : ''}`}>
+            {away?.name ?? (match.awayTeamId ? '…' : 'À définir')}
+          </span>
+        </div>
+
         {hasSummary && (
-          <span className="ml-1 shrink-0 text-xs text-muted">{expanded ? '▲' : '▼'}</span>
+          <span className="text-xs text-muted/40 shrink-0 ml-1">{expanded ? '▲' : '▼'}</span>
         )}
       </div>
 
       {expanded && match.matchSummary && (
-        <div className="border-t border-border/40 px-4 py-4 space-y-4">
+        <div className="border-t border-border/20 bg-surface/30 px-4 py-4 space-y-4">
           {match.matchSummary.motm && (
             <div className="flex items-center gap-3 rounded-md bg-warning/5 border border-warning/20 px-3 py-2">
-              <span className="text-lg">⭐</span>
-              <div>
-                <div className="text-xs text-muted uppercase tracking-wide">Homme du match</div>
-                <div className="font-medium text-sm">{match.matchSummary.motm.playerName}</div>
+              <span className="text-base">⭐</span>
+              <div className="min-w-0">
+                <div className="text-[10px] text-muted uppercase tracking-wide">Homme du match</div>
+                <div className="font-medium text-sm truncate">{match.matchSummary.motm.playerName}</div>
                 <div className="text-xs text-muted">{match.matchSummary.motm.teamName} · {match.matchSummary.motm.rating.toFixed(1)}/10</div>
               </div>
             </div>
@@ -854,45 +906,40 @@ function MatchSummaryStatsInline({ snap, homeName, awayName }: {
   homeName: string;
   awayName: string;
 }) {
-  const rows: Array<{ label: string; home: number; away: number; isBar?: boolean; suffix?: string }> = [
-    { label: 'Possession', home: snap.possession.home, away: snap.possession.away, isBar: true, suffix: '%' },
-    { label: 'Tirs', home: snap.shots.home, away: snap.shots.away, isBar: true },
-    { label: 'Tirs cadrés', home: snap.shotsOnTarget.home, away: snap.shotsOnTarget.away, isBar: true },
-    { label: 'Arrêts', home: snap.saves.home, away: snap.saves.away, isBar: true },
-    { label: 'Passes', home: snap.passes.home, away: snap.passes.away, isBar: true },
-    { label: 'Fautes', home: snap.fouls.home, away: snap.fouls.away, isBar: true },
-    { label: 'Corners', home: snap.corners.home, away: snap.corners.away, isBar: true },
-    { label: 'Hors-jeu', home: snap.offsides.home, away: snap.offsides.away, isBar: true },
-    { label: 'Passes clés', home: snap.keyPasses.home, away: snap.keyPasses.away, isBar: true },
-    { label: 'Dribbles', home: snap.dribbles.home, away: snap.dribbles.away, isBar: true },
-    { label: 'Dégagements', home: snap.clearances.home, away: snap.clearances.away, isBar: true },
-    { label: '🟨', home: snap.yellowCards.home, away: snap.yellowCards.away },
-    { label: '🟥', home: snap.redCards.home, away: snap.redCards.away },
+  const rows: Array<{ label: string; home: number; away: number; bar?: boolean; suffix?: string }> = [
+    { label: 'Possession', home: snap.possession.home, away: snap.possession.away, bar: true, suffix: '%' },
+    { label: 'Tirs', home: snap.shots.home, away: snap.shots.away, bar: true },
+    { label: 'Cadrés', home: snap.shotsOnTarget.home, away: snap.shotsOnTarget.away, bar: true },
+    { label: 'Arrêts', home: snap.saves.home, away: snap.saves.away, bar: true },
+    { label: 'Passes', home: snap.passes.home, away: snap.passes.away, bar: true },
+    { label: 'Fautes', home: snap.fouls.home, away: snap.fouls.away, bar: true },
+    { label: 'Corners', home: snap.corners.home, away: snap.corners.away, bar: true },
+    { label: 'Hors-jeu', home: snap.offsides.home, away: snap.offsides.away, bar: true },
+    { label: 'Passes clés', home: snap.keyPasses.home, away: snap.keyPasses.away, bar: true },
+    { label: 'Dribbles', home: snap.dribbles.home, away: snap.dribbles.away, bar: true },
+    { label: 'Dégagements', home: snap.clearances.home, away: snap.clearances.away, bar: true },
+    { label: '🟨 Jaunes', home: snap.yellowCards.home, away: snap.yellowCards.away },
+    { label: '🟥 Rouges', home: snap.redCards.home, away: snap.redCards.away },
   ];
 
   return (
-    <div className="space-y-2">
-      <div className="flex justify-between text-[10px] font-medium text-muted mb-1">
-        <span>{homeName}</span>
-        <span>{awayName}</span>
+    <div className="space-y-1.5">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center text-[10px] font-medium text-muted mb-2">
+        <span className="truncate">{homeName}</span>
+        <span className="px-3 text-center uppercase tracking-widest opacity-50">Stats</span>
+        <span className="truncate text-right">{awayName}</span>
       </div>
-      {rows.map(({ label, home, away, isBar, suffix }) =>
-        isBar ? (
-          <div key={label} className="space-y-0.5">
-            <div className="flex items-center justify-between text-[11px] text-muted">
-              <span className="tabular-nums">{home}{suffix ?? ''}</span>
-              <span className="uppercase tracking-widest text-[10px]">{label}</span>
-              <span className="tabular-nums">{away}{suffix ?? ''}</span>
-            </div>
-            <div className="flex h-1 overflow-hidden rounded-full bg-border">
-              <div className="bg-accent" style={{ width: `${(home / (home + away || 1)) * 100}%` }} />
-              <div className="bg-text" style={{ width: `${(away / (home + away || 1)) * 100}%` }} />
-            </div>
+      {rows.map(({ label, home, away, bar, suffix }) =>
+        bar ? (
+          <div key={label} className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-[11px]">
+            <span className="tabular-nums text-right font-medium">{home}{suffix ?? ''}</span>
+            <span className="text-muted/60 text-[10px] uppercase tracking-widest w-20 text-center shrink-0">{label}</span>
+            <span className="tabular-nums font-medium">{away}{suffix ?? ''}</span>
           </div>
         ) : (
-          <div key={label} className="flex items-center justify-between text-[11px]">
-            <span className="tabular-nums font-medium">{home}</span>
-            <span>{label}</span>
+          <div key={label} className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-[11px]">
+            <span className="tabular-nums text-right font-medium">{home}</span>
+            <span className="text-muted/60 text-[10px] w-20 text-center shrink-0">{label}</span>
             <span className="tabular-nums font-medium">{away}</span>
           </div>
         )
@@ -1641,15 +1688,3 @@ function LPMStandingsView({
   );
 }
 
-function TeamCell({ team, side, dimmed }: { team: Team | null; side: 'home' | 'away'; dimmed?: boolean }) {
-  return (
-    <div className={`flex items-center gap-2 min-w-0 flex-1 ${side === 'away' ? 'flex-row-reverse text-right' : ''} ${dimmed ? 'opacity-40 line-through' : ''}`}>
-      {team?.flag ? (
-        <img src={team.flag} alt="" className="h-6 w-6 object-cover rounded-sm shrink-0" />
-      ) : (
-        <div className="h-6 w-6 rounded-sm bg-border shrink-0" />
-      )}
-      <span className="truncate text-sm">{team?.name ?? 'À définir'}</span>
-    </div>
-  );
-}
