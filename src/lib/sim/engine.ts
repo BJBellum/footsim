@@ -552,8 +552,8 @@ export function tick(state: MatchState, ctx: EngineCtx): MatchState {
   const awayMid = ctx.away.ratings.midfield * teamRatingMultiplier('away', state);
   const pHome = homeMid / (homeMid + awayMid);
   const possessing: 'home' | 'away' = chance(pHome) ? 'home' : 'away';
-  if (possessing === 'home') { state.possessionTicks.home++; state.passes.home++; }
-  else { state.possessionTicks.away++; state.passes.away++; }
+  if (possessing === 'home') { state.possessionTicks.home++; state.passes.home += 6; }
+  else { state.possessionTicks.away++; state.passes.away += 6; }
   const totalTicks = state.possessionTicks.home + state.possessionTicks.away;
   state.possession.home = Math.round((state.possessionTicks.home / totalTicks) * 100);
   state.possession.away = 100 - state.possession.home;
