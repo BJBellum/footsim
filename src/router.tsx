@@ -13,10 +13,10 @@ function lazyWithReload<T extends React.ComponentType<unknown>>(
 ) {
   return lazy(() =>
     factory().catch((err) => {
-      // Stale chunk after a new deploy — hard reload once to get fresh assets
-      const reloaded = sessionStorage.getItem('footsim.chunk_reload');
-      if (!reloaded) {
-        sessionStorage.setItem('footsim.chunk_reload', '1');
+      // Stale chunk after a new deploy — hard reload once per chunk to get fresh assets
+      const key = `footsim.chunk_reload.${String(err?.message ?? err).slice(0, 120)}`;
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, '1');
         window.location.reload();
       }
       return Promise.reject(err);
