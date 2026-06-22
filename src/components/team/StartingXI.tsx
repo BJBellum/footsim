@@ -19,27 +19,66 @@ export function StartingXI({ players, formation, lineup, onSaveAutoXI }: Props) 
   const { starters, bench, isAuto } = useMemo(() => {
     const byId = new Map(players.map((p) => [p.id, p]));
     let starters: Player[];
-    let bench: Player[];
     let isAuto = false;
 
     if (lineup && lineup.length === 11) {
       const resolved = lineup.map((id) => byId.get(id)).filter(Boolean) as Player[];
       if (resolved.length === 11) {
         starters = resolved;
-        bench = players
-          .filter((p) => !lineup.includes(p.id))
-          .sort((a, b) => b.overall - a.overall)
-          .slice(0, 12);
       } else {
-        ({ lineup: starters, bench } = pickXI(players, formation));
-        bench = bench.sort((a, b) => b.overall - a.overall).slice(0, 12);
+        ({ lineup: starters } = pickXI(players, formation));
         isAuto = true;
       }
     } else {
-      ({ lineup: starters, bench } = pickXI(players, formation));
-      bench = bench.sort((a, b) => b.overall - a.overall).slice(0, 12);
+      ({ lineup: starters } = pickXI(players, formation));
       isAuto = true;
     }
+
+    // Build smart bench: 1 GK max, then fill by position family gaps in starter lineup
+    const starterIds = new Set(starters.map((p) => p.id));
+    const nonStarters = players.filter((p) => !starterIds.has(p.id));
+
+    // Count position families in starters (excl GK)
+    const starterDef = starters.filter((p) => ['CB', 'LB', 'RB'].includes(p.position)).length;
+    const starterMid = starters.filter((p) => ['DM', 'CM', 'AM', 'LM', 'RM'].includes(p.position)).length;
+    const starterAtt = starters.filter((p) => ['LW', 'RW', 'ST'].includes(p.position)).length;
+
+    // Target: reflect the formation balance, 1 backup per family minimum
+    // Bench slots: 1 GK + ~3-4 DEF + ~3-4 MID + ~2-3 ATT (total 12)
+    const total = Math.min(12, nonStarters.length);
+    const gkSlots = 1;
+    const outfieldSlots = total - gkSlots;
+    // Proportional to formation balance
+    const familyTotal = starterDef + starterMid + starterAtt || 10;
+    const defSlots = Math.max(1, Math.round((starterDef / familyTotal) * outfieldSlots));
+    const midSlots = Math.max(1, Math.round((starterMid / familyTotal) * outfieldSlots));
+    const attSlots = Math.max(1, outfieldSlots - defSlots - midSlots);
+
+    function bestN(pool: Player[], n: number) {
+      return pool.sort((a, b) => b.overall - a.overall).slice(0, n);
+    }
+
+    const gkPool = nonStarters.filter((p) => p.position === 'GK');
+    const defPool = nonStarters.filter((p) => ['CB', 'LB', 'RB'].includes(p.position));
+    const midPool = nonStarters.filter((p) => ['DM', 'CM', 'AM', 'LM', 'RM'].includes(p.position));
+    const attPool = nonStarters.filter((p) => ['LW', 'RW', 'ST'].includes(p.position));
+
+    const benchGk = bestN(gkPool, gkSlots);
+    const benchDef = bestN(defPool, defSlots);
+    const benchMid = bestN(midPool, midSlots);
+    const benchAtt = bestN(attPool, attSlots);
+
+    const pickedIds = new Set([
+      ...benchGk, ...benchDef, ...benchMid, ...benchAtt,
+    ].map((p) => p.id));
+
+    // Fill remaining slots with best overall from unpicked non-starters
+    const remaining = nonStarters
+      .filter((p) => !pickedIds.has(p.id))
+      .sort((a, b) => b.overall - a.overall)
+      .slice(0, total - pickedIds.size);
+
+    const bench = [...benchGk, ...benchDef, ...benchMid, ...benchAtt, ...remaining];
 
     return { starters, bench, isAuto };
   }, [players, formation, lineup]);

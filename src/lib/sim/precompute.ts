@@ -1,4 +1,4 @@
-import type { Formation, Player, TacticStyle, CustomTacticStyle } from '@/lib/types';
+import type { Formation, Player, PlannedSub, TacticStyle, CustomTacticStyle } from '@/lib/types';
 import type { Coach } from '@/lib/gen/coach';
 import { computeCoachBonuses } from '@/lib/gen/coach';
 import type { SideRatings, TacticMods } from './types';
@@ -32,6 +32,7 @@ export function precomputeSide(
   morale?: number,
   unavailablePlayerIds?: Set<string>,
   customBench?: string[],
+  plannedSubs?: PlannedSub[],
 ): SideRatings {
   let lineup: Player[];
   let bench: Player[];
@@ -152,6 +153,7 @@ export function precomputeSide(
     yellow: new Set(),
     red: new Set(),
     tacticMods: mergedTacticMods,
+    plannedSubs: (plannedSubs ?? []).map((s) => ({ ...s, done: false })),
   };
 }
 

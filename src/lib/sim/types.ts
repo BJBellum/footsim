@@ -32,6 +32,13 @@ export const DEFAULT_RULES: MatchRules = {
   penalties: false,
 };
 
+export type PlannedSubEntry = {
+  outId: string;
+  inId: string;
+  minute?: number;
+  done: boolean;
+};
+
 export type SideRatings = {
   attack: number;
   midfield: number;
@@ -43,6 +50,7 @@ export type SideRatings = {
   yellow: Set<string>;
   red: Set<string>;
   tacticMods: TacticMods;
+  plannedSubs: PlannedSubEntry[];
 };
 
 export type MatchEvent = {
@@ -69,8 +77,8 @@ export type CorruptionDeal = {
 
 export type MatchInput = {
   matchId: string;
-  home: { team: Team; players: Player[]; formation: Formation; lineup?: string[]; bench?: string[]; tacticStyle?: TacticStyle; customTacticStyle?: import('@/lib/types').CustomTacticStyle; morale?: number; unavailablePlayerIds?: string[] };
-  away: { team: Team; players: Player[]; formation: Formation; lineup?: string[]; bench?: string[]; tacticStyle?: TacticStyle; customTacticStyle?: import('@/lib/types').CustomTacticStyle; morale?: number; unavailablePlayerIds?: string[] };
+  home: { team: Team; players: Player[]; formation: Formation; lineup?: string[]; bench?: string[]; plannedSubs?: import('@/lib/types').PlannedSub[]; tacticStyle?: TacticStyle; customTacticStyle?: import('@/lib/types').CustomTacticStyle; morale?: number; unavailablePlayerIds?: string[] };
+  away: { team: Team; players: Player[]; formation: Formation; lineup?: string[]; bench?: string[]; plannedSubs?: import('@/lib/types').PlannedSub[]; tacticStyle?: TacticStyle; customTacticStyle?: import('@/lib/types').CustomTacticStyle; morale?: number; unavailablePlayerIds?: string[] };
   speed: Speed;
   rules: MatchRules;
   corruption?: CorruptionDeal;

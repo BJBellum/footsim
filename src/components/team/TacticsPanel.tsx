@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { CustomTacticStyle, Formation, Player, TacticStyle, Team, TeamTactics } from '@/lib/types';
+import type { CustomTacticStyle, Formation, PlannedSub, Player, TacticStyle, Team, TeamTactics } from '@/lib/types';
 import { POSITION_LABEL, TACTIC_STYLE_LABEL } from '@/lib/types';
 import type { TacticMods } from '@/lib/sim/types';
 import { Button } from '@/components/ui/Button';
@@ -106,7 +106,7 @@ type Props = {
   onSave: (tactics: TeamTactics) => Promise<void>;
 };
 
-type PanelTab = 'formation' | 'style' | 'stylesperso';
+type PanelTab = 'formation' | 'style' | 'stylesperso' | 'remplacements';
 
 export function TacticsPanel({ team, players, onSave }: Props) {
   const [panelTab, setPanelTab] = useState<PanelTab>('formation');
@@ -115,10 +115,12 @@ export function TacticsPanel({ team, players, onSave }: Props) {
   const [style, setStyle] = useState<TacticStyle>(team.tactics?.style ?? 'possession');
   const [customStyles, setCustomStyles] = useState<CustomTacticStyle[]>(team.tactics?.customStyles ?? []);
   const [activeCustomStyleId, setActiveCustomStyleId] = useState<string | undefined>(team.tactics?.activeCustomStyleId);
+
   const [lineup, setLineup] = useState<(string | null)[]>(
     team.tactics?.lineup?.length === 11 ? [...team.tactics.lineup] : Array(11).fill(null),
   );
   const [benchOrder, setBenchOrder] = useState<string[]>(team.tactics?.bench ?? []);
+  const [plannedSubs, setPlannedSubs] = useState<PlannedSub[]>(team.tactics?.plannedSubs ?? []);
   const [pickingSlot, setPickingSlot] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [freeEditor, setFreeEditor] = useState(false);
@@ -164,7 +166,9 @@ export function TacticsPanel({ team, players, onSave }: Props) {
     try {
       const filledSet = new Set(filled);
       const validBench = benchOrder.filter((id) => !filledSet.has(id));
-      await onSave({ style, formation, lineup: filled, bench: validBench.length ? validBench : undefined, formationLabel, customStyles, activeCustomStyleId });
+      // Filter planned subs to only valid IDs
+      const validPlannedSubs = plannedSubs.filter((s) => filledSet.has(s.outId) && players.some((p) => p.id === s.inId));
+      await onSave({ style, formation, lineup: filled, bench: validBench.length ? validBench : undefined, plannedSubs: validPlannedSubs.length ? validPlannedSubs : undefined, formationLabel, customStyles, activeCustomStyleId });
     } finally {
       setSaving(false);
     }
@@ -222,15 +226,18 @@ export function TacticsPanel({ team, players, onSave }: Props) {
     <div className="space-y-4">
       {/* Tab bar */}
       <div className="flex gap-1 border-b border-border">
-        {(['formation', 'style', 'stylesperso'] as PanelTab[]).map((t) => (
+        {(['formation', 'style', 'stylesperso', 'remplacements'] as PanelTab[]).map((t) => (
           <button
             key={t}
             onClick={() => setPanelTab(t)}
             className={`px-3 py-1.5 text-sm font-medium transition-colors ${panelTab === t ? 'border-b-2 border-accent text-accent' : 'text-muted hover:text-text'}`}
           >
-            {t === 'formation' ? 'Formation' : t === 'style' ? 'Style de jeu' : 'Styles perso'}
+            {t === 'formation' ? 'Formation' : t === 'style' ? 'Style de jeu' : t === 'stylesperso' ? 'Styles perso' : 'Remplacements'}
             {t === 'stylesperso' && customStyles.length > 0 && (
               <span className="ml-1.5 rounded-full bg-accent/20 px-1.5 text-[10px] text-accent">{customStyles.length}</span>
+            )}
+            {t === 'remplacements' && plannedSubs.length > 0 && (
+              <span className="ml-1.5 rounded-full bg-accent/20 px-1.5 text-[10px] text-accent">{plannedSubs.length}</span>
             )}
           </button>
         ))}
@@ -369,6 +376,18 @@ export function TacticsPanel({ team, players, onSave }: Props) {
           activeId={activeCustomStyleId}
           onChange={saveCustomStyles}
           onSaveTactics={() => save()}
+          saving={saving}
+          canSave={filledCount >= 11}
+        />
+      )}
+
+      {panelTab === 'remplacements' && (
+        <PlannedSubsPanel
+          plannedSubs={plannedSubs}
+          onChange={setPlannedSubs}
+          lineup={lineup.filter(Boolean) as string[]}
+          players={players}
+          onSave={() => save()}
           saving={saving}
           canSave={filledCount >= 11}
         />
@@ -851,7 +870,7 @@ function PlayerPicker({ slotDef, players, currentId, takenIds, onPick, onClear, 
                   {matchScore === 0 && <span className="text-xs opacity-0">●</span>}
                   {p.firstName} {p.lastName}
                 </span>
-                <span className="text-xs text-muted">{p.position} · {p.overall}</span>
+                <span className="text-xs text-muted">{POSITION_LABEL[p.position]} · {p.overall}</span>
               </button>
             );
           })}
@@ -862,6 +881,163 @@ function PlayerPicker({ slotDef, players, currentId, takenIds, onPick, onClear, 
           </Button>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Planned Subs Panel ────────────────────────────────────────────────────────
+
+function PlannedSubsPanel({
+  plannedSubs,
+  onChange,
+  lineup,
+  players,
+  onSave,
+  saving,
+  canSave,
+}: {
+  plannedSubs: PlannedSub[];
+  onChange: (subs: PlannedSub[]) => void;
+  lineup: string[];
+  players: Player[];
+  onSave: () => void;
+  saving: boolean;
+  canSave: boolean;
+}) {
+  const [pickingIdx, setPickingIdx] = useState<{ subIdx: number; field: 'out' | 'in' } | null>(null);
+  const [search, setSearch] = useState('');
+  const playerMap = new Map(players.map((p) => [p.id, p]));
+  const lineupSet = new Set(lineup);
+  const benchPlayers = players.filter((p) => !lineupSet.has(p.id));
+
+  function addSub() {
+    onChange([...plannedSubs, { outId: '', inId: '' }]);
+  }
+
+  function removeSub(idx: number) {
+    onChange(plannedSubs.filter((_, i) => i !== idx));
+  }
+
+  function updateSub(idx: number, patch: Partial<PlannedSub>) {
+    onChange(plannedSubs.map((s, i) => i === idx ? { ...s, ...patch } : s));
+  }
+
+  function pickPlayer(subIdx: number, field: 'out' | 'in') {
+    setPickingIdx({ subIdx, field });
+    setSearch('');
+  }
+
+  function selectPlayer(id: string) {
+    if (!pickingIdx) return;
+    updateSub(pickingIdx.subIdx, { [pickingIdx.field === 'out' ? 'outId' : 'inId']: id });
+    setPickingIdx(null);
+    setSearch('');
+  }
+
+  const pickerPool = pickingIdx?.field === 'out'
+    ? players.filter((p) => lineupSet.has(p.id))
+    : benchPlayers;
+
+  const filtered = pickerPool
+    .filter((p) => search === '' || `${p.firstName} ${p.lastName}`.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => b.overall - a.overall);
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted">
+        Définis des remplacements prévus. Ceux sans minute s'appliquent à la mi-temps. Ceux avec une minute s'appliquent dès ce moment en jeu.
+      </p>
+
+      <div className="space-y-2">
+        {plannedSubs.map((sub, idx) => {
+          const outP = sub.outId ? playerMap.get(sub.outId) : null;
+          const inP = sub.inId ? playerMap.get(sub.inId) : null;
+          return (
+            <div key={idx} className="rounded-lg border border-border bg-bg p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted w-4 tabular-nums">{idx + 1}.</span>
+                {/* Sortant */}
+                <button
+                  onClick={() => pickPlayer(idx, 'out')}
+                  className={`flex-1 rounded border px-2 py-1 text-left text-xs transition-colors ${outP ? 'border-border hover:border-accent/50' : 'border-dashed border-border text-muted hover:border-accent hover:text-accent'}`}
+                >
+                  {outP
+                    ? <span className="flex items-center gap-1.5"><span className="font-mono text-[10px] bg-border/40 rounded px-1">{POSITION_LABEL[outP.position]}</span>{outP.lastName} <span className="text-muted">{outP.overall}</span></span>
+                    : '+ Sortant'}
+                </button>
+                <span className="text-muted text-xs">→</span>
+                {/* Entrant */}
+                <button
+                  onClick={() => pickPlayer(idx, 'in')}
+                  className={`flex-1 rounded border px-2 py-1 text-left text-xs transition-colors ${inP ? 'border-border hover:border-accent/50' : 'border-dashed border-border text-muted hover:border-accent hover:text-accent'}`}
+                >
+                  {inP
+                    ? <span className="flex items-center gap-1.5"><span className="font-mono text-[10px] bg-border/40 rounded px-1">{POSITION_LABEL[inP.position]}</span>{inP.lastName} <span className="text-muted">{inP.overall}</span></span>
+                    : '+ Entrant'}
+                </button>
+                {/* Minute optionnelle */}
+                <input
+                  type="number"
+                  min={46}
+                  max={120}
+                  placeholder="MT"
+                  value={sub.minute ?? ''}
+                  onChange={(e) => updateSub(idx, { minute: e.target.value ? Number(e.target.value) : undefined })}
+                  className="w-14 rounded border border-border bg-surface px-2 py-1 text-xs text-center outline-none focus:border-accent"
+                  title="Minute (vide = mi-temps)"
+                />
+                <button onClick={() => removeSub(idx)} className="text-muted hover:text-danger text-xs transition-colors">✕</button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {plannedSubs.length < 5 && (
+        <button onClick={addSub} className="text-xs text-accent hover:underline">
+          + Ajouter un remplacement prévu
+        </button>
+      )}
+
+      {/* Picker modal */}
+      {pickingIdx && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setPickingIdx(null)}>
+          <div className="w-full max-w-xs space-y-3 rounded-lg border border-border bg-surface p-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">{pickingIdx.field === 'out' ? 'Joueur sortant (titulaire)' : 'Joueur entrant (banc)'}</span>
+              <button onClick={() => setPickingIdx(null)} className="text-muted hover:text-text">✕</button>
+            </div>
+            <input
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Rechercher…"
+              className="w-full rounded border border-border bg-bg px-2 py-1 text-sm outline-none focus:border-accent"
+            />
+            <div className="max-h-60 overflow-y-auto space-y-0.5">
+              {filtered.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => selectPlayer(p.id)}
+                  className="flex w-full items-center justify-between rounded px-2 py-1.5 text-sm hover:bg-border/40 transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="font-mono text-[10px] bg-border/40 rounded px-1">{POSITION_LABEL[p.position]}</span>
+                    {p.firstName} {p.lastName}
+                  </span>
+                  <span className="text-xs text-muted">{p.overall}</span>
+                </button>
+              ))}
+              {filtered.length === 0 && <p className="text-xs text-muted px-2 py-2">Aucun joueur.</p>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Button onClick={onSave} disabled={saving || !canSave}>
+        {saving ? <Spinner className="mr-2 h-4 w-4" /> : null}
+        Sauvegarder la tactique
+      </Button>
     </div>
   );
 }

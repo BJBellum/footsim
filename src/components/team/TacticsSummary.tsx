@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Formation, Player, SavedTactic } from '@/lib/types';
-import { TACTIC_STYLE_LABEL } from '@/lib/types';
+import { POSITION_LABEL, TACTIC_STYLE_LABEL } from '@/lib/types';
 
 type Props = {
   savedTactics: SavedTactic[];
@@ -217,7 +217,7 @@ function TacticCard({
                   <span className="w-7 shrink-0 text-[9px] font-bold text-muted uppercase pt-0.5">{g.label}</span>
                   <div className="flex flex-wrap gap-1">
                     {g.players.map((p) => (
-                      <span key={p.id} className="text-[10px] bg-border/40 rounded px-1 py-0.5 leading-tight" title={`${p.firstName} ${p.lastName} · ${p.position} · ${p.overall}`}>
+                      <span key={p.id} className="text-[10px] bg-border/40 rounded px-1 py-0.5 leading-tight" title={`${p.firstName} ${p.lastName} · ${POSITION_LABEL[p.position]} · ${p.overall}`}>
                         {p.lastName}
                       </span>
                     ))}

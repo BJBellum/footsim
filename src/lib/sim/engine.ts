@@ -251,6 +251,30 @@ function tryPenaltyShot(
   }
 }
 
+function executeSub(state: MatchState, ctx: EngineCtx, side: 'home' | 'away', outId: string, inId: string): boolean {
+  const onPitch = side === 'home' ? state.homeOnPitch : state.awayOnPitch;
+  const players = side === 'home' ? ctx.home.players : ctx.away.players;
+  const benchIds = side === 'home' ? ctx.home.ratings.bench : ctx.away.ratings.bench;
+  const teamName = side === 'home' ? ctx.home.team.name : ctx.away.team.name;
+  if (!onPitch.includes(outId) || !benchIds.includes(inId)) return false;
+  const outP = players.get(outId);
+  const inP = players.get(inId);
+  if (!outP || !inP) return false;
+  if (side === 'home') {
+    state.homeOnPitch = state.homeOnPitch.map((id) => id === outId ? inId : id);
+    state.homeAvailableBench = state.homeAvailableBench.filter((id) => id !== inId);
+  } else {
+    state.awayOnPitch = state.awayOnPitch.map((id) => id === outId ? inId : id);
+    state.awayAvailableBench = state.awayAvailableBench.filter((id) => id !== inId);
+  }
+  const benchList = benchIds;
+  const bIdx = benchList.indexOf(inId);
+  if (bIdx !== -1) benchList.splice(bIdx, 1);
+  pushEvent(state, ctx, { type: 'substitution', side, playerId: inId, ballPos: ZONE.centre },
+    teamName, `${inP.firstName} ${inP.lastName} ↔ ${outP.firstName} ${outP.lastName}`);
+  return true;
+}
+
 function performAutoSubs(state: MatchState, ctx: EngineCtx, side: 'home' | 'away'): void {
   const subsUsed = side === 'home' ? state.homeSubs : state.awaySubs;
   if (subsUsed >= state.rules.maxSubs) return;
@@ -259,35 +283,62 @@ function performAutoSubs(state: MatchState, ctx: EngineCtx, side: 'home' | 'away
   const onPitch = side === 'home' ? state.homeOnPitch : state.awayOnPitch;
   const players = side === 'home' ? ctx.home.players : ctx.away.players;
   const benchIds = side === 'home' ? ctx.home.ratings.bench : ctx.away.ratings.bench;
-  const teamName = side === 'home' ? ctx.home.team.name : ctx.away.team.name;
+  const plannedSubs = side === 'home' ? ctx.home.ratings.plannedSubs : ctx.away.ratings.plannedSubs;
 
-  const availBench = benchIds
-    .map((id) => players.get(id))
-    .filter((p): p is Player => !!p)
-    .sort((a, b) => b.overall - a.overall);
-  if (!availBench.length) return;
-
-  const starters = onPitch
-    .map((id) => players.get(id))
-    .filter((p): p is Player => !!p && p.position !== 'GK')
-    .sort((a, b) => a.overall - b.overall);
-
+  // Apply planned halftime subs first (those without a specific minute)
+  const halftimePlanned = plannedSubs.filter((s) => !s.done && s.minute === undefined);
   let made = 0;
-  for (const out of starters) {
-    if (made >= numToMake || !availBench.length) break;
-    const family = posFamily(out.position);
-    const compatIdx = availBench.findIndex((p) => family.includes(p.position));
-    const sub = compatIdx >= 0 ? availBench.splice(compatIdx, 1)[0] : availBench.shift()!;
-    if (side === 'home') {
-      state.homeOnPitch = state.homeOnPitch.map((id) => (id === out.id ? sub.id : id));
-      state.homeAvailableBench = state.homeAvailableBench.filter((id) => id !== sub.id);
-    } else {
-      state.awayOnPitch = state.awayOnPitch.map((id) => (id === out.id ? sub.id : id));
-      state.awayAvailableBench = state.awayAvailableBench.filter((id) => id !== sub.id);
+  for (const plan of halftimePlanned) {
+    if (made >= numToMake || subsUsed + made >= state.rules.maxSubs) break;
+    if (executeSub(state, ctx, side, plan.outId, plan.inId)) {
+      plan.done = true;
+      made++;
     }
-    pushEvent(state, ctx, { type: 'substitution', side, playerId: sub.id, ballPos: ZONE.centre },
-      teamName, `${sub.firstName} ${sub.lastName} ↔ ${out.firstName} ${out.lastName}`);
-    made++;
+  }
+
+  // Fill remaining slots with automatic subs (lowest overall non-GK)
+  if (made < numToMake) {
+    const remaining = numToMake - made;
+    const availBench = benchIds
+      .map((id) => players.get(id))
+      .filter((p): p is Player => !!p)
+      .sort((a, b) => b.overall - a.overall);
+    if (!availBench.length) { if (side === 'home') state.homeSubs += made; else state.awaySubs += made; return; }
+
+    const starters = onPitch
+      .map((id) => players.get(id))
+      .filter((p): p is Player => !!p && p.position !== 'GK')
+      .sort((a, b) => a.overall - b.overall);
+
+    for (const out of starters) {
+      if (made >= numToMake || !availBench.length) break;
+      // Skip if this player has a planned sub (different minute) — don't replace them automatically
+      const hasPlanned = plannedSubs.some((s) => !s.done && s.outId === out.id);
+      if (hasPlanned) continue;
+      const family = posFamily(out.position);
+      const compatIdx = availBench.findIndex((p) => family.includes(p.position));
+      const sub = compatIdx >= 0 ? availBench.splice(compatIdx, 1)[0] : availBench.shift()!;
+      if (executeSub(state, ctx, side, out.id, sub.id)) made++;
+    }
+    void remaining;
+  }
+
+  if (side === 'home') state.homeSubs += made;
+  else state.awaySubs += made;
+}
+
+function applyPlannedSubsByMinute(state: MatchState, ctx: EngineCtx, side: 'home' | 'away'): void {
+  const subsUsed = side === 'home' ? state.homeSubs : state.awaySubs;
+  if (subsUsed >= state.rules.maxSubs) return;
+  const plannedSubs = side === 'home' ? ctx.home.ratings.plannedSubs : ctx.away.ratings.plannedSubs;
+  const pending = plannedSubs.filter((s) => !s.done && s.minute !== undefined && s.minute <= state.minute);
+  let made = 0;
+  for (const plan of pending) {
+    if (subsUsed + made >= state.rules.maxSubs) break;
+    if (executeSub(state, ctx, side, plan.outId, plan.inId)) {
+      plan.done = true;
+      made++;
+    }
   }
   if (side === 'home') state.homeSubs += made;
   else state.awaySubs += made;
@@ -438,6 +489,10 @@ export function tick(state: MatchState, ctx: EngineCtx): MatchState {
   }
 
   state.minute++;
+
+  // Apply any planned subs triggered by this minute
+  applyPlannedSubsByMinute(state, ctx, 'home');
+  applyPlannedSubsByMinute(state, ctx, 'away');
 
   if (state.half === 1 && state.minute > 45 + state.homeAddedTime) {
     state.status = 'halftime';
