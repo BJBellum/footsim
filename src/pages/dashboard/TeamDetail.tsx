@@ -386,10 +386,6 @@ async function applyNewStrength(strength: number) {
   const { team, players } = data;
   const editing = editingId ? players.find((p) => p.id === editingId) ?? null : null;
 
-  const actionFootBonus = team.actionFoot
-    ? Math.round((Math.min(team.actionFoot.funding, 250) / 250) * 5)
-    : 0;
-  const effectiveStrength = Math.min(100, team.globalStrength + actionFootBonus);
 
   // initialize culture/continent edit state when switching to infos tab
   function openInfos() {
@@ -467,7 +463,7 @@ async function applyNewStrength(strength: number) {
             {(team.continents ?? (team.continent ? [team.continent] : [])).map((c) => CONTINENT_LABEL[c]).join(' · ')
               ? ` · ${(team.continents ?? (team.continent ? [team.continent] : [])).map((c) => CONTINENT_LABEL[c]).join(' · ')}`
               : ''}
-            {' '}· Force {effectiveStrength}{actionFootBonus > 0 ? ` (${team.globalStrength}+${actionFootBonus})` : ''} ·{' '}
+            {' '}· Force {team.globalStrength} ·{' '}
             {team.playerCount} joueurs · Formation {team.formation}
           </p>
           {newStrength === null ? (
@@ -757,12 +753,16 @@ async function applyNewStrength(strength: number) {
                 onFunding={setActionFootFunding}
                 current={team.actionFoot}
                 baseStrength={team.globalStrength}
-                onSave={() => {
+                onSave={(bonus) => {
                   mutate({
-                    team: { ...team, actionFoot: { rating: actionFootRating, funding: actionFootFunding } },
+                    team: {
+                      ...team,
+                      globalStrength: Math.min(100, team.globalStrength + bonus),
+                      actionFoot: { rating: actionFootRating, funding: actionFootFunding },
+                    },
                     players,
                   });
-                  toast('success', 'Action sur le Foot appliquée (non publié).');
+                  toast('success', `Action sur le Foot appliquée : force ${Math.min(100, team.globalStrength + bonus)} (non publié).`);
                 }}
               />
             )}
@@ -898,7 +898,7 @@ function ActionFootPanel({
   onFunding: (v: number) => void;
   current?: { rating: number; funding: number };
   baseStrength: number;
-  onSave: () => void;
+  onSave: (bonus: number) => void;
 }) {
   const cappedFunding = Math.min(funding, 250);
   const bonus = Math.round((cappedFunding / 250) * 5);
@@ -980,7 +980,7 @@ function ActionFootPanel({
         </div>
       </div>
 
-      <Button onClick={onSave}>Appliquer (non publié)</Button>
+      <Button onClick={() => onSave(bonus)}>Appliquer (non publié)</Button>
     </div>
   );
 }
