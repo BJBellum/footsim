@@ -124,22 +124,20 @@ function scaleStats<T extends Record<string, number>>(group: T, ratio: number): 
   ) as T;
 }
 
-export function reratePlayers(players: Player[], opts: RerateOptions): Player[] {
-  // target weighted-avg stat = 6 + globalStrength/10 (same formula as generation)
-  const targetAvg = 6 + opts.globalStrength / 10;
-  return players.map((player) => {
-    const currentOverall = player.overall > 0 ? player.overall : computeOverall(player);
-    // current weighted-avg = overall / 5  (overall = weighted_avg * 5)
-    const currentAvg = currentOverall / 5;
-    const ratio = currentAvg > 0 ? targetAvg / currentAvg : 1;
+export function reratePlayers(players: Player[], opts: RerateOptions & { previousStrength?: number }): Player[] {
+  const targetMean = 6 + opts.globalStrength / 10;
+  const baseMean = 6 + (opts.previousStrength ?? opts.globalStrength) / 10;
+  // Ratio applied uniformly to all stats — preserves individual player spread
+  const ratio = baseMean > 0 ? targetMean / baseMean : 1;
+  if (Math.abs(ratio - 1) < 0.001) return players; // no-op
 
+  return players.map((player) => {
     const stats = {
       technical: scaleStats(player.stats.technical, ratio),
       mental: scaleStats(player.stats.mental, ratio),
       physical: scaleStats(player.stats.physical, ratio),
       goalkeeping: player.stats.goalkeeping ? scaleStats(player.stats.goalkeeping, ratio) : null,
     };
-
     return {
       ...player,
       stats,
