@@ -8,7 +8,7 @@ const items: NavItem[] = [
   { to: '/dashboard/teams', label: 'Équipes' },
   { to: '/dashboard/competitions', label: 'Compétitions' },
   { to: '/match', label: 'Matchs' },
-  { to: '/dashboard/meilleurs-joueurs', label: 'Meilleurs joueurs' },
+  { to: '/dashboard/classements-cmf', label: 'Classements CMF' },
   { to: '/dashboard/simulation', label: 'Simulation' },
   { to: '/dashboard/notes-joueurs', label: 'Notes joueurs' },
   { to: '/dashboard/postes', label: 'Postes' },

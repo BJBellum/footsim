@@ -34,6 +34,7 @@ const Simulation = lazyWithReload(() => import('@/pages/dashboard/Simulation'));
 const Postes = lazyWithReload(() => import('@/pages/dashboard/Postes'));
 const NotesJoueurs = lazyWithReload(() => import('@/pages/dashboard/NotesJoueurs'));
 const MeilleursJoueurs = lazyWithReload(() => import('@/pages/dashboard/MeilleursJoueurs'));
+const ClassementsCMF = lazyWithReload(() => import('@/pages/dashboard/ClassementsCMF'));
 const Competitions = lazyWithReload(() => import('@/pages/dashboard/Competitions'));
 const CompetitionNew = lazyWithReload(() => import('@/pages/dashboard/CompetitionNew'));
 const CompetitionDetail = lazyWithReload(() => import('@/pages/dashboard/CompetitionDetail'));
@@ -85,6 +86,7 @@ export const router = createBrowserRouter(
         { path: 'postes', element: <S><Postes /></S> },
         { path: 'notes-joueurs', element: <S><NotesJoueurs /></S> },
         { path: 'meilleurs-joueurs', element: <S><MeilleursJoueurs /></S> },
+        { path: 'classements-cmf', element: <S><ClassementsCMF /></S> },
       ],
     },
     {
