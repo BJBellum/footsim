@@ -86,6 +86,7 @@ export default function MatchSetup() {
           plannedSubs: homeTactics?.plannedSubs,
           tacticStyle: homeTactics?.style as TacticStyle | undefined,
           customTacticStyle: homeCustomStyle,
+          positionMap: homeTactics?.positionMap,
         },
         away: {
           team: away.team,
@@ -96,6 +97,7 @@ export default function MatchSetup() {
           plannedSubs: awayTactics?.plannedSubs,
           tacticStyle: awayTactics?.style as TacticStyle | undefined,
           customTacticStyle: awayCustomStyle,
+          positionMap: awayTactics?.positionMap,
         },
         speed,
         rules,

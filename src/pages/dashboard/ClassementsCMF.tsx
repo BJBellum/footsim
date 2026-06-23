@@ -10,6 +10,7 @@ import type { Team, Position } from '@/lib/types';
 import type { CompHistoryEntry, CompetitionKind, CompetitionScope, CompetitionImportance } from '@/lib/competition/types';
 import { calcCmfMatchPoints } from '@/lib/github/matches';
 import type { RecentMatchSummary } from '@/lib/github/matches';
+import { TeamTacticLink } from '@/components/team/TeamTacticCard';
 
 // ─── Points system ────────────────────────────────────────────────────────────
 
@@ -227,7 +228,7 @@ export default function ClassementsCMF() {
       </div>
 
       {tab === 'equipes' && (
-        <TeamRanking entries={teamEntries} />
+        <TeamRanking entries={teamEntries} token={token} />
       )}
 
       {tab === 'explications' && (
@@ -287,7 +288,9 @@ export default function ClassementsCMF() {
                           {team.flag && (
                             <img src={team.flag} alt="" className="h-5 w-5 rounded-sm object-cover shrink-0" />
                           )}
-                          <span className="truncate max-w-[120px] text-sm">{team.name}</span>
+                          <TeamTacticLink team={team} token={token} className="truncate max-w-[120px] text-sm hover:text-accent hover:underline transition-colors cursor-pointer text-left">
+                            {team.name}
+                          </TeamTacticLink>
                         </div>
                       </td>
                       <td className="px-4 py-2.5 text-muted text-xs">
@@ -554,9 +557,105 @@ function FormIcon({ result }: { result: MatchResult }) {
   );
 }
 
+// ─── Expanded team detail ─────────────────────────────────────────────────────
+
+const RESULT_BADGE: Record<CompHistoryEntry['result'], { label: string; cls: string }> = {
+  winner:    { label: '🏆 Vainqueur',    cls: 'border-warning/50 bg-warning/10 text-warning' },
+  finalist:  { label: '🥈 Finaliste',    cls: 'border-zinc-400/40 bg-zinc-400/10 text-zinc-300' },
+  third:     { label: '🥉 3e place',     cls: 'border-orange-400/40 bg-orange-400/10 text-orange-300' },
+  semi:      { label: '4e (demi)',       cls: 'border-border bg-surface text-muted' },
+  participant:{ label: 'Participant',    cls: 'border-border bg-surface text-muted' },
+};
+
+const SCOPE_SHORT: Record<string, string> = {
+  internationale: 'Intl', continentale: 'Cont', nationale: 'Nat', regionale: 'Rég', autre: 'Autre',
+};
+
+function ExpandedTeamDetail({ entry }: { entry: TeamRankEntry }) {
+  const history = entry.team.compHistory ?? [];
+  const recent: RecentMatchSummary[] = (entry.team.recentMatches ?? []).slice(0, 10);
+
+  // Palmarès points breakdown
+  const palmaresTotal = history.reduce((s, e) => s + entryPoints(e), 0);
+  const matchTotal = recent.reduce((s, m) => s + matchPoints(m), 0);
+
+  return (
+    <div className="grid gap-6 md:grid-cols-2">
+
+      {/* ── Palmarès ── */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs uppercase tracking-widest text-muted">Palmarès</span>
+          <span className="text-xs tabular-nums text-accent font-bold">+{Math.round(palmaresTotal)} pts bonus</span>
+        </div>
+        {history.length === 0 ? (
+          <p className="text-xs text-muted py-2">Aucun résultat de compétition enregistré.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {[...history].sort((a, b) => (b.year ?? 0) - (a.year ?? 0)).map((e, i) => {
+              const badge = RESULT_BADGE[e.result];
+              const pts = entryPoints(e);
+              return (
+                <div key={i} className="flex items-center gap-2 text-xs">
+                  <span className="text-muted w-8 tabular-nums shrink-0">{e.year ?? '—'}</span>
+                  <span className={`rounded border px-1.5 py-0.5 font-medium shrink-0 ${badge.cls}`}>{badge.label}</span>
+                  <span className="truncate text-muted flex-1">{e.compName}</span>
+                  <span className="text-[10px] text-muted shrink-0">{SCOPE_SHORT[e.scope ?? 'autre'] ?? e.scope}</span>
+                  <span className="tabular-nums font-bold text-accent shrink-0">+{pts}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Matchs récents ── */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs uppercase tracking-widest text-muted">10 derniers matchs</span>
+          <span className="text-xs tabular-nums text-accent font-bold">+{Math.round(matchTotal * 10) / 10} pts match</span>
+        </div>
+        {recent.length === 0 ? (
+          <p className="text-xs text-muted py-2">Aucun match de compétition enregistré.</p>
+        ) : (
+          <div className="space-y-1">
+            {recent.map((m, i) => {
+              const won = m.scoreFor > m.scoreAgainst;
+              const drew = m.scoreFor === m.scoreAgainst;
+              const resultCls = won ? 'text-green-400 font-bold' : drew ? 'text-yellow-400 font-bold' : 'text-danger font-bold';
+              const resultLetter = won ? 'V' : drew ? 'N' : 'D';
+              const pts = matchPoints(m);
+              return (
+                <div key={i} className="flex items-center gap-2 text-xs">
+                  <span className={`w-4 text-center shrink-0 ${resultCls}`}>{resultLetter}</span>
+                  <span className="font-mono tabular-nums shrink-0 text-muted w-8">{m.scoreFor}–{m.scoreAgainst}</span>
+                  <span className="truncate text-muted flex-1">vs {m.opponentName}</span>
+                  <span className="text-[10px] text-muted shrink-0">{m.homeAway === 'home' ? 'D' : 'E'}</span>
+                  <span className={`tabular-nums shrink-0 font-medium ${pts > 0 ? 'text-accent' : 'text-muted'}`}>
+                    {pts > 0 ? `+${pts}` : pts}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Mini form bar */}
+        {entry.form.length > 0 && (
+          <div className="flex items-center gap-1 pt-1 border-t border-border">
+            <span className="text-[10px] text-muted mr-1">Forme :</span>
+            {entry.form.map((r, i) => <FormIcon key={i} result={r} />)}
+          </div>
+        )}
+      </div>
+
+    </div>
+  );
+}
+
 // ─── Team ranking sub-component ───────────────────────────────────────────────
 
-function TeamRanking({ entries }: { entries: TeamRankEntry[] }) {
+function TeamRanking({ entries, token }: { entries: TeamRankEntry[]; token: string | null }) {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   if (entries.length === 0) {
@@ -606,7 +705,9 @@ function TeamRanking({ entries }: { entries: TeamRankEntry[] }) {
                       {e.team.flag && (
                         <img src={e.team.flag} alt="" className="h-6 w-6 rounded-sm object-cover shrink-0" />
                       )}
-                      <span className="font-medium truncate">{e.team.name}</span>
+                      <TeamTacticLink team={e.team} token={token} className="font-medium truncate hover:text-accent hover:underline transition-colors cursor-pointer text-left">
+                        {e.team.name}
+                      </TeamTacticLink>
                       {history.length > 0 && (
                         <span className="text-xs text-muted ml-1">{isOpen ? '▲' : '▼'}</span>
                       )}
@@ -627,21 +728,10 @@ function TeamRanking({ entries }: { entries: TeamRankEntry[] }) {
                   <td className="px-3 py-2.5 text-right tabular-nums font-bold text-accent">{e.points}</td>
                 </tr>
                 {isOpen && (
-                  <tr key={`${e.team.id}-detail`} className="border-t border-border bg-bg/50">
+                  <tr key={`${e.team.id}-detail`} className="border-t border-border bg-bg/30">
                     <td />
-                    <td colSpan={6} className="px-4 py-3">
-                      <div className="space-y-1">
-                        {history.map((entry, i) => (
-                          <div key={i} className="flex items-center justify-between text-xs text-muted gap-4">
-                            <span className="font-medium text-text truncate max-w-[200px]">{entry.compName}</span>
-                            <span>{entry.year ?? '—'}</span>
-                            <span className="capitalize">{entry.scope ?? 'autre'}</span>
-                            <span>{entry.kind ?? 'amicale'}</span>
-                            <span className="font-medium text-accent">{RESULT_LABEL[entry.result]}</span>
-                            <span className="tabular-nums text-accent font-bold">+{entryPoints(entry)} pts</span>
-                          </div>
-                        ))}
-                      </div>
+                    <td colSpan={7} className="px-4 py-4">
+                      <ExpandedTeamDetail entry={e} />
                     </td>
                   </tr>
                 )}

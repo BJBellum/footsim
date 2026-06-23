@@ -1,4 +1,4 @@
-import type { Formation, Player, PlannedSub, TacticStyle, CustomTacticStyle } from '@/lib/types';
+import type { Formation, Player, PlannedSub, Position, TacticStyle, CustomTacticStyle } from '@/lib/types';
 import type { Coach } from '@/lib/gen/coach';
 import { computeCoachBonuses } from '@/lib/gen/coach';
 import type { SideRatings, TacticMods } from './types';
@@ -33,6 +33,7 @@ export function precomputeSide(
   unavailablePlayerIds?: Set<string>,
   customBench?: string[],
   plannedSubs?: PlannedSub[],
+  positionMap?: Record<string, Position>,
 ): SideRatings {
   let lineup: Player[];
   let bench: Player[];
@@ -72,10 +73,15 @@ export function precomputeSide(
     bench = bench.sort((a, b) => b.overall - a.overall).slice(0, 12);
   }
 
-  const gk = lineup.find((p) => p.position === 'GK');
-  const def = lineup.filter((p) => ['CB', 'LB', 'RB'].includes(p.position));
-  const mid = lineup.filter((p) => ['DM', 'CM', 'AM', 'LM', 'RM'].includes(p.position));
-  const att = lineup.filter((p) => ['LW', 'RW', 'ST'].includes(p.position));
+  // Apply free-editor position overrides — create virtual players with overridden position
+  const effectiveLineup = positionMap
+    ? lineup.map((p) => positionMap[p.id] ? { ...p, position: positionMap[p.id] as Player['position'] } : p)
+    : lineup;
+
+  const gk = effectiveLineup.find((p) => p.position === 'GK');
+  const def = effectiveLineup.filter((p) => ['CB', 'LB', 'RB'].includes(p.position));
+  const mid = effectiveLineup.filter((p) => ['DM', 'CM', 'AM', 'LM', 'RM'].includes(p.position));
+  const att = effectiveLineup.filter((p) => ['LW', 'RW', 'ST'].includes(p.position));
 
   const top3Att = [...att].sort((a, b) => b.overall - a.overall).slice(0, 3);
   const am = mid.filter((p) => p.position === 'AM');

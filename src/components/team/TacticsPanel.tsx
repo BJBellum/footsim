@@ -129,12 +129,18 @@ export function TacticsPanel({ team, players, onSave }: Props) {
     setFormation(f);
     setFormationLabel(undefined);
     setLineup(Array(11).fill(null));
+    setPositionMap(undefined);
   }
+
+  const [positionMap, setPositionMap] = useState<Record<string, import('@/lib/types').Position> | undefined>(
+    team.tactics?.positionMap,
+  );
 
   function applyFreeEditor(result: FormationEditorResult) {
     setFormation(result.closestPredefined);
     setFormationLabel(result.formation !== result.closestPredefined ? result.formation : undefined);
     setLineup(result.lineup);
+    setPositionMap(Object.keys(result.positionMap).length > 0 ? result.positionMap : undefined);
     setFreeEditor(false);
   }
 
@@ -150,6 +156,7 @@ export function TacticsPanel({ team, players, onSave }: Props) {
     next[slotIdx] = playerId;
     setLineup(next);
     setPickingSlot(null);
+    setPositionMap(undefined); // manual slot assignment invalidates free editor position overrides
   }
 
   function clearSlot(slotIdx: number) {
@@ -157,6 +164,7 @@ export function TacticsPanel({ team, players, onSave }: Props) {
     next[slotIdx] = null;
     setLineup(next);
     setPickingSlot(null);
+    setPositionMap(undefined);
   }
 
   async function save() {
@@ -168,7 +176,7 @@ export function TacticsPanel({ team, players, onSave }: Props) {
       const validBench = benchOrder.filter((id) => !filledSet.has(id));
       // Filter planned subs to only valid IDs
       const validPlannedSubs = plannedSubs.filter((s) => filledSet.has(s.outId) && players.some((p) => p.id === s.inId));
-      await onSave({ style, formation, lineup: filled, bench: validBench.length ? validBench : undefined, plannedSubs: validPlannedSubs.length ? validPlannedSubs : undefined, formationLabel, customStyles, activeCustomStyleId });
+      await onSave({ style, formation, lineup: filled, bench: validBench.length ? validBench : undefined, plannedSubs: validPlannedSubs.length ? validPlannedSubs : undefined, formationLabel, positionMap, customStyles, activeCustomStyleId });
     } finally {
       setSaving(false);
     }

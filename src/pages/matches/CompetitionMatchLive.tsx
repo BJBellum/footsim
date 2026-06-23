@@ -163,6 +163,7 @@ export default function CompetitionMatchLive() {
             tacticStyle: (tacticOverride.home as import('@/lib/types').TacticStyle | undefined) || homeTactics?.style,
             morale: moraleMap[compMatch.homeTeamId!] ?? MORALE_DEFAULT,
             unavailablePlayerIds: [...homeUnavail].filter((id) => id !== 'coach'),
+            positionMap: homeTactics?.positionMap,
           },
           away: {
             team: awayData.team,
@@ -174,6 +175,7 @@ export default function CompetitionMatchLive() {
             tacticStyle: (tacticOverride.away as import('@/lib/types').TacticStyle | undefined) || awayTactics?.style,
             morale: moraleMap[compMatch.awayTeamId!] ?? MORALE_DEFAULT,
             unavailablePlayerIds: [...awayUnavail].filter((id) => id !== 'coach'),
+            positionMap: awayTactics?.positionMap,
           },
           speed: '1',
           rules: matchRules,

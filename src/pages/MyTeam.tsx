@@ -25,6 +25,7 @@ import type { CultureWeight } from '@/lib/gen/names';
 import { loadLocalTactics, loadLocalSavedTactics, saveLocalSavedTactics } from '@/lib/localTactics';
 import { env } from '@/lib/env';
 import { PlayerView } from '@/components/team/PlayerView';
+import { TeamTacticLink } from '@/components/team/TeamTacticCard';
 import Simulation from '@/pages/dashboard/Simulation';
 import { COACH_TRAIT_LABEL, COACH_TRAIT_DESCRIPTION } from '@/lib/gen/coach';
 import type { Coach } from '@/lib/gen/coach';
@@ -602,7 +603,9 @@ export default function MyTeam() {
                         <td className="px-4 py-2.5">
                           <div className="flex items-center gap-2">
                             {t.flag && <img src={t.flag} alt="" className="h-5 w-5 rounded-sm object-cover shrink-0" />}
-                            <span className="text-sm truncate max-w-[100px]">{t.name}</span>
+                            <TeamTacticLink team={t} token={env.githubReadToken ?? null} className="text-sm truncate max-w-[100px] hover:text-accent hover:underline transition-colors cursor-pointer text-left">
+                              {t.name}
+                            </TeamTacticLink>
                           </div>
                         </td>
                         <td className="px-4 py-2.5 text-xs text-muted">{CULTURE_LABEL[t.culture] ?? t.culture}</td>

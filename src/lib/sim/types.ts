@@ -78,8 +78,8 @@ export type CorruptionDeal = {
 
 export type MatchInput = {
   matchId: string;
-  home: { team: Team; players: Player[]; formation: Formation; lineup?: string[]; bench?: string[]; plannedSubs?: import('@/lib/types').PlannedSub[]; tacticStyle?: TacticStyle; customTacticStyle?: import('@/lib/types').CustomTacticStyle; morale?: number; unavailablePlayerIds?: string[] };
-  away: { team: Team; players: Player[]; formation: Formation; lineup?: string[]; bench?: string[]; plannedSubs?: import('@/lib/types').PlannedSub[]; tacticStyle?: TacticStyle; customTacticStyle?: import('@/lib/types').CustomTacticStyle; morale?: number; unavailablePlayerIds?: string[] };
+  home: { team: Team; players: Player[]; formation: Formation; lineup?: string[]; bench?: string[]; plannedSubs?: import('@/lib/types').PlannedSub[]; tacticStyle?: TacticStyle; customTacticStyle?: import('@/lib/types').CustomTacticStyle; morale?: number; unavailablePlayerIds?: string[]; positionMap?: Record<string, import('@/lib/types').Position> };
+  away: { team: Team; players: Player[]; formation: Formation; lineup?: string[]; bench?: string[]; plannedSubs?: import('@/lib/types').PlannedSub[]; tacticStyle?: TacticStyle; customTacticStyle?: import('@/lib/types').CustomTacticStyle; morale?: number; unavailablePlayerIds?: string[]; positionMap?: Record<string, import('@/lib/types').Position> };
   speed: Speed;
   rules: MatchRules;
   corruption?: CorruptionDeal;

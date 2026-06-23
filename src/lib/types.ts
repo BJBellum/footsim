@@ -247,6 +247,8 @@ export type TeamTactics = {
   plannedSubs?: PlannedSub[];
   /** display label when formation was set via free editor (e.g. "5-2-3") */
   formationLabel?: string;
+  /** position overrides from free editor: playerId → assigned Position */
+  positionMap?: Record<string, Position>;
   /** user-created custom styles */
   customStyles?: CustomTacticStyle[];
   /** id of active custom style; if set, overrides style */
