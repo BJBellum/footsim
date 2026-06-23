@@ -85,16 +85,6 @@ type PlayerEntry = {
 
 type Tab = 'equipes' | 'joueurs' | 'explications';
 
-// ─── Result label ─────────────────────────────────────────────────────────────
-
-const RESULT_LABEL: Record<CompHistoryEntry['result'], string> = {
-  winner: 'Vainqueur',
-  finalist: 'Finaliste',
-  third: '3e place',
-  semi: 'Demi-finale',
-  participant: 'Participant',
-};
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ClassementsCMF() {
