@@ -69,6 +69,21 @@ export type PressItem = {
     awayTeamName: string;
     homeScore: number;
     awayScore: number;
+    stats?: {
+      shots: { home: number; away: number };
+      possession: { home: number; away: number };
+      shotsOnTarget: { home: number; away: number };
+      corners: { home: number; away: number };
+      fouls: { home: number; away: number };
+      yellowCards: { home: number; away: number };
+      redCards: { home: number; away: number };
+    };
+    motm?: {
+      playerName: string;
+      teamId: string;
+      teamName: string;
+      rating: number;
+    };
   };
   /** CMF article data — favorite teams + top player predictions */
   cmfSnapshot?: {
@@ -133,27 +148,35 @@ const BIG_WIN_HEADLINES = [
   '{team} en état de grâce — une démonstration de force absolue',
   'Carton plein pour {team} : personne ne les arrête en ce moment',
   '{team} distribue les buts comme des bonbons — la compétition tremble',
-  'MANITA : {team} signe la performance de la saison',
   'FESTIVAL : {team} régale et écœure ses adversaires',
   '{team} en fusion — un récital qui restera dans les mémoires',
   'DÉMOLITION : {team} ne fait pas de prisonnier ce soir',
   'Les adversaires tremblent : {team} est en feu',
-  'GOLEADA : {team} signe un résultat historique dans cette compétition',
   '{team} marque les esprits — une victoire qui fait date',
   'Insolent de facilité : {team} écrase tout sur son passage',
 ];
 const BIG_WIN_BODIES = [
-  'Une manita. Un résultat qui résonne dans toute la compétition. {team} envoie un message fort à ses concurrents.',
   'Score flatteur ou reflet de la réalité ? Pour {team}, peu importe — la confiance est au maximum.',
   'En conférence de presse, le capitaine de {team} n\'a pas mâché ses mots : "On voulait marquer les esprits. C\'est fait." Les adversaires ont été avertis.',
   'La rencontre s\'est transformée en leçon de football. {team} a montré que cette compétition a un favori, et qu\'il ne se cache plus.',
   'Le sélectionneur de {team} avait des larmes aux yeux au coup de sifflet final. "Je n\'ai jamais vu mon groupe aussi fort mentalement", a-t-il confié.',
   'Les adversaires de {team} peuvent se remercier : ils ont assisté ce soir à une leçon de football collectif. Perfection d\'exécution, débordements constants, efficacité clinique.',
-  'Ce score n\'est pas un accident. {team} a construit cette manita pied à pied, avec méthode. Une domination totale, dans tous les compartiments du jeu.',
   'Des vestiaires aux tribunes, l\'euphorie est totale chez {team}. "On a tout réussi ce soir. Tout", soufflait un joueur du groupe, encore incrédule.',
   'La presse étrangère parle déjà de ce résultat. {team} entre dans une autre dimension. Les adversaires sont prévenus : il faudra être parfaits pour les stopper.',
   'Rarement une équipe aura semblé aussi supérieure dans cette compétition. {team} a transformé ce match en démonstration. Le vestiaire chantait encore une heure après le coup de sifflet final.',
   '"Ce groupe est exceptionnel", a soufflé le préparateur physique de {team} en quittant le stade. Ce soir, difficile de le contredire.',
+];
+const MANITA_HEADLINES = [
+  'MANITA : {team} signe la performance de la saison',
+  'GOLEADA : {team} signe un résultat historique dans cette compétition',
+  '5-0 : {team} entre dans une autre dimension — la compétition est prévenue',
+  'MASSACRE : {team} inflige une correction historique',
+];
+const MANITA_BODIES = [
+  'Une manita. Un résultat qui résonne dans toute la compétition. {team} envoie un message fort à ses concurrents.',
+  'Ce score n\'est pas un accident. {team} a construit cette goleada pied à pied, avec méthode. Une domination totale, dans tous les compartiments du jeu.',
+  'Cinq buts. Cinq. L\'adversaire n\'a pas existé. {team} a joué à son propre niveau ce soir — et son niveau est bien au-dessus du reste.',
+  'Le tableau d\'affichage ne ment pas. {team} a humilié un adversaire entier en 90 minutes. Ce genre de résultat ne s\'oublie pas.',
 ];
 
 const DRAW_HEADLINES = [
@@ -1109,18 +1132,12 @@ export function generateMatchPressItem(opts: {
   /** ID of the CompMatch that generated this press item */
   matchId?: string;
   /** Match snapshot for the clickable match card */
-  matchSnapshot?: {
-    homeTeamId: string;
-    awayTeamId: string;
-    homeTeamName: string;
-    awayTeamName: string;
-    homeScore: number;
-    awayScore: number;
-  };
+  matchSnapshot?: PressItem['matchSnapshot'];
 }): MatchPressResult {
   const r = rng(opts.seed);
   const diff = opts.goalsFor - opts.goalsAgainst;
   const isBigWin = diff >= 3;
+  const isManita = diff >= 5;
   const isBigLoss = diff <= -3;
   const phase = opts.phase ?? 'league';
   const isKnockout = !['group', 'league', 'lpm_playoff'].includes(phase);
@@ -1294,8 +1311,8 @@ export function generateMatchPressItem(opts: {
         headline = pick(koWinHeads, r).replace(/{team}/g, opts.teamName);
         body = pick(koWinBodies.length ? koWinBodies : BIG_WIN_BODIES, r).replace(/{team}/g, opts.teamName);
       } else {
-        headline = pick(isBigWin ? BIG_WIN_HEADLINES : WIN_HEADLINES, r).replace(/{team}/g, opts.teamName);
-        body = pick(isBigWin ? BIG_WIN_BODIES : WIN_BODIES, r).replace(/{team}/g, opts.teamName);
+        headline = pick(isManita ? MANITA_HEADLINES : isBigWin ? BIG_WIN_HEADLINES : WIN_HEADLINES, r).replace(/{team}/g, opts.teamName);
+        body = pick(isManita ? MANITA_BODIES : isBigWin ? BIG_WIN_BODIES : WIN_BODIES, r).replace(/{team}/g, opts.teamName);
         body += ` En ${phaseLabel}, chaque erreur se paie cash — {team} n'en a pas commis.`.replace(/{team}/g, opts.teamName);
       }
     } else if (diff < 0) {
@@ -1350,8 +1367,8 @@ export function generateMatchPressItem(opts: {
         headline = pick(isBigWin ? WC_EXPLOIT_HEADLINES : WC_GROUP_WIN_HEADLINES, r).replace(/{team}/g, opts.teamName);
         body = pick(isBigWin ? WC_EXPLOIT_BODIES : WC_GROUP_WIN_BODIES, r).replace(/{team}/g, opts.teamName);
       } else {
-        headline = pick(isBigWin ? BIG_WIN_HEADLINES : WIN_HEADLINES, r).replace(/{team}/g, opts.teamName);
-        body = pick(isBigWin ? BIG_WIN_BODIES : WIN_BODIES, r).replace(/{team}/g, opts.teamName);
+        headline = pick(isManita ? MANITA_HEADLINES : isBigWin ? BIG_WIN_HEADLINES : WIN_HEADLINES, r).replace(/{team}/g, opts.teamName);
+        body = pick(isManita ? MANITA_BODIES : isBigWin ? BIG_WIN_BODIES : WIN_BODIES, r).replace(/{team}/g, opts.teamName);
       }
       // Contexte classement — seulement si encore en course
       if (!opts.isEliminated) {
@@ -1767,6 +1784,96 @@ export function generateDrameHommageItem(opts: {
   };
 }
 
+// ── CMF communiqués officiels (dopage, corruption, drame) ────────────────────
+
+const CMF_COMMUNIQUE_DOPING_PLAYER: [string, string][] = [
+  [
+    'CMF — Communiqué officiel : suspension pour dopage',
+    'La Commission Médicale et de Fair-Play (CMF) confirme la suspension immédiate d\'un joueur suite à un contrôle antidopage positif. La procédure réglementaire a été respectée. La CMF rappelle son engagement total pour l\'intégrité sportive.',
+  ],
+  [
+    'Communiqué CMF : contrôle positif confirmé — suspension effective',
+    'Suite aux résultats du laboratoire accrédité, la CMF prononce une suspension pour le reste de la compétition. Un recours est possible dans les 48 heures. La CMF ne commentera pas davantage tant que la procédure est en cours.',
+  ],
+  [
+    'CMF — Décision disciplinaire : dopage avéré',
+    'Le comité disciplinaire de la CMF a statué. La substance détectée figure sur la liste des produits interdits. La sanction est immédiate et sans appel suspensif. La CMF rappelle que le sport propre est une priorité absolue de l\'institution.',
+  ],
+];
+
+const CMF_COMMUNIQUE_DOPING_TEAM: [string, string][] = [
+  [
+    'CMF — Disqualification collective : dopage systématique confirmé',
+    'Après enquête approfondie, la CMF a établi l\'existence d\'un protocole de dopage organisé au sein de cette délégation. La disqualification est immédiate. Tous les résultats de l\'équipe sont annulés. La CMF saisit les autorités compétentes pour poursuites judiciaires.',
+  ],
+  [
+    'Communiqué CMF — Exclusion d\'équipe pour dopage institutionnalisé',
+    'La décision est sans appel : l\'équipe est exclue de la compétition. L\'enquête a révélé une implication du staff médical dans l\'administration de substances interdites. La CMF exprime sa consternation et annonce une réforme des contrôles pour les prochaines éditions.',
+  ],
+];
+
+const CMF_COMMUNIQUE_CORRUPTION: [string, string][] = [
+  [
+    'CMF — Communiqué officiel : corruption révélée, résultat annulé',
+    'La CMF a été informée d\'une tentative de manipulation de résultat lors d\'un match de cette compétition. Suite à l\'enquête menée par la commission d\'intégrité, le résultat du match concerné est annulé et les points recalculés. Les responsables feront l\'objet de poursuites disciplinaires et judiciaires.',
+  ],
+  [
+    'Corruption : la CMF sévit — sanction maximale',
+    'Après avoir recueilli les preuves nécessaires, la CMF prononce l\'annulation du résultat entaché de corruption. Le ou les arbitres impliqués sont suspendus à titre conservatoire. La CMF rappelle sa politique de tolérance zéro envers toute forme de manipulation sportive.',
+  ],
+  [
+    'CMF — Match entaché de corruption : décision officielle',
+    'La commission d\'intégrité de la CMF confirme que le match en question a fait l\'objet d\'une manipulation. Le résultat est invalidé. Les équipes concernées sont informées des voies de recours disponibles. La CMF assure que tout sera fait pour que la vérité sportive soit rétablie.',
+  ],
+];
+
+const CMF_COMMUNIQUE_DRAME: [string, string][] = [
+  [
+    'CMF — Communiqué officiel : drame en tribune, la CMF présente ses condoléances',
+    'La CMF a été profondément touchée par les événements survenus lors d\'un match de cette compétition. Nos pensées vont aux familles des victimes. Une minute de silence sera observée lors de toutes les rencontres de la prochaine journée. La CMF rappelle l\'importance de la sécurité dans les stades et s\'engage à renforcer les dispositifs existants.',
+  ],
+  [
+    'Communiqué CMF — Drame lors d\'un match : recueillement et action',
+    'La CMF exprime sa profonde tristesse suite aux événements dramatiques survenus en marge d\'un match de la compétition. Une cellule de soutien psychologique a été mise à disposition des familles. La CMF travaille avec les autorités compétentes pour établir les causes exactes de l\'incident et prévenir toute récurrence.',
+  ],
+  [
+    'CMF — Message de soutien officiel après le drame en tribune',
+    'Le président de la CMF a souhaité adresser personnellement ses condoléances aux familles endeuillées. Un fonds de solidarité a été ouvert. La CMF suspend provisoirement les célébrations d\'avant-match lors de la prochaine journée en signe de respect. Le football s\'arrête pour pleurer les siens.',
+  ],
+];
+
+export function generateCmfCommunique(opts: {
+  round: number;
+  seed: string;
+  type: 'doping_player' | 'doping_team' | 'corruption' | 'drame';
+  matchId?: string;
+  matchSnapshot?: NonNullable<PressItem['matchSnapshot']>;
+}): PressItem {
+  const r = rng(opts.seed + 'communique');
+  let headline: string;
+  let body: string;
+  if (opts.type === 'doping_player') {
+    [headline, body] = pick(CMF_COMMUNIQUE_DOPING_PLAYER, r);
+  } else if (opts.type === 'doping_team') {
+    [headline, body] = pick(CMF_COMMUNIQUE_DOPING_TEAM, r);
+  } else if (opts.type === 'corruption') {
+    [headline, body] = pick(CMF_COMMUNIQUE_CORRUPTION, r);
+  } else {
+    [headline, body] = pick(CMF_COMMUNIQUE_DRAME, r);
+  }
+  return {
+    id: crypto.randomUUID(),
+    round: opts.round,
+    teamId: null,
+    category: 'cmf',
+    headline,
+    body,
+    createdAt: new Date().toISOString(),
+    matchId: opts.matchId,
+    matchSnapshot: opts.matchSnapshot,
+  };
+}
+
 // ── CMF — articles institutionnels de phase ───────────────────────────────────
 
 export type CmfOpts = {
@@ -1978,13 +2085,20 @@ export function generateCmfItems(opts: CmfOpts): PressItem[] {
       });
     }
 
-    // Article 2+ — pronostics individuels
+    // Article 2+ — pronostics individuels (basés sur les premiers matchs si dispo, sinon pronostic à blanc)
     if (count >= 2) {
+      const hasStats = scorer || assister || best || gk;
       let b2 = isLPM
-        ? `La LPM entre dans sa phase décisive. Voici les pronostics individuels de la CMF pour cette étape.`
+        ? hasStats
+          ? `Après les premiers matchs, la CMF établit ses pronostics individuels provisoires pour la LPM.`
+          : `La CMF livrera ses pronostics individuels au fil de la compétition. Nos favoris initiaux sont basés sur les effectifs recensés.`
         : isCDM
-          ? `La Coupe du Monde distinguera ses meilleurs acteurs à l'issue de la compétition. Nos pronostics.`
-          : `La CMF distinguera les meilleurs acteurs de la compétition. Voici nos pronostics.`;
+          ? hasStats
+            ? `Premiers bilans individuels de la Coupe du Monde — les premières tendances se dessinent.`
+            : `La Coupe du Monde distinguera ses meilleurs acteurs à l'issue de la compétition. Voici nos pronostics initiaux basés sur les effectifs.`
+          : hasStats
+            ? `Premiers bilans individuels — les tendances de début de compétition.`
+            : `La CMF distinguera les meilleurs acteurs. Pronostics basés sur les effectifs en présence.`;
       if (scorer) b2 += SUFFIX_TOP_SCORER(scorer);
       if (assister) b2 += SUFFIX_TOP_ASSISTER(assister);
       if (best) b2 += SUFFIX_BEST_PLAYER(best);

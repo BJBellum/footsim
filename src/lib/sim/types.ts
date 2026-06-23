@@ -65,13 +65,14 @@ export type MatchEvent = {
 };
 
 export type CorruptionDeal = {
-  /** Which side paid the bribe */
-  side: 'home' | 'away';
-  /** Amount in millions */
+  /** Which side paid the bribe. 'both' when both teams bribed the ref. */
+  side: 'home' | 'away' | 'both';
+  /** Amount in millions (total if both sides) */
   bribe: number;
   /** Referee accepted the offer */
   accepted: boolean;
-  /** Referee actually honors it in-game (can renege) */
+  /** Referee actually honors it in-game (can renege).
+   *  When side='both': ref plays normally (cancels out). When side=one: biases against opp. */
   honored: boolean;
 };
 

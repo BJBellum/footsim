@@ -21,7 +21,7 @@ import { rulesForPhase } from '@/lib/competition/types';
 import type { MatchSummary } from '@/lib/competition/types';
 import { resolveActiveTactic } from '@/lib/localTactics';
 import { updateMorale, initMorale, MORALE_DEFAULT } from '@/lib/competition/morale';
-import { generateMatchPressItem, generateMoralePressItem, generatePresidencyReboundItem, generateDrameItem, generateDrameHommageItem, generateCmfItems } from '@/lib/competition/press';
+import { generateMatchPressItem, generateMoralePressItem, generatePresidencyReboundItem, generateDrameItem, generateDrameHommageItem, generateCmfItems, generateCmfCommunique } from '@/lib/competition/press';
 import { createMatchInjury, createSuspension, decrementInjuries, decrementSuspensions, unavailableIds } from '@/lib/competition/injuries';
 
 import type { Team } from '@/lib/types';
@@ -267,6 +267,7 @@ export default function CompetitionMatchLive() {
 
       let disqualifiedTeamIds = snap!.disqualifiedTeamIds ?? [];
 
+      let corruptionRevealedThisMatch = false;
       if (revealed && compMatch.homeTeamId && compMatch.awayTeamId) {
         // Identify cheating team
         const cheatingTeamId = matchState!.corruption!.side === 'home'
@@ -277,6 +278,7 @@ export default function CompetitionMatchLive() {
         updatedMatches = applyCorruptionDisqualification(updatedMatches, matchId!, cheatingTeamId);
         disqualifiedTeamIds = [...new Set([...disqualifiedTeamIds, cheatingTeamId])];
         setCorruptionRevealed(true);
+        corruptionRevealedThisMatch = true;
       }
 
       if (compMatch.phase !== 'group' && compMatch.phase !== 'league') {
@@ -377,6 +379,17 @@ export default function CompetitionMatchLive() {
         (tid === matchInput!.away.team.id ? matchInput!.away.team.name : null) ??
         teamSnap[tid]?.name ?? tid;
 
+      // CMF communiqué corruption (if revealed this match)
+      if (corruptionRevealedThisMatch && compMatch.homeTeamId && compMatch.awayTeamId) {
+        newPressItems.push(generateCmfCommunique({
+          round,
+          seed: `${seed}-cmf-corruption`,
+          type: 'corruption',
+          matchId: compMatch.id,
+          matchSnapshot: { homeTeamId: compMatch.homeTeamId, awayTeamId: compMatch.awayTeamId, homeTeamName: nameFor(compMatch.homeTeamId), awayTeamName: nameFor(compMatch.awayTeamId), homeScore: matchState!.score.home, awayScore: matchState!.score.away },
+        }));
+      }
+
       let updatedPendingRebound: Record<string, number> = { ...(snap!.pendingPresidencyRebound ?? {}) };
 
       // Fire pending rebound articles for this round
@@ -472,6 +485,16 @@ export default function CompetitionMatchLive() {
             awayTeamName: nameFor(compMatch.awayTeamId!),
             homeScore: matchState!.score.home,
             awayScore: matchState!.score.away,
+            stats: {
+              shots: matchState!.shots,
+              possession: matchState!.possession,
+              shotsOnTarget: matchState!.shotsOnTarget,
+              corners: matchState!.corners ?? { home: 0, away: 0 },
+              fouls: matchState!.fouls,
+              yellowCards: { home: matchState!.cards.home.yellow.length, away: matchState!.cards.away.yellow.length },
+              redCards: { home: matchState!.cards.home.red.length, away: matchState!.cards.away.red.length },
+            },
+            motm: motmResult ?? undefined,
           },
         });
         newPressItems.push(item);
@@ -484,12 +507,14 @@ export default function CompetitionMatchLive() {
         if (dopingSuspension) {
           updatedSuspensions = [...updatedSuspensions, dopingSuspension];
           matchDopingOccurred = true;
+          newPressItems.push(generateCmfCommunique({ round, seed: `${seed}-cmf-dop-${tid}`, type: 'doping_player', matchId: compMatch.id, matchSnapshot: { homeTeamId: compMatch.homeTeamId!, awayTeamId: compMatch.awayTeamId!, homeTeamName: nameFor(compMatch.homeTeamId!), awayTeamName: nameFor(compMatch.awayTeamId!), homeScore: matchState!.score.home, awayScore: matchState!.score.away } }));
         }
         if (teamDisqualified) {
           updatedMatches = applyCorruptionDisqualification(updatedMatches, matchId!, tid);
           disqualifiedTeamIds = [...new Set([...disqualifiedTeamIds, tid])];
           dopingBannedTeamIds.push(tid);
           matchDopingOccurred = true;
+          newPressItems.push(generateCmfCommunique({ round, seed: `${seed}-cmf-dopt-${tid}`, type: 'doping_team', matchId: compMatch.id, matchSnapshot: { homeTeamId: compMatch.homeTeamId!, awayTeamId: compMatch.awayTeamId!, homeTeamName: nameFor(compMatch.homeTeamId!), awayTeamName: nameFor(compMatch.awayTeamId!), homeScore: matchState!.score.home, awayScore: matchState!.score.away } }));
         }
         const moraleItem = generateMoralePressItem({
           round,
@@ -570,10 +595,21 @@ export default function CompetitionMatchLive() {
         awayTeamName: nameFor(compMatch.awayTeamId!),
         homeScore: matchState!.score.home,
         awayScore: matchState!.score.away,
+        stats: {
+          shots: matchState!.shots,
+          possession: matchState!.possession,
+          shotsOnTarget: matchState!.shotsOnTarget,
+          corners: matchState!.corners ?? { home: 0, away: 0 },
+          fouls: matchState!.fouls,
+          yellowCards: { home: matchState!.cards.home.yellow.length, away: matchState!.cards.away.yellow.length },
+          redCards: { home: matchState!.cards.home.red.length, away: matchState!.cards.away.red.length },
+        },
+        motm: motmResult ?? undefined,
       };
       if (drameRng() < 0.005) {
         const drameItem = generateDrameItem({ round, seed: `${seed}-drame-evt`, matchId: compMatch.id, matchSnapshot: matchSnap });
         newPressItems.push(drameItem);
+        newPressItems.push(generateCmfCommunique({ round, seed: `${seed}-cmf-drame`, type: 'drame', matchId: compMatch.id, matchSnapshot: matchSnap }));
         updatedPendingDrameHommage = { ...updatedPendingDrameHommage, [compMatch.id]: round + 1 };
       }
 
@@ -591,12 +627,6 @@ export default function CompetitionMatchLive() {
         standings: updatedStandings,
         playerStats: updatedPlayerStats,
       };
-
-      // Début de compétition — premier match joué
-      const totalPlayed = updatedMatches.filter((m) => m.status === 'completed').length;
-      if (totalPlayed === 1) {
-        newPressItems.push(...generateCmfItems({ ...cmfBase, seed: cmfSeed + '-debut', phase: newPhase, moment: 'debut' }));
-      }
 
       // Fin de phase (groupe ou knockout complet) → articles bilan + nouveau début de phase
       if (prevPhaseDone && newPhase !== prevPhase) {

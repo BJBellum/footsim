@@ -24,7 +24,7 @@ import type { Team } from '@/lib/types';
 import { env } from '@/lib/env';
 import { moraleLabel, MORALE_DEFAULT } from '@/lib/competition/morale';
 import type { PressItem, PressMention, PressMentionPlayer, PressMentionCoach } from '@/lib/competition/press';
-import { PRESS_CATEGORY_COLOR, PRESS_CATEGORY_LABEL } from '@/lib/competition/press';
+import { PRESS_CATEGORY_COLOR, PRESS_CATEGORY_LABEL, generateCmfItems } from '@/lib/competition/press';
 import { COACH_TRAIT_LABEL, COACH_TRAIT_DESCRIPTION } from '@/lib/gen/coach';
 import { batchUpdateTeamCompHistory } from '@/lib/github/store';
 import { commitFiles, readJson as ghReadJson } from '@/lib/github/api';
@@ -83,6 +83,33 @@ export default function CompetitionDetail() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, readToken]);
 
+  // Generate CMF debut articles before round 1 (once per competition, when it becomes ongoing)
+  useEffect(() => {
+    if (!current || current.cmfDebutGenerated || current.status !== 'ongoing') return;
+    // For LPM, wait until draw is revealed
+    if (current.format === 'lpm' && !current.drawRevealed) return;
+    const firstPhase = current.matches[0]?.phase ?? 'league';
+    const cmfDebut = generateCmfItems({
+      round: 0,
+      seed: `${current.id}-cmf-debut-init`,
+      competitionName: current.name,
+      format: current.format,
+      phase: firstPhase,
+      moment: 'debut',
+      teamSnapshot: current.teamSnapshot ?? {},
+      standings: current.standings,
+      playerStats: current.playerStats,
+    });
+    if (cmfDebut.length === 0) return;
+    const updated = {
+      ...current,
+      cmfDebutGenerated: true,
+      pressItems: [...(current.pressItems ?? []), ...cmfDebut],
+    };
+    setCurrent(updated);
+    if (pat) save(updated, pat).catch(() => {/* non-blocking */});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current?.id, current?.status, current?.cmfDebutGenerated, current?.drawRevealed]);
 
   if (loading) {
     return <div className="flex justify-center py-20"><Spinner className="h-6 w-6" /></div>;
@@ -1266,15 +1293,87 @@ function PressTab({
 }) {
   const [filter, setFilter] = useState<string>('all');
   const [catFilter, setCatFilter] = useState<string>('all');
+  const [roundFilter, setRoundFilter] = useState<string>('all');
   const [activeMention, setActiveMention] = useState<PressMention | null>(null);
-  const sorted = [...pressItems].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const [matchPopup, setMatchPopup] = useState<PressItem['matchSnapshot'] | null>(null);
+  const sorted = [...pressItems].sort((a, b) => b.round - a.round || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const allRounds = [...new Set(pressItems.map((p) => p.round))].sort((a, b) => b - a);
   const filtered = sorted
     .filter((p) => filter === 'all' || p.teamId === filter)
-    .filter((p) => catFilter === 'all' || p.category === catFilter);
+    .filter((p) => catFilter === 'all' || p.category === catFilter)
+    .filter((p) => roundFilter === 'all' || p.round === Number(roundFilter));
 
   return (
     <div className="space-y-6">
       {activeMention && <MentionPopup mention={activeMention} onClose={() => setActiveMention(null)} />}
+      {matchPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setMatchPopup(null)}>
+          <div className="w-full max-w-sm rounded-xl border border-border bg-surface shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+            {/* Score header */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                {teamMap[matchPopup.homeTeamId]?.flag && <img src={teamMap[matchPopup.homeTeamId].flag} alt="" className="h-6 w-6 object-cover rounded-sm shrink-0" />}
+                <span className="text-sm font-semibold truncate">{matchPopup.homeTeamName}</span>
+              </div>
+              <div className="shrink-0 px-3 py-1 rounded-lg bg-bg border border-border text-base font-bold tabular-nums">
+                {matchPopup.homeScore} – {matchPopup.awayScore}
+              </div>
+              <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-end">
+                <span className="text-sm font-semibold truncate">{matchPopup.awayTeamName}</span>
+                {teamMap[matchPopup.awayTeamId]?.flag && <img src={teamMap[matchPopup.awayTeamId].flag} alt="" className="h-6 w-6 object-cover rounded-sm shrink-0" />}
+              </div>
+            </div>
+            {/* Stats */}
+            {matchPopup.stats && (() => {
+              const s = matchPopup.stats!;
+              const rows: [string, number, number][] = [
+                ['Tirs', s.shots.home, s.shots.away],
+                ['Tirs cadrés', s.shotsOnTarget.home, s.shotsOnTarget.away],
+                ['Possession', s.possession.home, s.possession.away],
+                ['Corners', s.corners.home, s.corners.away],
+                ['Fautes', s.fouls.home, s.fouls.away],
+                ['Jaunes', s.yellowCards.home, s.yellowCards.away],
+                ['Rouges', s.redCards.home, s.redCards.away],
+              ];
+              return (
+                <div className="space-y-1.5">
+                  {rows.map(([label, h, a]) => {
+                    const total = h + a || 1;
+                    const pct = Math.round((h / total) * 100);
+                    return (
+                      <div key={label}>
+                        <div className="flex justify-between text-[10px] text-muted mb-0.5">
+                          <span className="font-medium tabular-nums">{label === 'Possession' ? `${h}%` : h}</span>
+                          <span className="text-[10px]">{label}</span>
+                          <span className="font-medium tabular-nums">{label === 'Possession' ? `${a}%` : a}</span>
+                        </div>
+                        <div className="h-1 rounded-full bg-border overflow-hidden flex">
+                          <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+            {/* MOTM */}
+            {matchPopup.motm && (
+              <div className="flex items-center gap-2 rounded-lg border border-yellow-400/20 bg-yellow-400/5 px-3 py-2">
+                <span className="text-base shrink-0">⭐</span>
+                <div className="min-w-0">
+                  <div className="text-[10px] text-muted uppercase tracking-wide">Homme du match</div>
+                  <div className="flex items-center gap-1.5">
+                    {teamMap[matchPopup.motm.teamId]?.flag && <img src={teamMap[matchPopup.motm.teamId].flag} alt="" className="h-4 w-4 object-cover rounded-sm shrink-0" />}
+                    <span className="text-xs font-semibold truncate">{matchPopup.motm.playerName}</span>
+                    <span className="text-xs text-yellow-400 font-bold shrink-0">{matchPopup.motm.rating.toFixed(1)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            <button onClick={() => setMatchPopup(null)} className="w-full text-xs text-muted hover:text-text transition-colors">Fermer</button>
+          </div>
+        </div>
+      )}
       {/* Moral board */}
       <div className="space-y-3">
         <h3 className="text-xs uppercase tracking-widest text-muted">Moral des équipes</h3>
@@ -1322,6 +1421,16 @@ function PressTab({
             ))}
           </select>
           <select
+            value={roundFilter}
+            onChange={(e) => setRoundFilter(e.target.value)}
+            className="h-7 rounded border border-border bg-surface px-2 text-xs"
+          >
+            <option value="all">Toutes les journées</option>
+            {allRounds.map((r) => (
+              <option key={r} value={r}>Journée {r}</option>
+            ))}
+          </select>
+          <select
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             className="h-7 rounded border border-border bg-surface px-2 text-xs"
@@ -1336,11 +1445,21 @@ function PressTab({
           <p className="text-muted text-sm">Aucun article pour l'instant — jouez des matchs !</p>
         ) : (
           <div className="space-y-3">
-            {filtered.map((item) => {
+            {filtered.map((item, idx) => {
+              const prevItem = filtered[idx - 1];
+              const showRoundSep = idx > 0 && prevItem.round !== item.round;
               const team = item.teamId ? teamMap[item.teamId] : null;
               const colorCls = PRESS_CATEGORY_COLOR[item.category];
               return (
-                <article key={item.id} className="rounded-lg border border-border bg-surface p-4 space-y-2">
+                <div key={item.id}>
+                  {showRoundSep && (
+                    <div className="flex items-center gap-3 py-1">
+                      <div className="flex-1 h-px bg-border" />
+                      <span className="text-[10px] uppercase tracking-widest text-muted shrink-0">Journée {item.round}</span>
+                      <div className="flex-1 h-px bg-border" />
+                    </div>
+                  )}
+                <article className="rounded-lg border border-border bg-surface p-4 space-y-2">
                   <div className="flex items-start gap-3">
                     {team?.flag && <img src={team.flag} alt="" className="h-7 w-7 object-cover rounded-sm shrink-0 mt-0.5" />}
                     <div className="flex-1 min-w-0">
@@ -1365,9 +1484,9 @@ function PressTab({
                         </p>
                       )}
                       {item.matchId && item.matchSnapshot && (
-                        <Link
-                          to={`/match/${item.matchId}`}
-                          className="mt-2 flex items-center gap-2 rounded-md border border-border bg-bg px-3 py-2 hover:bg-border/30 transition-colors group"
+                        <button
+                          onClick={() => setMatchPopup(item.matchSnapshot!)}
+                          className="mt-2 w-full flex items-center gap-2 rounded-md border border-border bg-bg px-3 py-2 hover:bg-border/30 transition-colors group text-left"
                         >
                           <div className="flex items-center gap-1.5 flex-1 min-w-0">
                             {teamMap[item.matchSnapshot.homeTeamId]?.flag && (
@@ -1387,7 +1506,7 @@ function PressTab({
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-muted group-hover:text-text transition-colors ml-1">
                             <path d="M5 12h14M12 5l7 7-7 7"/>
                           </svg>
-                        </Link>
+                        </button>
                       )}
                       {item.cmfSnapshot && (
                         <div className="mt-2 space-y-2">
@@ -1471,6 +1590,7 @@ function PressTab({
                     </div>
                   </div>
                 </article>
+                </div>
               );
             })}
           </div>

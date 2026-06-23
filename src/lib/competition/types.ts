@@ -97,6 +97,7 @@ export type PlayerCompStats = {
   redCards: number;
   matchRatings: number[];
   avgRating: number;
+  motmCount: number;
 };
 
 export type CompetitionAwards = {
@@ -152,6 +153,8 @@ export type Competition = {
   pendingDrameHommage?: Record<string, number>;
   /** LPM: true once the schedule draw ceremony has been completed */
   drawRevealed?: boolean;
+  /** True once the CMF debut articles have been generated (before round 1) */
+  cmfDebutGenerated?: boolean;
 };
 
 export type CompetitionSummary = {

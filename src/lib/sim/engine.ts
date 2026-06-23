@@ -583,18 +583,21 @@ export function tick(state: MatchState, ctx: EngineCtx): MatchState {
 
   } else if (r < wShot + wFoul) {
     // Corruption bias: if ref is bought and honoring the deal,
-    // fouls are called against the victim side more often, cards too
+    // fouls are called against the victim side more often, cards too.
+    // side='both': both teams bribed the ref — he plays normally (higher card rate on both).
     const corr = state.corruption;
     const corrActive = corr?.accepted && corr?.honored;
+    const corrBoth = corrActive && corr!.side === 'both';
     // foulSide = who the foul is called against
     // normally = opp (the defending team fouled the attacker)
-    // with corruption against opp of briber: bias keeps same direction but increases card chance
-    const victimSide: 'home' | 'away' = corrActive
+    // with single-side corruption: bias fouls against opp of briber
+    const victimSide: 'home' | 'away' = (corrActive && !corrBoth)
       ? (corr!.side === possessing ? opp : possessing)
       : opp;
     state.fouls[victimSide]++;
     const fouler = pickFouler(victimSide, ctx, state);
-    const penChance = corrActive && corr!.side === possessing ? 0.18 : 0.08;
+    // single-side corruption increases penalty chance for briber
+    const penChance = (corrActive && !corrBoth && corr!.side === possessing) ? 0.18 : 0.08;
     if (chance(penChance) && fouler) {
       const pz = possessing === 'home' ? ZONE.awayBox : ZONE.homeBox;
       const penTaker = pickAttacker(possessing, ctx, state);
@@ -612,8 +615,8 @@ export function tick(state: MatchState, ctx: EngineCtx): MatchState {
         victimName, fouler ? `${fouler.firstName} ${fouler.lastName}` : undefined);
       if (fouler) {
         const ag = fouler.stats.mental.aggression / 20;
-        // Corruption increases card rate against victim by 2×
-        const cardMult = (corrActive && victimSide !== corr!.side) ? 2.0 : 1.0;
+        // 'both' deal: ref inflates cards on both sides (chaotic match). Single: biases against victim.
+        const cardMult = corrBoth ? 1.8 : (corrActive && victimSide !== corr!.side) ? 2.0 : 1.0;
         if (chance((0.005 + 0.005 * ag) * cardMult)) {
           applyRed(state, ctx, victimSide, fouler);
         } else if (chance((0.13 + 0.06 * ag) * cardMult)) {

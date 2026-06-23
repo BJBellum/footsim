@@ -17,6 +17,15 @@ const REF_MESSAGES = [
   "L'arbitre voit tout. Sauf quand il est bien payé.",
   "Je ne garantis rien. Mais mes sifflets ont une mémoire sélective.",
   "Une enveloppe sous la table change beaucoup de choses.",
+  "C'est risqué pour moi aussi. Mais le prix est juste.",
+  "Je suis un homme raisonnable. Et les hommes raisonnables s'arrangent.",
+];
+
+const REF_BOTH_MESSAGES = [
+  "Je vois que vous êtes deux à vouloir mes faveurs. C'est... inhabituel.",
+  "Deux enveloppes ? Je respecte. Mais dans ce cas, je joue au neutre.",
+  "Vous deux m'avez contacté. Très bien. Je prends les deux... et je siffle normalement.",
+  "Curieux. Chacun veut acheter l'autre. On repart à zéro — mais je garde l'argent.",
 ];
 
 function pick<T>(arr: T[]): T {
@@ -24,14 +33,14 @@ function pick<T>(arr: T[]): T {
 }
 
 /**
- * 65% chance the referee makes an offer at all.
- * Returns null if he doesn't approach.
+ * 70% chance the referee makes an offer at all.
+ * Returns null if he doesn't approach (and won't approach the other side either).
  */
 export function generateRefOffer(): CorruptionOffer | null {
-  if (Math.random() > 0.65) return null;
+  if (Math.random() > 0.70) return null;
   const amount = Math.round((0.5 + Math.random() * 9.5) * 10) / 10; // 0.5M–10M
-  // Higher bribe = more reliable, but never 100%
-  const honorProb = 0.45 + (amount / 10) * 0.40; // 0.45–0.85
+  // Higher bribe = more reliable. Bumped floor to 0.60 so honored is more common than not.
+  const honorProb = 0.60 + (amount / 10) * 0.35; // 0.60–0.95
   return {
     amount,
     honorProb,
@@ -40,8 +49,14 @@ export function generateRefOffer(): CorruptionOffer | null {
 }
 
 /**
- * Build a CorruptionDeal from an accepted offer.
- * Determines whether the ref will honor it (computed at deal time, revealed post-match).
+ * Message shown when both sides have accepted a deal with the same ref.
+ */
+export function getBothSidesMessage(): string {
+  return pick(REF_BOTH_MESSAGES);
+}
+
+/**
+ * Build a CorruptionDeal from an accepted offer by one side.
  */
 export function acceptOffer(side: 'home' | 'away', offer: CorruptionOffer): CorruptionDeal {
   return {
@@ -49,6 +64,20 @@ export function acceptOffer(side: 'home' | 'away', offer: CorruptionOffer): Corr
     bribe: offer.amount,
     accepted: true,
     honored: Math.random() < offer.honorProb,
+  };
+}
+
+/**
+ * Merge two single-side deals into a 'both' deal.
+ * When both sides bribe the ref, he plays normally (honored=true but side='both' = neutral).
+ * The ref always "honors" (keeps the money) — just doesn't bias either way.
+ */
+export function mergeBothDeals(home: CorruptionDeal, away: CorruptionDeal): CorruptionDeal {
+  return {
+    side: 'both',
+    bribe: home.bribe + away.bribe,
+    accepted: true,
+    honored: true,
   };
 }
 

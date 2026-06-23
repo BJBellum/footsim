@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { toast } from '@/components/ui/Toast';
@@ -13,14 +13,13 @@ import { advanceBracket, applyResultToStandings, applyCorruptionDisqualification
 import { rulesForPhase } from '@/lib/competition/types';
 import type { MatchSummary } from '@/lib/competition/types';
 import { accumulateMatchStats, computeAwards, computeMotm } from '@/lib/competition/statsAccumulator';
-import { generateRefOffer, acceptOffer } from '@/lib/sim/corruption';
+import { CorruptionPanel } from '@/components/match/CorruptionPanel';
 import { resolveActiveTactic } from '@/lib/localTactics';
 import { updateMorale, initMorale, MORALE_DEFAULT } from '@/lib/competition/morale';
-import { generateMatchPressItem, generateMoralePressItem, generatePresidencyReboundItem, generateDrameItem, generateDrameHommageItem, generateCmfItems } from '@/lib/competition/press';
+import { generateMatchPressItem, generateMoralePressItem, generatePresidencyReboundItem, generateDrameItem, generateDrameHommageItem, generateCmfItems, generateCmfCommunique } from '@/lib/competition/press';
 import { createMatchInjury, createSuspension, decrementInjuries, decrementSuspensions, unavailableIds } from '@/lib/competition/injuries';
 import { PenaltyShootout } from '@/components/match/PenaltyShootout';
 import type { MatchInput, MatchState, Speed, CorruptionDeal } from '@/lib/sim/types';
-import type { CorruptionOffer } from '@/lib/sim/corruption';
 import type { Team } from '@/lib/types';
 
 export default function MultiplexLive() {
@@ -59,8 +58,6 @@ export default function MultiplexLive() {
     compMatchId: string;
     input: MatchInput;
     corruption: CorruptionDeal | null;
-    refContacted: boolean;
-    refOffer: CorruptionOffer | null;
     homeSavedTactics: import('@/lib/types').SavedTactic[];
     awaySavedTactics: import('@/lib/types').SavedTactic[];
   };
@@ -70,12 +67,6 @@ export default function MultiplexLive() {
   type TabSlot = { state: MatchState; home: Team; away: Team };
   const [tabQueue, setTabQueue] = useState<TabSlot[]>([]);
   const [tabIndex, setTabIndex] = useState(0);
-  const [corruptionModal, setCorruptionModal] = useState<{
-    slotIdx: number;
-    side: 'home' | 'away';
-    offer: CorruptionOffer | null;
-  } | null>(null);
-
   useEffect(() => {
     if (!pat || !competitionId) return;
 
@@ -203,7 +194,7 @@ export default function MultiplexLive() {
           }));
           start(launchInputs);
         } else {
-          setPendingInputs(inputs.map((i) => ({ ...i, corruption: null, refContacted: false, refOffer: null, homeSavedTactics: i.homeSavedTactics ?? [], awaySavedTactics: i.awaySavedTactics ?? [] })));
+          setPendingInputs(inputs.map((i) => ({ ...i, corruption: null, homeSavedTactics: i.homeSavedTactics ?? [], awaySavedTactics: i.awaySavedTactics ?? [] })));
         }
       } catch (err) {
         toast('error', String(err));
@@ -432,6 +423,16 @@ export default function MultiplexLive() {
             awayTeamName: nameFor(awayId),
             homeScore: slot.state.score.home,
             awayScore: slot.state.score.away,
+            stats: {
+              shots: slot.state.shots,
+              possession: slot.state.possession,
+              shotsOnTarget: slot.state.shotsOnTarget,
+              corners: slot.state.corners ?? { home: 0, away: 0 },
+              fouls: slot.state.fouls,
+              yellowCards: { home: slot.state.cards.home.yellow.length, away: slot.state.cards.away.yellow.length },
+              redCards: { home: slot.state.cards.home.red.length, away: slot.state.cards.away.red.length },
+            },
+            motm: computeMotm(slot.state, { team: slot.home, players: slot.homePlayers }, { team: slot.away, players: slot.awayPlayers }) ?? undefined,
           },
         });
         updatedPressItems = [...updatedPressItems, matchPress];
@@ -441,16 +442,48 @@ export default function MultiplexLive() {
         if (matchPress.moraleBoost && matchPress.moraleBoost > 0) {
           updatedMorale[tid] = Math.min(100, (updatedMorale[tid] ?? MORALE_DEFAULT) + matchPress.moraleBoost);
         }
+        const slotMatchSnap = {
+          homeTeamId: homeId,
+          awayTeamId: awayId,
+          homeTeamName: nameFor(homeId),
+          awayTeamName: nameFor(awayId),
+          homeScore: slot.state.score.home,
+          awayScore: slot.state.score.away,
+          stats: {
+            shots: slot.state.shots,
+            possession: slot.state.possession,
+            shotsOnTarget: slot.state.shotsOnTarget,
+            corners: slot.state.corners ?? { home: 0, away: 0 },
+            fouls: slot.state.fouls,
+            yellowCards: { home: slot.state.cards.home.yellow.length, away: slot.state.cards.away.yellow.length },
+            redCards: { home: slot.state.cards.home.red.length, away: slot.state.cards.away.red.length },
+          },
+          motm: computeMotm(slot.state, { team: slot.home, players: slot.homePlayers }, { team: slot.away, players: slot.awayPlayers }) ?? undefined,
+        };
         if (dopingSuspension) {
           updatedDopingSuspensions = [...updatedDopingSuspensions, dopingSuspension];
           dopingBannedTeamIds.push(tid);
           matchDopingOccurred = true;
+          updatedPressItems = [...updatedPressItems, generateCmfCommunique({
+            round: current.currentRound,
+            seed: `${baseSeed}-cmf-dop-${tid}`,
+            type: 'doping_player',
+            matchId: slot.compMatchId,
+            matchSnapshot: slotMatchSnap,
+          })];
         }
         if (teamDisqualified) {
           updatedMatches = applyCorruptionDisqualification(updatedMatches, slot.compMatchId, tid);
           updatedDisqualifiedTeamIds = [...new Set([...updatedDisqualifiedTeamIds, tid])];
           dopingBannedTeamIds.push(tid);
           matchDopingOccurred = true;
+          updatedPressItems = [...updatedPressItems, generateCmfCommunique({
+            round: current.currentRound,
+            seed: `${baseSeed}-cmf-dopt-${tid}`,
+            type: 'doping_team',
+            matchId: slot.compMatchId,
+            matchSnapshot: slotMatchSnap,
+          })];
         }
         const moralePress = generateMoralePressItem({
           seed: `${baseSeed}-${tid}-m`,
@@ -537,7 +570,14 @@ export default function MultiplexLive() {
       if (!cm?.homeTeamId || !cm?.awayTeamId) continue;
       const drameH = (() => { let h = 0; const s = `${current.id}-r${roundNum}-${slot.compMatchId}-drame`; for (let i = 0; i < s.length; i++) { h = Math.imul(31, h) + s.charCodeAt(i) | 0; } return () => { h ^= h >>> 16; h = Math.imul(h, 0x45d9f3b); h ^= h >>> 16; return (h >>> 0) / 0xffffffff; }; })();
       if (drameH() < 0.005) {
-        const sn = { homeTeamId: cm.homeTeamId, awayTeamId: cm.awayTeamId, homeTeamName: current.teamSnapshot?.[cm.homeTeamId]?.name ?? cm.homeTeamId, awayTeamName: current.teamSnapshot?.[cm.awayTeamId]?.name ?? cm.awayTeamId, homeScore: slot.state.score.home, awayScore: slot.state.score.away };
+        const sn = {
+          homeTeamId: cm.homeTeamId, awayTeamId: cm.awayTeamId,
+          homeTeamName: current.teamSnapshot?.[cm.homeTeamId]?.name ?? cm.homeTeamId,
+          awayTeamName: current.teamSnapshot?.[cm.awayTeamId]?.name ?? cm.awayTeamId,
+          homeScore: slot.state.score.home, awayScore: slot.state.score.away,
+          stats: { shots: slot.state.shots, possession: slot.state.possession, shotsOnTarget: slot.state.shotsOnTarget, corners: slot.state.corners ?? { home: 0, away: 0 }, fouls: slot.state.fouls, yellowCards: { home: slot.state.cards.home.yellow.length, away: slot.state.cards.away.yellow.length }, redCards: { home: slot.state.cards.home.red.length, away: slot.state.cards.away.red.length } },
+          motm: computeMotm(slot.state, { team: slot.home, players: slot.homePlayers }, { team: slot.away, players: slot.awayPlayers }) ?? undefined,
+        };
         updatedPressItems = [...updatedPressItems, generateDrameItem({ round: roundNum, seed: `${current.id}-r${roundNum}-${slot.compMatchId}-drame-evt`, matchId: slot.compMatchId, matchSnapshot: sn })];
         updatedPendingDrameHommage = { ...updatedPendingDrameHommage, [slot.compMatchId]: roundNum + 1 };
       }
@@ -546,14 +586,6 @@ export default function MultiplexLive() {
     // CMF — phases et palmarès
     const cmfBase = { round: roundNum, competitionName: current.name, format: current.format, teamSnapshot: current.teamSnapshot ?? {}, standings: updatedStandings, playerStats: updatedPlayerStats };
     const completedSlotPhases = [...new Set(slots.filter((s) => s.state?.status === 'fulltime').map((s) => current.matches.find((m) => m.id === s.compMatchId)?.phase).filter(Boolean) as string[])];
-    const totalPlayed = updatedMatches.filter((m) => m.status === 'completed').length;
-    const slotsPlayed = slots.filter((s) => s.state?.status === 'fulltime').length;
-
-    // Début de compétition (toute première journée)
-    if (totalPlayed === slotsPlayed && slotsPlayed > 0) {
-      updatedPressItems = [...updatedPressItems, ...generateCmfItems({ ...cmfBase, seed: `${current.id}-r${roundNum}-cmf-debut`, phase: completedSlotPhases[0] ?? 'league', moment: 'debut' })];
-    }
-
     // Fin de phase : toutes les matches de cette phase terminées
     for (const ph of completedSlotPhases) {
       const phaseMatches = updatedMatches.filter((m) => m.phase === ph);
@@ -655,30 +687,6 @@ export default function MultiplexLive() {
     setPendingInputs(null);
   }
 
-  function contactRef(slotIdx: number, side: 'home' | 'away') {
-    const offer = generateRefOffer();
-    // Mark this match as contacted regardless of outcome
-    setPendingInputs((prev) =>
-      prev ? prev.map((s, i) => i === slotIdx ? { ...s, refContacted: true, refOffer: offer } : s) : prev,
-    );
-    setCorruptionModal({ slotIdx, side, offer });
-  }
-
-  function acceptCorruption() {
-    if (!corruptionModal || !corruptionModal.offer) return;
-    const deal = acceptOffer(corruptionModal.side, corruptionModal.offer);
-    setPendingInputs((prev) =>
-      prev
-        ? prev.map((s, i) => (i === corruptionModal.slotIdx ? { ...s, corruption: deal } : s))
-        : prev,
-    );
-    setCorruptionModal(null);
-  }
-
-  function declineCorruption() {
-    setCorruptionModal(null);
-  }
-
   const SPEEDS: Speed[] = ['0.5', '1', '2', '5', 'instant'];
   const SPEED_LABEL: Record<Speed, string> = { '0.5': '×0.5', '1': '×1', '2': '×2', '5': '×5', instant: '⚡' };
 
@@ -767,30 +775,12 @@ export default function MultiplexLive() {
                   })}
                 </div>
 
-                {deal ? (
-                  <div className="text-xs rounded-md bg-warning/10 border border-warning/30 px-3 py-2 text-warning flex items-center justify-between">
-                    <span>🤝 Corruption active — {deal.side === 'home' ? home.name : away.name} ({deal.bribe}M€)</span>
-                    <button
-                      className="underline opacity-70 hover:opacity-100"
-                      onClick={() => setPendingInputs((prev) => prev ? prev.map((s, si) => si === i ? { ...s, corruption: null, refContacted: false, refOffer: null } : s) : prev)}
-                    >
-                      Annuler
-                    </button>
-                  </div>
-                ) : slot.refContacted ? (
-                  <div className="text-xs rounded-md bg-surface border border-border px-3 py-2 text-muted">
-                    🚫 L'arbitre n'est pas intéressé pour ce match.
-                  </div>
-                ) : (
-                  <div className="flex justify-between">
-                    <Button size="sm" variant="ghost" className="text-xs" onClick={() => contactRef(i, 'home')}>
-                      🤫 Corrompre via {home.name}
-                    </Button>
-                    <Button size="sm" variant="ghost" className="text-xs" onClick={() => contactRef(i, 'away')}>
-                      🤫 Corrompre via {away.name}
-                    </Button>
-                  </div>
-                )}
+                <CorruptionPanel
+                  homeTeamName={home.name}
+                  awayTeamName={away.name}
+                  deal={deal}
+                  onDeal={(d) => setPendingInputs((prev) => prev ? prev.map((s, si) => si === i ? { ...s, corruption: d } : s) : prev)}
+                />
               </div>
             );
           })}
@@ -798,46 +788,6 @@ export default function MultiplexLive() {
 
         <Button onClick={launchAll}>▶ Lancer tous les matchs</Button>
 
-        <AnimatePresence>
-          {corruptionModal && (() => {
-            const slot = pendingInputs[corruptionModal.slotIdx];
-            const teamName = corruptionModal.side === 'home'
-              ? slot.input.home.team.name
-              : slot.input.away.team.name;
-            return (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className="w-full max-w-md rounded-xl border border-border bg-bg shadow-2xl p-6 space-y-4"
-                >
-                  <div className="text-xs uppercase tracking-widest text-muted">Corruption — {teamName}</div>
-
-                  {corruptionModal.offer ? (
-                    <>
-                      <div className="rounded-md bg-warning/10 border border-warning/30 p-4 space-y-2">
-                        <div className="text-sm italic text-warning">"{corruptionModal.offer.message}"</div>
-                        <div className="text-sm font-medium">Montant demandé : <span className="text-warning">{corruptionModal.offer.amount}M€</span></div>
-                      </div>
-                      <div className="flex gap-3">
-                        <Button size="sm" onClick={acceptCorruption}>Accepter le deal</Button>
-                        <Button size="sm" variant="ghost" onClick={declineCorruption}>Refuser</Button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="rounded-md bg-surface border border-border p-4">
-                        <div className="text-sm text-muted">L'arbitre n'est pas intéressé pour ce match.</div>
-                      </div>
-                      <Button size="sm" variant="ghost" onClick={declineCorruption}>Fermer</Button>
-                    </>
-                  )}
-                </motion.div>
-              </div>
-            );
-          })()}
-        </AnimatePresence>
       </main>
     );
   }

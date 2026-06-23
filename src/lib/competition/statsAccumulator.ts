@@ -153,7 +153,7 @@ export function accumulateMatchStats(
 ): Record<string, PlayerCompStats> {
   const stats: Record<string, PlayerCompStats> = {};
   for (const [k, v] of Object.entries(prev)) {
-    stats[k] = { ...v, matchRatings: [...(v.matchRatings ?? [])] };
+    stats[k] = { ...v, matchRatings: [...(v.matchRatings ?? [])], motmCount: v.motmCount ?? 0 };
   }
 
   const homeMap = new Map(home.players.map((p) => [p.id, p]));
@@ -183,6 +183,7 @@ export function accumulateMatchStats(
         redCards: 0,
         matchRatings: [],
         avgRating: 0,
+        motmCount: 0,
       };
     }
     return stats[p.id];
@@ -280,6 +281,12 @@ export function accumulateMatchStats(
       entry.matchRatings.push(rating);
       entry.avgRating = computeAvgRating(entry.matchRatings);
     }
+  }
+
+  // Increment motmCount for the best rated player this match
+  const motm = computeMotm(state, home, away);
+  if (motm && stats[motm.playerId]) {
+    stats[motm.playerId].motmCount = (stats[motm.playerId].motmCount ?? 0) + 1;
   }
 
   return stats;
