@@ -323,34 +323,32 @@ export async function resyncCompetitionMatchHistory(
   if (bySlug.size === 0) return { synced: 0, skipped: completedMatches.length };
 
   let synced = 0;
-  await Promise.all(
-    Array.from(bySlug.entries()).map(async ([slug, newSummaries]) => {
-      for (let attempt = 0; attempt < 4; attempt++) {
-        type TW = Team & { recentMatches?: RecentMatchSummary[] };
-        const existing = await readJson<TW>(TEAM_PATH(slug), token);
-        if (!existing) break;
-        const prev = existing.data.recentMatches ?? [];
-        const matchIds = new Set(newSummaries.map((s) => s.matchId));
-        const kept = prev.filter((r) => !matchIds.has(r.matchId));
-        const sorted = [...newSummaries].sort((a, b) => b.playedAt.localeCompare(a.playedAt));
-        const next = [...sorted, ...kept].slice(0, RECENT_LIMIT);
-        try {
-          await writeJson({
-            path: TEAM_PATH(slug), token,
-            data: { ...existing.data, recentMatches: next } as TW,
-            message: `chore(teams/${slug}): resync match history from ${comp.name}`,
-            sha: existing.sha,
-          });
-          synced++;
-          break;
-        } catch (err) {
-          const msg = String(err);
-          if ((msg.includes('409') || msg.includes('422')) && attempt < 3) continue;
-          throw err;
-        }
+  for (const [slug, newSummaries] of bySlug.entries()) {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      type TW = Team & { recentMatches?: RecentMatchSummary[] };
+      const existing = await readJson<TW>(TEAM_PATH(slug), token);
+      if (!existing) break;
+      const prev = existing.data.recentMatches ?? [];
+      const matchIds = new Set(newSummaries.map((s) => s.matchId));
+      const kept = prev.filter((r) => !matchIds.has(r.matchId));
+      const sorted = [...newSummaries].sort((a, b) => b.playedAt.localeCompare(a.playedAt));
+      const next = [...sorted, ...kept].slice(0, RECENT_LIMIT);
+      try {
+        await writeJson({
+          path: TEAM_PATH(slug), token,
+          data: { ...existing.data, recentMatches: next } as TW,
+          message: `chore(teams/${slug}): resync match history from ${comp.name}`,
+          sha: existing.sha,
+        });
+        synced++;
+        break;
+      } catch (err) {
+        const msg = String(err);
+        if ((msg.includes('409') || msg.includes('422')) && attempt < 4) continue;
+        throw err;
       }
-    }),
-  );
+    }
+  }
 
   return { synced, skipped: 0 };
 }
