@@ -1848,11 +1848,11 @@ export function generateFormePressItem(opts: {
 const COACH_ALCOOL_PAIRS: [string, string][] = [
   [
     'SCANDALE : {coach}, sélectionneur de {team}, aperçu ivre avant le match',
-    'Des images circulent depuis hier soir sur les réseaux. On y voit {coach}, le sélectionneur de {team}, dans un état d\'ivresse avancée dans un bar du centre-ville, la veille d\'un match important. L\'entourage de l\'équipe n\'a pas encore réagi officiellement. La fédération a été saisie.',
+    'Plusieurs témoins ont rapporté avoir vu {coach}, le sélectionneur de {team}, dans un état d\'ivresse avancée dans un bar du centre-ville, la veille d\'un match important. L\'entourage de l\'équipe n\'a pas encore réagi officiellement. La fédération a été saisie.',
   ],
   [
     '{team} : {coach} convoqué par la fédération après une soirée très arrosée',
-    'La fédération de {team} a convoqué son sélectionneur {coach} pour s\'expliquer sur son comportement lors d\'une soirée privée qui a dégénéré. Des photos compromettantes ont fuité. La fédération parle d\'"enquête interne". Le groupe, lui, fait profil bas.',
+    'La fédération de {team} a convoqué son sélectionneur {coach} pour s\'expliquer sur son comportement lors d\'une soirée privée qui a dégénéré. Des témoignages concordants ont été recueillis. La fédération parle d\'"enquête interne". Le groupe, lui, fait profil bas.',
   ],
   [
     'L\'alcoolisme de {coach} refait surface — {team} dans l\'embarras',
@@ -1860,7 +1860,7 @@ const COACH_ALCOOL_PAIRS: [string, string][] = [
   ],
   [
     '{team} : le sélectionneur {coach} au cœur d\'une polémique pour état d\'ivresse',
-    'Selon plusieurs témoins, {coach} aurait dirigé la conférence de presse d\'après-match dans un état préoccupant. La vidéo, vue des milliers de fois, fait le tour des réseaux. Le coach n\'a pas voulu commenter. La fédération "examine la situation".',
+    'Selon plusieurs témoins présents, {coach} aurait dirigé la conférence de presse d\'après-match dans un état préoccupant. Un journaliste accrédité a confirmé la scène à notre rédaction. Le coach n\'a pas voulu commenter. La fédération "examine la situation".',
   ],
   [
     'Révélations : {coach} lutte contre l\'alcool depuis des années — {team} au courant ?',
@@ -1875,7 +1875,7 @@ const COACH_DROGUE_PAIRS: [string, string][] = [
   ],
   [
     '{team} : {coach} au cœur d\'un scandale de stupéfiants',
-    'Le sélectionneur {coach} est au cœur d\'une enquête après qu\'une descente de police dans un hôtel de la délégation ait permis la saisie de substances illicites. Son implication directe n\'est pas encore établie, mais la presse s\'emballe. La fédération a suspendu les déclarations publiques.',
+    'Le sélectionneur {coach} est au cœur d\'une enquête après qu\'une descente de police dans un hôtel de la délégation ait permis la saisie de substances illicites. Son implication directe n\'est pas encore établie, mais l\'affaire est gravissime. La fédération a suspendu les déclarations publiques.',
   ],
   [
     'Exclusif — {coach} : la face cachée du sélectionneur de {team}',
@@ -1887,7 +1887,7 @@ const COACH_DROGUE_PAIRS: [string, string][] = [
   ],
   [
     'Scandale {team} : {coach} aperçu en compagnie de personnes mises en examen pour trafic',
-    'Des clichés compromettants associent le sélectionneur {coach} à des individus connus des services judiciaires. L\'enquête est ouverte. Le sélectionneur n\'a pas répondu aux sollicitations de la presse. La fédération de {team} a déclaré "ne pas commenter des éléments non établis".',
+    'Des témoignages concordants associent le sélectionneur {coach} à des individus connus des services judiciaires. L\'enquête est ouverte. Le sélectionneur n\'a pas répondu aux sollicitations de la presse. La fédération de {team} a déclaré "ne pas commenter des éléments non établis".',
   ],
 ];
 
