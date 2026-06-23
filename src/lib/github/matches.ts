@@ -65,6 +65,9 @@ export type RecentMatchSummary = {
   opponentSlug: string;
   opponentName: string;
   homeAway: 'home' | 'away';
+  /** Team IDs for reliable side identification */
+  homeTeamId?: string;
+  awayTeamId?: string;
   scoreFor: number;
   scoreAgainst: number;
   /** CMF ranking points earned/lost for this match */
@@ -127,33 +130,38 @@ export async function saveMatch(
     compScope: meta?.compScope,
   });
 
-  await appendRecent(input.home.team, {
-    matchId: state.matchId,
-    playedAt: stored.playedAt,
-    opponentSlug: input.away.team.slug,
-    opponentName: input.away.team.name,
-    homeAway: 'home',
-    scoreFor: state.score.home,
-    scoreAgainst: state.score.away,
-    cmfPoints: homeCmf,
-    opponentStrength: meta?.awayStrength,
-    compKind: meta?.compKind,
-    compScope: meta?.compScope,
-  }, token);
-
-  await appendRecent(input.away.team, {
-    matchId: state.matchId,
-    playedAt: stored.playedAt,
-    opponentSlug: input.home.team.slug,
-    opponentName: input.home.team.name,
-    homeAway: 'away',
-    scoreFor: state.score.away,
-    scoreAgainst: state.score.home,
-    cmfPoints: awayCmf,
-    opponentStrength: meta?.homeStrength,
-    compKind: meta?.compKind,
-    compScope: meta?.compScope,
-  }, token);
+  await Promise.all([
+    appendRecent(input.home.team, {
+      matchId: state.matchId,
+      playedAt: stored.playedAt,
+      opponentSlug: input.away.team.slug,
+      opponentName: input.away.team.name,
+      homeTeamId: input.home.team.id,
+      awayTeamId: input.away.team.id,
+      homeAway: 'home',
+      scoreFor: state.score.home,
+      scoreAgainst: state.score.away,
+      cmfPoints: homeCmf,
+      opponentStrength: meta?.awayStrength,
+      compKind: meta?.compKind,
+      compScope: meta?.compScope,
+    }, token),
+    appendRecent(input.away.team, {
+      matchId: state.matchId,
+      playedAt: stored.playedAt,
+      opponentSlug: input.home.team.slug,
+      opponentName: input.home.team.name,
+      homeTeamId: input.home.team.id,
+      awayTeamId: input.away.team.id,
+      homeAway: 'away',
+      scoreFor: state.score.away,
+      scoreAgainst: state.score.home,
+      cmfPoints: awayCmf,
+      opponentStrength: meta?.homeStrength,
+      compKind: meta?.compKind,
+      compScope: meta?.compScope,
+    }, token),
+  ]);
 
   // Persist coach suspension: set if ejected this match, clear if was suspended (served)
   const homeEjected = state.coachEjected?.home ?? false;
