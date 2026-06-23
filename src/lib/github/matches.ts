@@ -258,42 +258,50 @@ export async function resyncCompetitionMatchHistory(
   token: string,
   meta?: { compKind?: CompetitionKind; compScope?: CompetitionScope; teamStrengths?: Record<string, number> },
 ): Promise<{ synced: number; skipped: number }> {
-  // matchFileId may be absent on old matches — fall back to match id
-  const completedMatches = comp.matches.filter((m) => m.status === 'completed' && (m.matchFileId || m.id));
+  const compKind = meta?.compKind ?? comp.kind;
+  const compScope = meta?.compScope ?? comp.scope;
+  const snapshot = comp.teamSnapshot ?? {};
 
-  const stored = await Promise.all(
-    completedMatches.map((m) => readJson<StoredMatch>(MATCH_PATH(m.matchFileId ?? m.id), token)),
+  const completedMatches = comp.matches.filter(
+    (m) => m.status === 'completed' && m.result != null && m.homeTeamId && m.awayTeamId,
   );
 
   const bySlug = new Map<string, RecentMatchSummary[]>();
 
-  for (let i = 0; i < completedMatches.length; i++) {
-    const s = stored[i];
-    if (!s) continue;
-    const match = s.data;
-
-    const homeStrength = meta?.teamStrengths?.[match.home.teamId] ?? 50;
-    const awayStrength = meta?.teamStrengths?.[match.away.teamId] ?? 50;
+  for (const m of completedMatches) {
+    const homeId = m.homeTeamId!;
+    const awayId = m.awayTeamId!;
+    const homeSnap = snapshot[homeId];
+    const awaySnap = snapshot[awayId];
+    const homeSlug = homeSnap?.slug ?? homeId;
+    const awaySlug = awaySnap?.slug ?? awayId;
+    const homeName = homeSnap?.name ?? homeId;
+    const awayName = awaySnap?.name ?? awayId;
+    const homeStrength = (meta?.teamStrengths?.[homeId] ?? homeSnap?.globalStrength) ?? 50;
+    const awayStrength = (meta?.teamStrengths?.[awayId] ?? awaySnap?.globalStrength) ?? 50;
+    const playedAt = m.simulatedAt ?? comp.createdAt ?? new Date().toISOString();
+    const scoreHome = m.result!.home;
+    const scoreAway = m.result!.away;
 
     const homeSummary: RecentMatchSummary = {
-      matchId: match.id, playedAt: match.playedAt,
-      opponentSlug: match.away.teamSlug, opponentName: match.away.teamName,
-      homeTeamId: match.home.teamId, awayTeamId: match.away.teamId,
-      homeAway: 'home', scoreFor: match.finalScore.home, scoreAgainst: match.finalScore.away,
-      opponentStrength: awayStrength, compKind: meta?.compKind, compScope: meta?.compScope,
-      cmfPoints: calcCmfMatchPoints({ scoreFor: match.finalScore.home, scoreAgainst: match.finalScore.away, opponentStrength: awayStrength, compKind: meta?.compKind, compScope: meta?.compScope }),
+      matchId: m.id, playedAt,
+      opponentSlug: awaySlug, opponentName: awayName,
+      homeTeamId: homeId, awayTeamId: awayId,
+      homeAway: 'home', scoreFor: scoreHome, scoreAgainst: scoreAway,
+      opponentStrength: awayStrength, compKind, compScope,
+      cmfPoints: calcCmfMatchPoints({ scoreFor: scoreHome, scoreAgainst: scoreAway, opponentStrength: awayStrength, compKind, compScope }),
     };
     const awaySummary: RecentMatchSummary = {
-      matchId: match.id, playedAt: match.playedAt,
-      opponentSlug: match.home.teamSlug, opponentName: match.home.teamName,
-      homeTeamId: match.home.teamId, awayTeamId: match.away.teamId,
-      homeAway: 'away', scoreFor: match.finalScore.away, scoreAgainst: match.finalScore.home,
-      opponentStrength: homeStrength, compKind: meta?.compKind, compScope: meta?.compScope,
-      cmfPoints: calcCmfMatchPoints({ scoreFor: match.finalScore.away, scoreAgainst: match.finalScore.home, opponentStrength: homeStrength, compKind: meta?.compKind, compScope: meta?.compScope }),
+      matchId: m.id, playedAt,
+      opponentSlug: homeSlug, opponentName: homeName,
+      homeTeamId: homeId, awayTeamId: awayId,
+      homeAway: 'away', scoreFor: scoreAway, scoreAgainst: scoreHome,
+      opponentStrength: homeStrength, compKind, compScope,
+      cmfPoints: calcCmfMatchPoints({ scoreFor: scoreAway, scoreAgainst: scoreHome, opponentStrength: homeStrength, compKind, compScope }),
     };
 
-    const hl = bySlug.get(match.home.teamSlug) ?? []; hl.push(homeSummary); bySlug.set(match.home.teamSlug, hl);
-    const al = bySlug.get(match.away.teamSlug) ?? []; al.push(awaySummary); bySlug.set(match.away.teamSlug, al);
+    const hl = bySlug.get(homeSlug) ?? []; hl.push(homeSummary); bySlug.set(homeSlug, hl);
+    const al = bySlug.get(awaySlug) ?? []; al.push(awaySummary); bySlug.set(awaySlug, al);
   }
 
   if (bySlug.size === 0) return { synced: 0, skipped: completedMatches.length };
@@ -328,5 +336,5 @@ export async function resyncCompetitionMatchHistory(
     }),
   );
 
-  return { synced, skipped: completedMatches.length - stored.filter(Boolean).length };
+  return { synced, skipped: 0 };
 }

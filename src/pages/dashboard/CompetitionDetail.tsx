@@ -243,12 +243,13 @@ export default function CompetitionDetail() {
         const snap = current.teamSnapshot?.[id];
         if (snap?.globalStrength) strengths[id] = snap.globalStrength;
       }
-      const { synced, skipped } = await resyncCompetitionMatchHistory(current, pat, {
+      const { synced } = await resyncCompetitionMatchHistory(current, pat, {
         compKind: current.kind,
         compScope: current.scope,
         teamStrengths: strengths,
       });
-      toast('success', `Historique resynchronisé : ${synced} équipes mises à jour, ${skipped} matchs sans fichier.`);
+      const processed = current.matches.filter(m => m.status === 'completed' && m.result != null).length;
+      toast('success', `Historique resynchronisé : ${synced} équipes mises à jour (${processed} matchs traités).`);
     } catch (err) {
       toast('error', String(err));
     } finally {
