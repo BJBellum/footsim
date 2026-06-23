@@ -6,7 +6,7 @@ import type { Standing } from './types';
 import type { Player } from '@/lib/types';
 import type { Coach } from '@/lib/gen/coach';
 
-export type PressCategory = 'victoire' | 'defaite' | 'scandale' | 'forme' | 'crise' | 'neutralite' | 'exploit' | 'critique' | 'revolte';
+export type PressCategory = 'victoire' | 'defaite' | 'scandale' | 'forme' | 'crise' | 'neutralite' | 'exploit' | 'critique' | 'revolte' | 'drame' | 'cmf';
 
 export type PressMentionPlayer = {
   type: 'player';
@@ -59,6 +59,28 @@ export type PressItem = {
   mentions?: PressMention[];
   /** Journalist name + affiliation (critique articles) */
   journalist?: { name: string; outlet: string };
+  /** Reference to the match that triggered this press item */
+  matchId?: string;
+  /** Score snapshot for the match card */
+  matchSnapshot?: {
+    homeTeamId: string;
+    awayTeamId: string;
+    homeTeamName: string;
+    awayTeamName: string;
+    homeScore: number;
+    awayScore: number;
+  };
+  /** CMF article data — favorite teams + top player predictions */
+  cmfSnapshot?: {
+    phase: string;
+    moment: 'debut' | 'fin' | 'palmares';
+    favoriteTeams: { teamId: string; teamName: string; overall: number }[];
+    topScorer?: { playerName: string; teamId: string; teamName: string; goals: number; overall: number };
+    topAssister?: { playerName: string; teamId: string; teamName: string; assists: number; overall: number };
+    bestPlayer?: { playerName: string; teamId: string; teamName: string; avgRating: number; overall: number };
+    bestGK?: { playerName: string; teamId: string; teamName: string; cleanSheets: number; overall: number };
+    winner?: { teamId: string; teamName: string };
+  };
 };
 
 function rng(seed: string): () => number {
@@ -862,6 +884,66 @@ const TEAM_DOPING_PAIRS: [string, string][] = [
 ];
 
 
+// Niveau 3 supplémentaires — ton encore plus cru
+const CRITIQUE_HEADLINES_L3_EXTRA = [
+  '{team} : une dégelée que le football n\'oubliera pas de sitôt',
+  'MASSACRE : {team} ne joue plus au football, il subit',
+  '{team} — c\'est pas du foot, c\'est une correction infligée à des touristes',
+  '{team} : rentrez chez vous, vous n\'avez rien à faire ici',
+  'Honte nationale : {team} se fait démolir sans bouger un sourcil',
+  '{team} désintégré — une catastrophe industrielle de 90 minutes',
+  'Ce qu\'on a vu ce soir avec {team} dépasse l\'entendement humain',
+  '{team} : l\'équipe qui a inventé la capitulation comme style de jeu',
+];
+
+const CRITIQUE_BODIES_L3_EXTRA = [
+  'Qu\'est-ce qu\'on vient de voir ? {team} s\'est fait ouvrir en deux comme une bûche. Chaque contre adverse finissait au fond. Chaque balle en profondeur traversait la défense comme du papier mouillé. Aucun duel gagné, aucune réaction, aucune fierté. Ce groupe est fini.',
+  'C\'est pas une défaite, c\'est une autopsie. {team} est mort tactiquement dès la 10e minute et personne n\'a bougé. Le coach a changé des joueurs — de nuls contre des nuls. Résultat identique. On se demande sincèrement ce que ces gens foutent là.',
+  'Chaque fois qu\'on pensait que {team} ne pouvait pas tomber plus bas, ils trouvaient un étage en dessous. Ce soir, ils ont découvert le sous-sol. Passons : il n\'y a rien à analyser ici. Rien à sauver. Juste à tirer la chasse.',
+  'Les adversaires s\'amusaient. Littéralement. Ils ricanaient entre eux en se passant le ballon face à {team} planté au milieu du terrain comme des poteaux. Et la réaction ? Quelques jurons, deux-trois gestes d\'énervement, retour à l\'hôtel. Scandaleux.',
+  'On a compté les duels gagnés par {team} en seconde mi-temps. Deux. Deux sur quarante-cinq minutes. C\'est pas une stat de football, c\'est un crime contre le sport. Ce résultat est une punition juste et insuffisante à la fois.',
+];
+
+// ── Crise niveau supplémentaire — ton plus cru et direct ─────────────────────
+const CRISE_HEADLINES_EXTRA = [
+  '{team} à la ramasse : le groupe s\'effondre en direct',
+  'Putain mais qu\'arrive-t-il à {team} ? Naufrage collectif total',
+  '{team} : plus rien ne tourne rond — c\'est la panique dans les rangs',
+  'Catastrophe {team} : ambiance de fin de règne dans le vestiaire',
+  '{team} en chute libre — le groupe perd les pédales',
+  'Tout fout le camp chez {team} — et personne ne sait comment stopper l\'hémorragie',
+  '{team} : le vestiaire est un champ de mines, le terrain un désastre',
+  'C\'est foutu ? Les questions qui font mal chez {team}',
+];
+
+const CRISE_BODIES_EXTRA = [
+  'La situation chez {team} dépasse les simples mauvais résultats. C\'est une crise profonde, systémique, qui touche tout le monde — joueurs, staff, dirigeants. Des sources internes parlent de "chaos organisé". Plus personne ne sait qui décide quoi, pourquoi, et comment. Et ça se voit sur le terrain.',
+  'Des noms claquent dans le vestiaire de {team}. Des accusations fusent entre joueurs. Deux clans se regardent en chiens de faïence depuis plusieurs jours. Le staff fait semblant de ne pas voir. Mais tout le monde voit. Et tout le monde sait que ça ne peut pas durer.',
+  'Le sélectionneur de {team} a convoqué l\'ensemble du groupe pour une réunion de crise. Deux heures de huis clos. À l\'issue : aucune déclaration, aucune image, aucun mot. Juste des visages fermés et des regards qui ne se croisent plus. On tire ses propres conclusions.',
+  'Un joueur de {team} a refusé de participer à l\'échauffement ce matin. Le staff a géré en interne. Un autre aurait demandé à être libéré du groupe. Ces informations, démenties officiellement, sont confirmées par plusieurs sources proches du vestiaire. {team} est en train d\'imploser.',
+  'Ce n\'est plus de la mauvaise passe — c\'est de la décomposition. {team} ne joue plus pour gagner. Il joue pour que ça finisse. Les automatismes ont disparu, la confiance aussi. Ce qui reste, c\'est une collection d\'individualités qui cohabitent sans se parler. Une équipe qui s\'effondre à petit feu.',
+];
+
+// ── Révolte niveau supplémentaire — ultra-cru ────────────────────────────────
+const REVOLTE_HEADLINES_EXTRA = [
+  'La fédération {team} prise d\'assaut — nuit de chaos total',
+  '{team} : les supporters pètent les plombs, la fédération barricadée',
+  'RÉVOLUTION : {team} à feu et à sang devant la fédération',
+  '"Tous dehors !" — les ultras de {team} n\'ont plus de limites',
+  '{team} : émeute nocturne, la fédération sous les projectiles',
+  'ON EN PEUT PLUS : {team} déclenche la révolution populaire',
+  '{team} : les supporters ont pété un câble — scènes surréalistes cette nuit',
+  '"On va tout brûler si vous partez pas" — le message des fans de {team}',
+];
+
+const REVOLTE_BODIES_EXTRA = [
+  'On n\'avait jamais vu ça. Des centaines de supporters de {team} ont convergé vers la fédération dans la nuit, équipés de fumigènes, de cornes de brume et d\'une rage froide. Vitres brisées au rez-de-chaussée. Portes forcées. La police antiémeute a été déployée à 3h du matin. Les membres du comité n\'ont pas bougé de leurs bureaux. Des lâches retranchés derrière des vitres blindées pendant que leur sport brûle.',
+  '"Vous nous avez menti, vous nous avez volé, vous nous avez humiliés." La banderole déployée devant la fédération de {team} résumait le sentiment général. Les supporters n\'étaient pas venus manifester — ils étaient venus exiger. Aucun délégué fédéral n\'a daigné se montrer. L\'erreur de leur vie.',
+  'La nuit de {team} restera dans les annales. Bouteilles, fumigènes, chants de mort contre le comité. Un ancien international a tenté de calmer la foule depuis un mégaphone improvisé — il s\'est fait huer. Personne ne représente plus rien dans cette fédération. La rue a pris le pouvoir. Et la rue n\'est pas rassasiée.',
+  'C\'est pas un mouvement de colère. C\'est un verdict populaire. Les supporters de {team} ont condamné le comité à mort publique ce soir devant la fédération. Cocktails Molotov pas encore lancés, mais l\'atmosphère y était. La police parle de "situation explosive". Un responsable local confie : "On ne sait pas jusqu\'où ça peut aller." Signe que personne ne contrôle plus rien.',
+  '"Remboursez nos larmes." Ce message tagué sur la facade de la fédération {team} résume une décennie d\'humiliation. Les supporters n\'ont plus rien à perdre — et ça se voyait cette nuit. Aucune crainte, aucun recul, aucune retenue. Le point de rupture est dépassé depuis longtemps. Ce soir, il a juste été rendu visible.',
+];
+
 // ── Journalistes fictifs pour les critiques ───────────────────────────────────
 const JOURNALISTS: { name: string; outlet: string }[] = [
   { name: 'Marco Ferreira', outlet: 'Gazette Sportive Mondiale' },
@@ -1024,6 +1106,17 @@ export function generateMatchPressItem(opts: {
   coach?: Coach;
   /** True if this match is part of a Coupe du Monde competition */
   isWorldCup?: boolean;
+  /** ID of the CompMatch that generated this press item */
+  matchId?: string;
+  /** Match snapshot for the clickable match card */
+  matchSnapshot?: {
+    homeTeamId: string;
+    awayTeamId: string;
+    homeTeamName: string;
+    awayTeamName: string;
+    homeScore: number;
+    awayScore: number;
+  };
 }): MatchPressResult {
   const r = rng(opts.seed);
   const diff = opts.goalsFor - opts.goalsAgainst;
@@ -1128,8 +1221,10 @@ export function generateMatchPressItem(opts: {
   } else if (isCritique) {
     category = 'critique';
     if (isHumiliation) {
-      headline = pick(CRITIQUE_HEADLINES_L3, r).replace(/{team}/g, opts.teamName);
-      body = pick(CRITIQUE_BODIES_L3, r).replace(/{team}/g, opts.teamName);
+      const allL3H = [...CRITIQUE_HEADLINES_L3, ...CRITIQUE_HEADLINES_L3_EXTRA];
+      const allL3B = [...CRITIQUE_BODIES_L3, ...CRITIQUE_BODIES_L3_EXTRA];
+      headline = pick(allL3H, r).replace(/{team}/g, opts.teamName);
+      body = pick(allL3B, r).replace(/{team}/g, opts.teamName);
       moraleShock = -(18 + Math.floor(r() * 8)); // -18 à -25
     } else if (isBrutalLoss) {
       headline = pick(CRITIQUE_HEADLINES_L2, r).replace(/{team}/g, opts.teamName);
@@ -1439,6 +1534,8 @@ export function generateMatchPressItem(opts: {
       createdAt: new Date().toISOString(),
       mentions: mentions.length > 0 ? mentions : undefined,
       journalist,
+      matchId: opts.matchId,
+      matchSnapshot: opts.matchSnapshot,
     },
     dopingSuspension,
     teamDisqualified,
@@ -1517,12 +1614,14 @@ export function generateMoralePressItem(opts: {
   // Révolte supporters : morale ≤ 5, 33% chance
   if (opts.morale <= 5 && r() < 0.333) {
     const destitue = r() < 0.6; // 60% chance le comité tombe suite à la manif
+    const allRevolteH = [...REVOLTE_HEADLINES, ...REVOLTE_HEADLINES_EXTRA];
+    const allRevolteB = [...REVOLTE_BODIES, ...REVOLTE_BODIES_EXTRA];
     const headline = destitue
       ? pick(DESTITUTION_HEADLINES, r).replace(/{team}/g, opts.teamName)
-      : pick(REVOLTE_HEADLINES, r).replace(/{team}/g, opts.teamName);
+      : pick(allRevolteH, r).replace(/{team}/g, opts.teamName);
     const body = destitue
       ? pick(DESTITUTION_BODIES, r).replace(/{team}/g, opts.teamName)
-      : pick(REVOLTE_BODIES, r).replace(/{team}/g, opts.teamName);
+      : pick(allRevolteB, r).replace(/{team}/g, opts.teamName);
     return {
       id: crypto.randomUUID(),
       round: opts.round,
@@ -1536,13 +1635,15 @@ export function generateMoralePressItem(opts: {
     };
   }
   if (opts.morale <= 25 && r() < 0.5) {
+    const allCriseH = [...LOW_MORALE_HEADLINES, ...CRISE_HEADLINES_EXTRA];
+    const allCriseB = [...LOW_MORALE_BODIES, ...CRISE_BODIES_EXTRA];
     return {
       id: crypto.randomUUID(),
       round: opts.round,
       teamId: opts.teamId,
       category: 'crise',
-      headline: pick(LOW_MORALE_HEADLINES, r).replace('{team}', opts.teamName),
-      body: pick(LOW_MORALE_BODIES, r).replace(/{team}/g, opts.teamName),
+      headline: pick(allCriseH, r).replace(/{team}/g, opts.teamName),
+      body: pick(allCriseB, r).replace(/{team}/g, opts.teamName),
       moraleAfter: opts.morale,
       createdAt: new Date().toISOString(),
     };
@@ -1570,6 +1671,478 @@ export function generatePresidencyReboundItem(opts: {
   };
 }
 
+// ── Drame (0.5% par match, teamId: null) ─────────────────────────────────────
+
+const DRAME_PAIRS: [string, string][] = [
+  [
+    'DRAME dans les tribunes — un supporter perd la vie lors de {homeTeam} – {awayTeam}',
+    'Le match a été brièvement interrompu en première mi-temps après qu\'un homme d\'une cinquantaine d\'années a été victime d\'un malaise cardiaque dans la tribune nord. Les secours sont intervenus rapidement mais n\'ont pu que constater le décès. Les deux équipes ont continué à jouer après une courte suspension, dans une atmosphère de consternation générale. Les fédérations ont présenté leurs condoléances à la famille.',
+  ],
+  [
+    'TRAGÉDIE : une supportrice décède en marge du match {homeTeam} – {awayTeam}',
+    'Une supportrice de 67 ans a été retrouvée inconsciente dans les escaliers du stade à la mi-temps. Malgré l\'intervention rapide des équipes médicales, elle n\'a pas survécu. Le match s\'est terminé dans une ambiance pesante. Le président de la fédération a exprimé "une profonde tristesse" et annoncé qu\'une minute de silence serait observée lors du prochain match.',
+  ],
+  [
+    'MORT EN TRIBUNE lors de {homeTeam} – {awayTeam} — le football s\'arrête',
+    'Un homme d\'une trentaine d\'années s\'est effondré en plein match dans le virage des ultras locaux. Les supporters ont immédiatement appelé les secours et dégagé l\'espace autour de lui. Le SAMU est intervenu, mais le pronostic vital était déjà engagé. Il est décédé une heure plus tard à l\'hôpital. Le football passe au second plan ce soir.',
+  ],
+  [
+    'Un enfant de 9 ans perd la vie lors du match {homeTeam} – {awayTeam} — l\'horreur',
+    'Un enfant de 9 ans a perdu connaissance en plein match alors qu\'il regardait la rencontre avec son père dans la tribune familiale. Les secouristes présents sur place ont tenté une réanimation pendant plusieurs minutes. Sans succès. L\'annonce de son décès a circulé parmi les supporters peu avant le coup de sifflet final. Nombreux sont ceux qui ont quitté le stade en larmes.',
+  ],
+  [
+    'Drame en marge de {homeTeam} – {awayTeam} : un supporter lynché par une foule incontrôlée',
+    'Des affrontements entre factions rivales en dehors du stade ont dégénéré en violence extrême. Un supporter, pris pour cible par un groupe, a été retrouvé dans un état critique par les forces de l\'ordre. Transporté en urgence, il n\'a pas survécu à ses blessures. La fédération a condamné "avec la plus grande fermeté" ces actes et demandé l\'ouverture d\'une enquête immédiate.',
+  ],
+  [
+    '{homeTeam} – {awayTeam} : mouvement de foule meurtrier à l\'entrée du stade',
+    'À l\'ouverture des portes du stade, un mouvement de foule incontrôlé a provoqué une bousculade dramatique. Deux supporters ont été piétinés. L\'un d\'eux a succombé à ses blessures peu après. Plusieurs autres ont été hospitalisés. La rencontre s\'est jouée dans l\'ignorance du drame pour la majorité des spectateurs présents dans les gradins. La vérité a éclaté après le coup de sifflet final.',
+  ],
+  [
+    'ÉLECTROCUTION fatale dans le stade lors de {homeTeam} – {awayTeam}',
+    'Un agent de sécurité a été électrocuté lors d\'une intervention sur une installation défaillante dans les couloirs du stade. L\'homme, 44 ans, n\'a pas survécu. L\'incident a eu lieu à la mi-temps, loin des tribunes, et les spectateurs n\'en ont appris l\'existence que plusieurs heures après le match. La direction du stade est sous le choc et une enquête est ouverte pour manquement aux normes de sécurité.',
+  ],
+];
+
+const DRAME_HOMMAGE_HEADLINES = [
+  'La compétition rend hommage — une minute de silence pour les victimes',
+  'Hommage solennel à la mémoire des disparus du dernier drame',
+  'Le football s\'incline — tributes aux victimes avant ce match',
+  'Émotion dans les stades — le public rend hommage aux disparus',
+  'Une minute de recueillement avant le coup d\'envoi — le sport ne perd pas sa mémoire',
+];
+
+const DRAME_HOMMAGE_BODIES = [
+  'Avant le coup d\'envoi, les deux équipes et l\'ensemble des spectateurs ont observé une minute de silence en mémoire des personnes décédées lors du drame survenu la semaine dernière. Les capitaines des deux équipes ont déposé une gerbe de fleurs au centre du terrain. L\'ambiance, empreinte de gravité, a rappelé à tous que le football n\'est qu\'un jeu — et que la vie, elle, ne l\'est pas.',
+  'La fédération a demandé qu\'une minute de silence soit observée lors de tous les matchs de cette journée. Les joueurs, brassard noir au bras, ont rendu hommage avec sérieux et dignité. Dans les tribunes, des banderoles "Repose en paix" ont été déployées par les supporters. Un moment fort, qui transcende les rivalités.',
+  'Pas de protocole d\'avant-match habituel ce soir. Juste un silence. Lourd. Nécessaire. Les familles des victimes avaient été invitées dans les tribunes d\'honneur. Quelques-unes ont accepté. La cérémonie a duré cinq minutes — bien plus qu\'une minute réglementaire. Personne n\'a eu envie de se presser.',
+  'L\'hommage était sobre, mais il était sincère. Deux équipes alignées en rang, têtes baissées, brassards noirs. Les supporters debout en silence dans les quatre tribunes. La foule qui ne murmure pas. Le speaker qui lit simplement les noms. Ces moments-là, on ne les oublie pas.',
+  'La fédération a publié un communiqué officiel et fait don d\'une partie des recettes du match aux familles des victimes. À l\'intérieur du stade, l\'hommage a pris la forme d\'une minute de silence parfaite — pas un bruit, pas un téléphone, pas un mouvement. Juste le respect dû à ceux qui ne sont plus là.',
+];
+
+export function generateDrameItem(opts: {
+  round: number;
+  seed: string;
+  matchId: string;
+  matchSnapshot: NonNullable<PressItem['matchSnapshot']>;
+}): PressItem {
+  const r = rng(opts.seed + 'drame');
+  const [hTpl, bTpl] = pick(DRAME_PAIRS, r);
+  const headline = hTpl
+    .replace(/{homeTeam}/g, opts.matchSnapshot.homeTeamName)
+    .replace(/{awayTeam}/g, opts.matchSnapshot.awayTeamName);
+  const body = bTpl
+    .replace(/{homeTeam}/g, opts.matchSnapshot.homeTeamName)
+    .replace(/{awayTeam}/g, opts.matchSnapshot.awayTeamName);
+  return {
+    id: crypto.randomUUID(),
+    round: opts.round,
+    teamId: null,
+    category: 'drame',
+    headline,
+    body,
+    createdAt: new Date().toISOString(),
+    matchId: opts.matchId,
+    matchSnapshot: opts.matchSnapshot,
+  };
+}
+
+export function generateDrameHommageItem(opts: {
+  round: number;
+  seed: string;
+  originalMatchId: string;
+  originalMatchSnapshot: NonNullable<PressItem['matchSnapshot']>;
+}): PressItem {
+  const r = rng(opts.seed + 'hommage');
+  return {
+    id: crypto.randomUUID(),
+    round: opts.round,
+    teamId: null,
+    category: 'drame',
+    headline: pick(DRAME_HOMMAGE_HEADLINES, r),
+    body: pick(DRAME_HOMMAGE_BODIES, r),
+    createdAt: new Date().toISOString(),
+    matchId: opts.originalMatchId,
+    matchSnapshot: opts.originalMatchSnapshot,
+  };
+}
+
+// ── CMF — articles institutionnels de phase ───────────────────────────────────
+
+export type CmfOpts = {
+  round: number;
+  seed: string;
+  competitionName: string;
+  format: string;
+  phase: string;
+  moment: 'debut' | 'fin' | 'palmares';
+  teamSnapshot: Record<string, { name: string; flag: string; slug?: string }>;
+  standings: Record<string, import('./types').Standing>;
+  playerStats: Record<string, import('./types').PlayerCompStats>;
+  winner?: string;
+};
+
+// Phase labels
+const PHASE_LABEL: Record<string, string> = {
+  group: 'Phase de groupes',
+  league: 'Phase de championnat',
+  lpm_playoff: 'Barrages LPM',
+  R32: 'Huitièmes de finale',
+  R16: 'Seizièmes de finale',
+  QF: 'Quarts de finale',
+  SF: 'Demi-finales',
+  F: 'Finale',
+  '3rd': 'Match pour la 3e place',
+};
+
+// CMF debut de phase templates
+const CMF_DEBUT_LEAGUE = [
+  {
+    headline: (compName: string) => `${compName} — le coup d'envoi de la compétition !`,
+    body: (compName: string) => `La ${compName} débute officiellement. Les équipes ont terminé leurs préparations, les effectifs sont au complet, et les premières rencontres s'annoncent serrées. Qui prendra les devants dès cette première journée ?`,
+  },
+  {
+    headline: (compName: string) => `La ${compName} est lancée — présentation des favoris`,
+    body: (_compName: string) => `La compétition démarre. Sur la base des effectifs recensés, nos analystes ont établi une hiérarchie préliminaire. Mais dans ce sport, les surprises font partie du jeu.`,
+  },
+  {
+    headline: (compName: string) => `C'est parti ! La ${compName} ouvre ses portes`,
+    body: (compName: string) => `Le rideau se lève sur la ${compName}. Les favoris sont connus, les outsiders prêts à bousculer l'ordre établi. La compétition promet d'être intense de bout en bout.`,
+  },
+];
+
+const CMF_DEBUT_GROUP = [
+  {
+    headline: (compName: string) => `${compName} — la phase de groupes est officiellement ouverte`,
+    body: (compName: string) => `La phase de poules de la ${compName} débute ce soir. 32 équipes (divisées en groupes) s'affrontent pour décrocher leur qualification. Les pronostics sont lancés, les favoris identifiés.`,
+  },
+  {
+    headline: (compName: string) => `Phase de groupes ${compName} : qui passera la première étape ?`,
+    body: (compName: string) => `La phase de poules de la ${compName} débute. Chaque point comptera. Nos analystes ont regardé les effectifs — voici leurs premières impressions.`,
+  },
+];
+
+const CMF_DEBUT_KNOCKOUT = [
+  {
+    headline: (phase: string, compName: string) => `${PHASE_LABEL[phase] ?? phase} de la ${compName} — le tableau s'affine`,
+    body: (phase: string, compName: string) => `La ${compName} entre dans sa phase éliminatoire avec les ${PHASE_LABEL[phase] ?? phase}. Une seule erreur et c'est l'élimination. Les équipes encore en lice ont tout à prouver.`,
+  },
+  {
+    headline: (phase: string, compName: string) => `${compName} — place aux ${PHASE_LABEL[phase] ?? phase} !`,
+    body: (phase: string, compName: string) => `La tension monte d'un cran. Les ${PHASE_LABEL[phase] ?? phase} de la ${compName} débutent, et avec elles, la vraie compétition. Qui survivra à cette étape ?`,
+  },
+];
+
+const CMF_FIN_PHASE = [
+  {
+    headline: (phase: string, compName: string) => `Bilan de la ${PHASE_LABEL[phase] ?? phase} — la ${compName} avance`,
+    body: (phase: string) => `La ${PHASE_LABEL[phase] ?? phase} est terminée. Les qualifiés sont connus, les éliminés rentrent chez eux. Le bilan est sans appel : certaines équipes ont confirmé leur statut, d'autres ont surpris.`,
+  },
+  {
+    headline: (phase: string, compName: string) => `${PHASE_LABEL[phase] ?? phase} de la ${compName} : rideau`,
+    body: (phase: string) => `La ${PHASE_LABEL[phase] ?? phase} a rendu son verdict. Les équipes qualifiées pour la suite ont montré qu'elles méritaient leur place. Analyse des forces en présence avant la prochaine étape.`,
+  },
+];
+
+const CMF_PALMARES_LEAGUE = [
+  {
+    headline: (winner: string, compName: string) => `CHAMPION ! ${winner} remporte la ${compName} !`,
+    body: (winner: string, compName: string) => `${winner} est sacré champion de la ${compName}. Une campagne remarquable, couronnée d'un titre mérité. Le palmarès individuel vient compléter ce tableau de gloire.`,
+  },
+  {
+    headline: (winner: string, compName: string) => `${winner} conquiert la ${compName} — le bilan complet`,
+    body: (winner: string, compName: string) => `La ${compName} a son vainqueur : ${winner}. Un titre qui récompense la régularité et le talent. Les distinctions individuelles viennent compléter ce palmarès.`,
+  },
+];
+
+const CMF_PALMARES_CUP = [
+  {
+    headline: (winner: string, compName: string) => `${winner} CHAMPION DE LA ${compName.toUpperCase()} !`,
+    body: (winner: string, compName: string) => `${winner} soulève le trophée de la ${compName}. Une compétition intense, des rencontres mémorables, et un vainqueur qui s'est imposé dans les moments clés. Retour sur un palmarès historique.`,
+  },
+  {
+    headline: (winner: string, compName: string) => `LA GLOIRE POUR ${winner} — palmarès de la ${compName}`,
+    body: (winner: string, compName: string) => `Le titre est décerné. ${winner} entre dans l'histoire de la ${compName}. La cérémonie de clôture a célébré les meilleurs acteurs de cette édition.`,
+  },
+];
+
+const CMF_PALMARES_LPM = [
+  {
+    headline: (compName: string) => `${compName} terminée — les 24 qualifiés pour la Coupe du Monde sont connus`,
+    body: (compName: string) => `La ${compName} a rendu son verdict. Les 24 équipes qui rejoindront la phase finale de la Coupe du Monde sont officiellement qualifiées. Une LPM riche en rebondissements qui a produit son lot de surprises et de confirmations.`,
+  },
+  {
+    headline: (compName: string) => `Rideau sur la ${compName} — le chemin vers la Coupe du Monde est tracé`,
+    body: (compName: string) => `La ${compName} s'achève. Les qualifiés pour la Coupe du Monde sont désignés. Retour sur une compétition dense, éprouvante, et parfois cruelle pour ceux qui ont échoué aux portes de la qualification.`,
+  },
+];
+
+const SUFFIX_FAVORIS = (teams: { teamName: string; overall: number }[]) => {
+  if (teams.length === 0) return '';
+  const list = teams.map((t, i) => `${i + 1}. **${t.teamName}** (indice ${t.overall})`).join(', ');
+  return `\n\nFavoris selon les indices de force : ${list}.`;
+};
+
+const SUFFIX_TOP_SCORER = (p: { playerName: string; teamName: string; goals: number }) =>
+  `\n\n🥇 Meilleur buteur : **${p.playerName}** (${p.teamName}) — ${p.goals} but${p.goals > 1 ? 's' : ''}.`;
+
+const SUFFIX_TOP_ASSISTER = (p: { playerName: string; teamName: string; assists: number }) =>
+  `\n\n🎯 Meilleur passeur : **${p.playerName}** (${p.teamName}) — ${p.assists} passe${p.assists > 1 ? 's' : ''} décisive${p.assists > 1 ? 's' : ''}.`;
+
+const SUFFIX_BEST_PLAYER = (p: { playerName: string; teamName: string; avgRating: number }) =>
+  `\n\n⭐ Meilleur joueur : **${p.playerName}** (${p.teamName}) — note moyenne ${p.avgRating.toFixed(2)}.`;
+
+const SUFFIX_BEST_GK = (p: { playerName: string; teamName: string; cleanSheets: number }) =>
+  `\n\n🧤 Meilleur gardien : **${p.playerName}** (${p.teamName}) — ${p.cleanSheets} clean sheet${p.cleanSheets > 1 ? 's' : ''}.`;
+
+function topTeams(
+  teamIds: string[],
+  teamSnapshot: Record<string, { name: string; flag: string; slug?: string }>,
+  standings: Record<string, import('./types').Standing>,
+  count = 3,
+): { teamId: string; teamName: string; overall: number }[] {
+  return teamIds
+    .map((tid) => ({
+      teamId: tid,
+      teamName: teamSnapshot[tid]?.name ?? tid,
+      overall: standings[tid]?.points ?? 0,
+    }))
+    .sort((a, b) => b.overall - a.overall)
+    .slice(0, count);
+}
+
+function topScorerFromStats(stats: Record<string, import('./types').PlayerCompStats>) {
+  const all = Object.values(stats).filter((p) => p.goals > 0);
+  if (all.length === 0) return null;
+  return all.sort((a, b) => b.goals - a.goals || b.avgRating - a.avgRating)[0];
+}
+
+function topAssisterFromStats(stats: Record<string, import('./types').PlayerCompStats>) {
+  const all = Object.values(stats).filter((p) => p.assists > 0);
+  if (all.length === 0) return null;
+  return all.sort((a, b) => b.assists - a.assists || b.avgRating - a.avgRating)[0];
+}
+
+function bestPlayerFromStats(stats: Record<string, import('./types').PlayerCompStats>) {
+  const all = Object.values(stats).filter((p) => p.matchRatings.length >= 2);
+  if (all.length === 0) return null;
+  return all.sort((a, b) => b.avgRating - a.avgRating)[0];
+}
+
+function bestGKFromStats(stats: Record<string, import('./types').PlayerCompStats>) {
+  const all = Object.values(stats).filter((p) => p.position === 'GK' && p.cleanSheets >= 0);
+  if (all.length === 0) return null;
+  return all.sort((a, b) => b.cleanSheets - a.cleanSheets || b.avgRating - a.avgRating)[0];
+}
+
+export function generateCmfItems(opts: CmfOpts): PressItem[] {
+  const r = rng(opts.seed + 'cmf');
+  const items: PressItem[] = [];
+  const isLPM = opts.format === 'lpm';
+  const isCDM = !!(opts.competitionName && /coupe du monde|world cup/i.test(opts.competitionName));
+  const isGroupPhase = opts.phase === 'group' || opts.phase === 'league';
+  const teamIds = Object.keys(opts.standings);
+  const favTeams = opts.moment !== 'debut' ? [] : topTeams(teamIds, opts.teamSnapshot, opts.standings, 3);
+
+  // Count: 2 or 3 articles
+  const count = 2 + (r() < 0.5 ? 1 : 0);
+
+  // ── Début de phase ──────────────────────────────────────────────────────────
+  if (opts.moment === 'debut') {
+    const scorer = topScorerFromStats(opts.playerStats);
+    const assister = topAssisterFromStats(opts.playerStats);
+    const best = bestPlayerFromStats(opts.playerStats);
+    const gk = bestGKFromStats(opts.playerStats);
+
+    // Article 1 — ouverture institutionnelle
+    let tpl;
+    if (isGroupPhase) {
+      tpl = pick(opts.phase === 'group' ? CMF_DEBUT_GROUP : CMF_DEBUT_LEAGUE, r);
+      const h = (tpl as typeof CMF_DEBUT_LEAGUE[0]).headline(opts.competitionName);
+      let b = (tpl as typeof CMF_DEBUT_LEAGUE[0]).body(opts.competitionName);
+      b += SUFFIX_FAVORIS(favTeams);
+      items.push({
+        id: crypto.randomUUID(), round: opts.round, teamId: null, category: 'cmf',
+        headline: h, body: b, createdAt: new Date().toISOString(),
+        cmfSnapshot: { phase: opts.phase, moment: 'debut', favoriteTeams: favTeams },
+      });
+    } else {
+      const ktpl = pick(CMF_DEBUT_KNOCKOUT, r);
+      const h = ktpl.headline(opts.phase, opts.competitionName);
+      let b = ktpl.body(opts.phase, opts.competitionName);
+      b += SUFFIX_FAVORIS(favTeams);
+      items.push({
+        id: crypto.randomUUID(), round: opts.round, teamId: null, category: 'cmf',
+        headline: h, body: b, createdAt: new Date().toISOString(),
+        cmfSnapshot: { phase: opts.phase, moment: 'debut', favoriteTeams: favTeams },
+      });
+    }
+
+    // Article 2+ — pronostics individuels
+    if (count >= 2) {
+      let b2 = isLPM
+        ? `La LPM entre dans sa phase décisive. Voici les pronostics individuels de la CMF pour cette étape.`
+        : isCDM
+          ? `La Coupe du Monde distinguera ses meilleurs acteurs à l'issue de la compétition. Nos pronostics.`
+          : `La CMF distinguera les meilleurs acteurs de la compétition. Voici nos pronostics.`;
+      if (scorer) b2 += SUFFIX_TOP_SCORER(scorer);
+      if (assister) b2 += SUFFIX_TOP_ASSISTER(assister);
+      if (best) b2 += SUFFIX_BEST_PLAYER(best);
+      if (gk) b2 += SUFFIX_BEST_GK(gk);
+      items.push({
+        id: crypto.randomUUID(), round: opts.round, teamId: null, category: 'cmf',
+        headline: `Pronostics CMF — ${PHASE_LABEL[opts.phase] ?? opts.phase} de la ${opts.competitionName}`,
+        body: b2, createdAt: new Date().toISOString(),
+        cmfSnapshot: {
+          phase: opts.phase, moment: 'debut', favoriteTeams: [],
+          topScorer: scorer ? { playerName: scorer.playerName, teamId: scorer.teamId, teamName: scorer.teamName, goals: scorer.goals, overall: scorer.overall } : undefined,
+          topAssister: assister ? { playerName: assister.playerName, teamId: assister.teamId, teamName: assister.teamName, assists: assister.assists, overall: assister.overall } : undefined,
+          bestPlayer: best ? { playerName: best.playerName, teamId: best.teamId, teamName: best.teamName, avgRating: best.avgRating, overall: best.overall } : undefined,
+          bestGK: gk ? { playerName: gk.playerName, teamId: gk.teamId, teamName: gk.teamName, cleanSheets: gk.cleanSheets, overall: gk.overall } : undefined,
+        },
+      });
+    }
+
+    // Article 3 (optionnel) — contexte LPM/CDM spécifique
+    if (count >= 3) {
+      const contextBody = isLPM
+        ? `La LPM (Ligue Préliminaire Mondiale) est le tournoi qualificatif pour la Coupe du Monde. Les 24 premières équipes du classement final décrocheront leur billet. Les places 25 à 40 disputeront des barrages aller-retour. Pour les 16 dernières, c'est l'élimination directe.`
+        : isCDM
+          ? `La Coupe du Monde réunit les meilleures nations qualifiées via la LPM. Le format en groupes puis phases finales garantit des confrontations de haut niveau à chaque étape. Chaque erreur peut coûter l'élimination.`
+          : `La compétition oppose les équipes dans un format conçu pour révéler les meilleurs. La CMF veille à l'équité sportive et à la qualité du jeu. Que le meilleur groupe gagne.`;
+      items.push({
+        id: crypto.randomUUID(), round: opts.round, teamId: null, category: 'cmf',
+        headline: isLPM ? 'Format LPM — tout ce qu\'il faut savoir' : isCDM ? 'Format de la Coupe du Monde — rappel' : `Format de la ${opts.competitionName}`,
+        body: contextBody, createdAt: new Date().toISOString(),
+        cmfSnapshot: { phase: opts.phase, moment: 'debut', favoriteTeams: [] },
+      });
+    }
+  }
+
+  // ── Fin de phase ────────────────────────────────────────────────────────────
+  if (opts.moment === 'fin') {
+    const scorer = topScorerFromStats(opts.playerStats);
+    const assister = topAssisterFromStats(opts.playerStats);
+    const best = bestPlayerFromStats(opts.playerStats);
+    const gk = bestGKFromStats(opts.playerStats);
+    const favCurrent = topTeams(teamIds, opts.teamSnapshot, opts.standings, 3);
+
+    const tpl = pick(CMF_FIN_PHASE, r);
+    let b = tpl.body(opts.phase);
+    b += SUFFIX_FAVORIS(favCurrent);
+    items.push({
+      id: crypto.randomUUID(), round: opts.round, teamId: null, category: 'cmf',
+      headline: tpl.headline(opts.phase, opts.competitionName),
+      body: b, createdAt: new Date().toISOString(),
+      cmfSnapshot: { phase: opts.phase, moment: 'fin', favoriteTeams: favCurrent },
+    });
+
+    if (count >= 2) {
+      let b2 = `Bilan individuel à l'issue de la ${PHASE_LABEL[opts.phase] ?? opts.phase} :`;
+      if (scorer) b2 += SUFFIX_TOP_SCORER(scorer);
+      if (assister) b2 += SUFFIX_TOP_ASSISTER(assister);
+      if (best) b2 += SUFFIX_BEST_PLAYER(best);
+      if (gk) b2 += SUFFIX_BEST_GK(gk);
+      items.push({
+        id: crypto.randomUUID(), round: opts.round, teamId: null, category: 'cmf',
+        headline: `Statistiques individuelles — bilan de la ${PHASE_LABEL[opts.phase] ?? opts.phase}`,
+        body: b2, createdAt: new Date().toISOString(),
+        cmfSnapshot: {
+          phase: opts.phase, moment: 'fin', favoriteTeams: [],
+          topScorer: scorer ? { playerName: scorer.playerName, teamId: scorer.teamId, teamName: scorer.teamName, goals: scorer.goals, overall: scorer.overall } : undefined,
+          topAssister: assister ? { playerName: assister.playerName, teamId: assister.teamId, teamName: assister.teamName, assists: assister.assists, overall: assister.overall } : undefined,
+          bestPlayer: best ? { playerName: best.playerName, teamId: best.teamId, teamName: best.teamName, avgRating: best.avgRating, overall: best.overall } : undefined,
+          bestGK: gk ? { playerName: gk.playerName, teamId: gk.teamId, teamName: gk.teamName, cleanSheets: gk.cleanSheets, overall: gk.overall } : undefined,
+        },
+      });
+    }
+
+    if (count >= 3) {
+      const nextPhase = opts.phase === 'group' ? 'R16' : opts.phase === 'R16' ? 'QF' : opts.phase === 'QF' ? 'SF' : opts.phase === 'SF' ? 'F' : null;
+      const nextLabel = nextPhase ? (PHASE_LABEL[nextPhase] ?? nextPhase) : 'la prochaine étape';
+      items.push({
+        id: crypto.randomUUID(), round: opts.round, teamId: null, category: 'cmf',
+        headline: `Cap sur ${nextLabel} — la CMF analyse`,
+        body: `Après la ${PHASE_LABEL[opts.phase] ?? opts.phase}, place à ${nextLabel}. Les équipes encore en lice connaissent leurs adversaires. Les pronostics sont relancés, les stratégies ajustées. Rendez-vous sur le terrain pour savoir qui aura raison.`,
+        createdAt: new Date().toISOString(),
+        cmfSnapshot: { phase: opts.phase, moment: 'fin', favoriteTeams: [] },
+      });
+    }
+  }
+
+  // ── Palmarès / fin de compétition ──────────────────────────────────────────
+  if (opts.moment === 'palmares') {
+    const scorer = topScorerFromStats(opts.playerStats);
+    const assister = topAssisterFromStats(opts.playerStats);
+    const best = bestPlayerFromStats(opts.playerStats);
+    const gk = bestGKFromStats(opts.playerStats);
+    const winnerName = opts.winner ? (opts.teamSnapshot[opts.winner]?.name ?? opts.winner) : null;
+
+    let mainTpl;
+    let mainH: string;
+    let mainB: string;
+    if (isLPM) {
+      mainTpl = pick(CMF_PALMARES_LPM, r);
+      mainH = mainTpl.headline(opts.competitionName);
+      mainB = mainTpl.body(opts.competitionName);
+    } else if (winnerName) {
+      mainTpl = pick(opts.format === 'league' ? CMF_PALMARES_LEAGUE : CMF_PALMARES_CUP, r);
+      mainH = (mainTpl as typeof CMF_PALMARES_LEAGUE[0]).headline(winnerName, opts.competitionName);
+      mainB = (mainTpl as typeof CMF_PALMARES_LEAGUE[0]).body(winnerName, opts.competitionName);
+    } else {
+      mainH = `${opts.competitionName} — palmarès final`;
+      mainB = `La compétition s'est achevée. Voici le bilan final établi par la CMF.`;
+    }
+    items.push({
+      id: crypto.randomUUID(), round: opts.round, teamId: null, category: 'cmf',
+      headline: mainH, body: mainB, createdAt: new Date().toISOString(),
+      cmfSnapshot: {
+        phase: opts.phase, moment: 'palmares', favoriteTeams: [],
+        winner: opts.winner && winnerName ? { teamId: opts.winner, teamName: winnerName } : undefined,
+      },
+    });
+
+    // Distinctions individuelles
+    if (count >= 2) {
+      let b2 = `La CMF a décerné ses trophées individuels pour cette édition de la ${opts.competitionName} :`;
+      if (scorer) b2 += SUFFIX_TOP_SCORER(scorer);
+      if (assister) b2 += SUFFIX_TOP_ASSISTER(assister);
+      if (best) b2 += SUFFIX_BEST_PLAYER(best);
+      if (gk) b2 += SUFFIX_BEST_GK(gk);
+      if (!scorer && !assister && !best && !gk) b2 += '\n\nAucune statistique individuelle enregistrée pour cette édition.';
+      items.push({
+        id: crypto.randomUUID(), round: opts.round, teamId: null, category: 'cmf',
+        headline: `Trophées individuels CMF — ${opts.competitionName}`,
+        body: b2, createdAt: new Date().toISOString(),
+        cmfSnapshot: {
+          phase: opts.phase, moment: 'palmares', favoriteTeams: [],
+          topScorer: scorer ? { playerName: scorer.playerName, teamId: scorer.teamId, teamName: scorer.teamName, goals: scorer.goals, overall: scorer.overall } : undefined,
+          topAssister: assister ? { playerName: assister.playerName, teamId: assister.teamId, teamName: assister.teamName, assists: assister.assists, overall: assister.overall } : undefined,
+          bestPlayer: best ? { playerName: best.playerName, teamId: best.teamId, teamName: best.teamName, avgRating: best.avgRating, overall: best.overall } : undefined,
+          bestGK: gk ? { playerName: gk.playerName, teamId: gk.teamId, teamName: gk.teamName, cleanSheets: gk.cleanSheets, overall: gk.overall } : undefined,
+          winner: opts.winner && winnerName ? { teamId: opts.winner, teamName: winnerName } : undefined,
+        },
+      });
+    }
+
+    if (count >= 3) {
+      const epilogue = isLPM
+        ? `La LPM a tenu ses promesses. Résistances inattendues, qualifications méritées, éliminations cruelles. Les 24 équipes qualifiées pour la Coupe du Monde savent qu'elles ont gagné leur place au mérite. Rendez-vous sur la plus grande scène.`
+        : isCDM
+          ? `La Coupe du Monde s'achève. Elle laisse derrière elle des images, des émotions, et une nation sacrée championne du monde. Les autres rentrent chez eux avec des souvenirs et des regrets. C'est la beauté et la cruauté du football.`
+          : `La compétition s'achève. Un vainqueur, des regrets, et la promesse que la prochaine édition sera encore plus belle. La CMF remercie toutes les équipes participantes pour leur engagement.`;
+      items.push({
+        id: crypto.randomUUID(), round: opts.round, teamId: null, category: 'cmf',
+        headline: isLPM ? 'Épilogue LPM — cap sur la Coupe du Monde' : isCDM ? 'Épilogue — la Coupe du Monde a rendu son verdict' : `Épilogue — la ${opts.competitionName} referme ses portes`,
+        body: epilogue, createdAt: new Date().toISOString(),
+        cmfSnapshot: { phase: opts.phase, moment: 'palmares', favoriteTeams: [], winner: opts.winner && winnerName ? { teamId: opts.winner, teamName: winnerName } : undefined },
+      });
+    }
+  }
+
+  return items;
+}
+
 export const PRESS_CATEGORY_LABEL: Record<PressCategory, string> = {
   victoire: 'Victoire',
   defaite: 'Défaite',
@@ -1580,6 +2153,8 @@ export const PRESS_CATEGORY_LABEL: Record<PressCategory, string> = {
   exploit: 'Exploit',
   critique: 'Critique',
   revolte: 'Révolte',
+  drame: 'Drame',
+  cmf: 'CMF',
 };
 
 export const PRESS_CATEGORY_COLOR: Record<PressCategory, string> = {
@@ -1592,4 +2167,6 @@ export const PRESS_CATEGORY_COLOR: Record<PressCategory, string> = {
   exploit: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20',
   critique: 'text-orange-600 bg-orange-600/10 border-orange-600/30',
   revolte: 'text-purple-400 bg-purple-400/10 border-purple-400/20',
+  drame: 'text-slate-300 bg-slate-500/10 border-slate-500/30',
+  cmf: 'text-sky-400 bg-sky-400/10 border-sky-400/20',
 };

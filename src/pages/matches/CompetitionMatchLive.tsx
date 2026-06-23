@@ -21,7 +21,7 @@ import { rulesForPhase } from '@/lib/competition/types';
 import type { MatchSummary } from '@/lib/competition/types';
 import { resolveActiveTactic } from '@/lib/localTactics';
 import { updateMorale, initMorale, MORALE_DEFAULT } from '@/lib/competition/morale';
-import { generateMatchPressItem, generateMoralePressItem, generatePresidencyReboundItem } from '@/lib/competition/press';
+import { generateMatchPressItem, generateMoralePressItem, generatePresidencyReboundItem, generateDrameItem, generateDrameHommageItem, generateCmfItems } from '@/lib/competition/press';
 import { createMatchInjury, createSuspension, decrementInjuries, decrementSuspensions, unavailableIds } from '@/lib/competition/injuries';
 
 import type { Team } from '@/lib/types';
@@ -464,6 +464,15 @@ export default function CompetitionMatchLive() {
           players: teamPlayers,
           coach: teamCoach,
           isWorldCup,
+          matchId: compMatch.id,
+          matchSnapshot: {
+            homeTeamId: compMatch.homeTeamId!,
+            awayTeamId: compMatch.awayTeamId!,
+            homeTeamName: nameFor(compMatch.homeTeamId!),
+            awayTeamName: nameFor(compMatch.awayTeamId!),
+            homeScore: matchState!.score.home,
+            awayScore: matchState!.score.away,
+          },
         });
         newPressItems.push(item);
         if (item.moraleShock && item.moraleShock < 0) {
@@ -533,6 +542,75 @@ export default function CompetitionMatchLive() {
         }
       }
 
+      // ── Drame (0.5% par match) ────────────────────────────────────────────
+      let updatedPendingDrameHommage: Record<string, number> = { ...(snap!.pendingDrameHommage ?? {}) };
+
+      // Fire pending hommage articles due this round
+      for (const [drameMatchId, hommageRound] of Object.entries(updatedPendingDrameHommage)) {
+        if (hommageRound <= round) {
+          const origSnapshot = (snap!.pressItems ?? []).find((p) => p.matchId === drameMatchId && p.category === 'drame')?.matchSnapshot;
+          if (origSnapshot) {
+            newPressItems.push(generateDrameHommageItem({
+              round,
+              seed: `${seed}-hommage-${drameMatchId}`,
+              originalMatchId: drameMatchId,
+              originalMatchSnapshot: origSnapshot,
+            }));
+          }
+          const { [drameMatchId]: _, ...rest } = updatedPendingDrameHommage;
+          updatedPendingDrameHommage = rest;
+        }
+      }
+
+      const drameRng = (() => { let h = 0; const s = `${seed}-drame`; for (let i = 0; i < s.length; i++) { h = Math.imul(31, h) + s.charCodeAt(i) | 0; } return () => { h ^= h >>> 16; h = Math.imul(h, 0x45d9f3b); h ^= h >>> 16; return (h >>> 0) / 0xffffffff; }; })();
+      const matchSnap = {
+        homeTeamId: compMatch.homeTeamId!,
+        awayTeamId: compMatch.awayTeamId!,
+        homeTeamName: nameFor(compMatch.homeTeamId!),
+        awayTeamName: nameFor(compMatch.awayTeamId!),
+        homeScore: matchState!.score.home,
+        awayScore: matchState!.score.away,
+      };
+      if (drameRng() < 0.005) {
+        const drameItem = generateDrameItem({ round, seed: `${seed}-drame-evt`, matchId: compMatch.id, matchSnapshot: matchSnap });
+        newPressItems.push(drameItem);
+        updatedPendingDrameHommage = { ...updatedPendingDrameHommage, [compMatch.id]: round + 1 };
+      }
+
+      // ── CMF — détection changement de phase et fin de compétition ─────────
+      const prevPhase = (snap!.matches.find((m) => m.id === matchId))?.phase ?? compMatch.phase;
+      const newPhase = compMatch.phase;
+      const phaseMatchesDone = updatedMatches.filter((m) => m.phase === newPhase).every((m) => m.status === 'completed');
+      const prevPhaseDone = updatedMatches.filter((m) => m.phase === prevPhase).every((m) => m.status === 'completed');
+      const cmfSeed = `${seed}-cmf-${round}`;
+      const cmfBase = {
+        round,
+        competitionName: snap!.name,
+        format: snap!.format,
+        teamSnapshot: snap!.teamSnapshot ?? {},
+        standings: updatedStandings,
+        playerStats: updatedPlayerStats,
+      };
+
+      // Début de compétition — premier match joué
+      const totalPlayed = updatedMatches.filter((m) => m.status === 'completed').length;
+      if (totalPlayed === 1) {
+        newPressItems.push(...generateCmfItems({ ...cmfBase, seed: cmfSeed + '-debut', phase: newPhase, moment: 'debut' }));
+      }
+
+      // Fin de phase (groupe ou knockout complet) → articles bilan + nouveau début de phase
+      if (prevPhaseDone && newPhase !== prevPhase) {
+        newPressItems.push(...generateCmfItems({ ...cmfBase, seed: cmfSeed + '-fin', phase: prevPhase, moment: 'fin' }));
+        newPressItems.push(...generateCmfItems({ ...cmfBase, seed: cmfSeed + '-debut2', phase: newPhase, moment: 'debut' }));
+      } else if (phaseMatchesDone && newPhase === prevPhase && !allDone) {
+        newPressItems.push(...generateCmfItems({ ...cmfBase, seed: cmfSeed + '-fin2', phase: newPhase, moment: 'fin' }));
+      }
+
+      // Fin de compétition — palmarès
+      if (allDone) {
+        newPressItems.push(...generateCmfItems({ ...cmfBase, seed: cmfSeed + '-palmares', phase: newPhase, moment: 'palmares', winner }));
+      }
+
       const updated = {
         ...snap!,
         matches: updatedMatches,
@@ -548,6 +626,7 @@ export default function CompetitionMatchLive() {
         injuries: updatedInjuries,
         suspensions: updatedSuspensions,
         pendingPresidencyRebound: Object.keys(updatedPendingRebound).length > 0 ? updatedPendingRebound : undefined,
+        pendingDrameHommage: Object.keys(updatedPendingDrameHommage).length > 0 ? updatedPendingDrameHommage : undefined,
       };
 
       // Résultat appliqué en mémoire + localStorage — sauvegarde GitHub manuelle

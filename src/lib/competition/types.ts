@@ -148,6 +148,8 @@ export type Competition = {
   hostTeamId?: string;
   /** teamId → round at which presidency rebound press fires (after destitution event) */
   pendingPresidencyRebound?: Record<string, number>;
+  /** matchId → round at which drame hommage press fires */
+  pendingDrameHommage?: Record<string, number>;
   /** LPM: true once the schedule draw ceremony has been completed */
   drawRevealed?: boolean;
 };

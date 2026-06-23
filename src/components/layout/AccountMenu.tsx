@@ -31,6 +31,7 @@ function MoonIcon() {
 
 export function AccountMenu() {
   const session = useSession((s) => s.session);
+  const isAdmin = useSession((s) => s.isAdmin());
   const logout = useSession((s) => s.logout);
   const githubPat = useCredentials((s) => s.githubPat);
   const setPat = useCredentials((s) => s.setPat);
@@ -134,8 +135,8 @@ export function AccountMenu() {
             </div>
           </div>
 
-          {/* Token GitHub */}
-          <div className="px-4 py-3 border-b border-border space-y-2">
+          {/* Token GitHub — admin only */}
+          {isAdmin && <div className="px-4 py-3 border-b border-border space-y-2">
             <div className="flex items-center justify-between">
               <div className="text-xs text-muted">Token GitHub</div>
               {githubPat && (
@@ -176,7 +177,7 @@ export function AccountMenu() {
                 </button>
               )}
             </div>
-          </div>
+          </div>}
 
           {/* Déconnexion */}
           <button

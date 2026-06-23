@@ -16,13 +16,12 @@ import { accumulateMatchStats, computeAwards, computeMotm } from '@/lib/competit
 import { generateRefOffer, acceptOffer } from '@/lib/sim/corruption';
 import { resolveActiveTactic } from '@/lib/localTactics';
 import { updateMorale, initMorale, MORALE_DEFAULT } from '@/lib/competition/morale';
-import { generateMatchPressItem, generateMoralePressItem, generatePresidencyReboundItem } from '@/lib/competition/press';
+import { generateMatchPressItem, generateMoralePressItem, generatePresidencyReboundItem, generateDrameItem, generateDrameHommageItem, generateCmfItems } from '@/lib/competition/press';
 import { createMatchInjury, createSuspension, decrementInjuries, decrementSuspensions, unavailableIds } from '@/lib/competition/injuries';
 import { PenaltyShootout } from '@/components/match/PenaltyShootout';
 import type { MatchInput, MatchState, Speed, CorruptionDeal } from '@/lib/sim/types';
 import type { CorruptionOffer } from '@/lib/sim/corruption';
-import type { Team, TacticStyle } from '@/lib/types';
-import { TACTIC_STYLE_LABEL } from '@/lib/types';
+import type { Team } from '@/lib/types';
 
 export default function MultiplexLive() {
   const { competitionId, round } = useParams<{ competitionId: string; round: string }>();
@@ -60,8 +59,10 @@ export default function MultiplexLive() {
     compMatchId: string;
     input: MatchInput;
     corruption: CorruptionDeal | null;
-    refContacted: boolean;   // true once any contact attempt made for this match
-    refOffer: CorruptionOffer | null; // null = refused
+    refContacted: boolean;
+    refOffer: CorruptionOffer | null;
+    homeSavedTactics: import('@/lib/types').SavedTactic[];
+    awaySavedTactics: import('@/lib/types').SavedTactic[];
   };
   const [pendingInputs, setPendingInputs] = useState<PendingSlot[] | null>(null);
 
@@ -102,7 +103,7 @@ export default function MultiplexLive() {
         );
         if (needStore && teamsStore.length === 0) await refreshTeams(ownerId, effectivePat);
 
-        const inputs: Array<{ compMatchId: string; input: MatchInput }> = [];
+        const inputs: Array<{ compMatchId: string; input: MatchInput; homeSavedTactics: import('@/lib/types').SavedTactic[]; awaySavedTactics: import('@/lib/types').SavedTactic[] }> = [];
 
         const moraleMap = comp.morale ?? initMorale(comp.teamIds);
         const compInjuries = comp.injuries ?? [];
@@ -157,6 +158,8 @@ export default function MultiplexLive() {
           }
           inputs.push({
             compMatchId: m.id,
+            homeSavedTactics: homeData.team.savedTactics ?? [],
+            awaySavedTactics: awayData.team.savedTactics ?? [],
             input: {
               matchId: mid,
               home: {
@@ -200,7 +203,7 @@ export default function MultiplexLive() {
           }));
           start(launchInputs);
         } else {
-          setPendingInputs(inputs.map((i) => ({ ...i, corruption: null, refContacted: false, refOffer: null })));
+          setPendingInputs(inputs.map((i) => ({ ...i, corruption: null, refContacted: false, refOffer: null, homeSavedTactics: i.homeSavedTactics ?? [], awaySavedTactics: i.awaySavedTactics ?? [] })));
         }
       } catch (err) {
         toast('error', String(err));
@@ -421,6 +424,15 @@ export default function MultiplexLive() {
           players: teamPlayers,
           coach: teamCoach,
           isWorldCup,
+          matchId: slot.compMatchId,
+          matchSnapshot: {
+            homeTeamId: homeId,
+            awayTeamId: awayId,
+            homeTeamName: nameFor(homeId),
+            awayTeamName: nameFor(awayId),
+            homeScore: slot.state.score.home,
+            awayScore: slot.state.score.away,
+          },
         });
         updatedPressItems = [...updatedPressItems, matchPress];
         if (matchPress.moraleShock && matchPress.moraleShock < 0) {
@@ -497,6 +509,69 @@ export default function MultiplexLive() {
       }
     }
 
+    // ── Drame (0.5% par match) + CMF ─────────────────────────────────────────
+    let updatedPendingDrameHommage: Record<string, number> = { ...(current.pendingDrameHommage ?? {}) };
+
+    // Fire pending hommage articles
+    for (const [drameMatchId, hommageRound] of Object.entries(updatedPendingDrameHommage)) {
+      if (hommageRound <= roundNum) {
+        const origSnapshot = updatedPressItems.find((p) => p.matchId === drameMatchId && p.category === 'drame')?.matchSnapshot
+          ?? current.pressItems?.find((p) => p.matchId === drameMatchId && p.category === 'drame')?.matchSnapshot;
+        if (origSnapshot) {
+          updatedPressItems = [...updatedPressItems, generateDrameHommageItem({
+            round: roundNum,
+            seed: `${current.id}-r${roundNum}-hommage-${drameMatchId}`,
+            originalMatchId: drameMatchId,
+            originalMatchSnapshot: origSnapshot,
+          })];
+        }
+        const { [drameMatchId]: _, ...rest } = updatedPendingDrameHommage;
+        updatedPendingDrameHommage = rest;
+      }
+    }
+
+    // Drame roll per slot
+    for (const slot of slots) {
+      if (!slot.state || slot.state.status !== 'fulltime') continue;
+      const cm = current.matches.find((m) => m.id === slot.compMatchId);
+      if (!cm?.homeTeamId || !cm?.awayTeamId) continue;
+      const drameH = (() => { let h = 0; const s = `${current.id}-r${roundNum}-${slot.compMatchId}-drame`; for (let i = 0; i < s.length; i++) { h = Math.imul(31, h) + s.charCodeAt(i) | 0; } return () => { h ^= h >>> 16; h = Math.imul(h, 0x45d9f3b); h ^= h >>> 16; return (h >>> 0) / 0xffffffff; }; })();
+      if (drameH() < 0.005) {
+        const sn = { homeTeamId: cm.homeTeamId, awayTeamId: cm.awayTeamId, homeTeamName: current.teamSnapshot?.[cm.homeTeamId]?.name ?? cm.homeTeamId, awayTeamName: current.teamSnapshot?.[cm.awayTeamId]?.name ?? cm.awayTeamId, homeScore: slot.state.score.home, awayScore: slot.state.score.away };
+        updatedPressItems = [...updatedPressItems, generateDrameItem({ round: roundNum, seed: `${current.id}-r${roundNum}-${slot.compMatchId}-drame-evt`, matchId: slot.compMatchId, matchSnapshot: sn })];
+        updatedPendingDrameHommage = { ...updatedPendingDrameHommage, [slot.compMatchId]: roundNum + 1 };
+      }
+    }
+
+    // CMF — phases et palmarès
+    const cmfBase = { round: roundNum, competitionName: current.name, format: current.format, teamSnapshot: current.teamSnapshot ?? {}, standings: updatedStandings, playerStats: updatedPlayerStats };
+    const completedSlotPhases = [...new Set(slots.filter((s) => s.state?.status === 'fulltime').map((s) => current.matches.find((m) => m.id === s.compMatchId)?.phase).filter(Boolean) as string[])];
+    const totalPlayed = updatedMatches.filter((m) => m.status === 'completed').length;
+    const slotsPlayed = slots.filter((s) => s.state?.status === 'fulltime').length;
+
+    // Début de compétition (toute première journée)
+    if (totalPlayed === slotsPlayed && slotsPlayed > 0) {
+      updatedPressItems = [...updatedPressItems, ...generateCmfItems({ ...cmfBase, seed: `${current.id}-r${roundNum}-cmf-debut`, phase: completedSlotPhases[0] ?? 'league', moment: 'debut' })];
+    }
+
+    // Fin de phase : toutes les matches de cette phase terminées
+    for (const ph of completedSlotPhases) {
+      const phaseMatches = updatedMatches.filter((m) => m.phase === ph);
+      if (phaseMatches.length > 0 && phaseMatches.every((m) => m.status === 'completed') && !allDone) {
+        updatedPressItems = [...updatedPressItems, ...generateCmfItems({ ...cmfBase, seed: `${current.id}-r${roundNum}-cmf-fin-${ph}`, phase: ph, moment: 'fin' })];
+        // Début de la prochaine phase détectée
+        const nextPhaseMatches = updatedMatches.filter((m) => m.phase !== ph && m.status === 'pending');
+        const nextPh = nextPhaseMatches[0]?.phase;
+        if (nextPh) updatedPressItems = [...updatedPressItems, ...generateCmfItems({ ...cmfBase, seed: `${current.id}-r${roundNum}-cmf-debut2-${nextPh}`, phase: nextPh, moment: 'debut' })];
+      }
+    }
+
+    // Palmarès
+    if (allDone) {
+      const finalPh = completedSlotPhases[completedSlotPhases.length - 1] ?? 'F';
+      updatedPressItems = [...updatedPressItems, ...generateCmfItems({ ...cmfBase, seed: `${current.id}-r${roundNum}-cmf-palmares`, phase: finalPh, moment: 'palmares', winner })];
+    }
+
     setPendingUpdate({
       ...current,
       matches: updatedMatches,
@@ -512,6 +587,7 @@ export default function MultiplexLive() {
       injuries: updatedInjuries,
       suspensions: updatedSuspensions,
       pendingPresidencyRebound: Object.keys(updatedPendingRebound).length > 0 ? updatedPendingRebound : undefined,
+      pendingDrameHommage: Object.keys(updatedPendingDrameHommage).length > 0 ? updatedPendingDrameHommage : undefined,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allFinished]);
@@ -645,31 +721,45 @@ export default function MultiplexLive() {
                   </div>
                 </div>
 
-                {/* Tactic style selectors */}
+                {/* Tactic selectors */}
                 <div className="grid grid-cols-2 gap-2">
                   {(['home', 'away'] as const).map((side) => {
                     const team = side === 'home' ? home : away;
-                    const current = side === 'home' ? slot.input.home.tacticStyle : slot.input.away.tacticStyle;
+                    const tactics = side === 'home' ? slot.homeSavedTactics : slot.awaySavedTactics;
+                    const activeId = side === 'home' ? slot.input.home.team.activeTacticId : slot.input.away.team.activeTacticId;
+                    const currentTacticId = tactics.find((t) =>
+                      t.formation === (side === 'home' ? slot.input.home.formation : slot.input.away.formation) &&
+                      t.style === (side === 'home' ? slot.input.home.tacticStyle : slot.input.away.tacticStyle)
+                    )?.id ?? activeId ?? '';
                     return (
                       <div key={side} className="space-y-1">
                         <div className="text-[10px] uppercase tracking-widest text-muted">{team.name}</div>
                         <select
-                          value={current ?? ''}
+                          value={currentTacticId}
                           onChange={(e) => {
-                            const val = e.target.value as TacticStyle | '';
+                            const tactic = tactics.find((t) => t.id === e.target.value);
                             setPendingInputs((prev) => prev ? prev.map((s, si) => si !== i ? s : {
                               ...s,
                               input: {
                                 ...s.input,
-                                [side]: { ...s.input[side], tacticStyle: val || undefined },
+                                [side]: {
+                                  ...s.input[side],
+                                  formation: tactic?.formation ?? s.input[side].formation,
+                                  lineup: tactic?.lineup ?? s.input[side].lineup,
+                                  bench: tactic?.bench ?? s.input[side].bench,
+                                  plannedSubs: tactic?.plannedSubs ?? s.input[side].plannedSubs,
+                                  tacticStyle: tactic?.style ?? s.input[side].tacticStyle,
+                                },
                               },
                             }) : prev);
                           }}
                           className="w-full rounded-md border border-border bg-surface px-2 py-1 text-xs text-text"
                         >
                           <option value="">Par défaut</option>
-                          {(Object.keys(TACTIC_STYLE_LABEL) as TacticStyle[]).map((s) => (
-                            <option key={s} value={s}>{TACTIC_STYLE_LABEL[s]}</option>
+                          {tactics.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name}{t.id === activeId ? ' ✓' : ''}
+                            </option>
                           ))}
                         </select>
                       </div>
