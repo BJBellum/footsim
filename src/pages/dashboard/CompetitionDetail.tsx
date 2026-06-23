@@ -184,7 +184,7 @@ export default function CompetitionDetail() {
           if (!existing) continue;
           const team = existing.data;
           const prev = team.compHistory ?? [];
-          if (prev.some((e) => e.compId === current.id)) continue;
+          const existingIdx = prev.findIndex((e) => e.compId === current.id);
           const entry: CompHistoryEntry = {
             compId: current.id,
             compName: current.name,
@@ -196,7 +196,10 @@ export default function CompetitionDetail() {
             result: deriveTeamResult(t.id, current),
             phase: deriveTeamPhase(t.id, current),
           };
-          files.push({ path: `data/teams/${t.slug}/team.json`, content: { ...team, compHistory: [...prev, entry] } });
+          const next = existingIdx >= 0
+            ? prev.map((e, i) => i === existingIdx ? entry : e)
+            : [...prev, entry];
+          files.push({ path: `data/teams/${t.slug}/team.json`, content: { ...team, compHistory: next } });
         }
         if (files.length > 0) {
           await commitFiles(files, `chore(teams): add ${current.name} to palmares (${files.length} équipes)`, pat);
