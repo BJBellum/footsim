@@ -247,3 +247,85 @@ async function doAppendRecent(team: Team, summary: RecentMatchSummary, token: st
     }
   }
 }
+
+/**
+ * Resync recentMatches for all teams in a competition from stored match files.
+ * Overwrites existing entries for matches found — adds missing ones, ignores already-present ones.
+ * Used to fix competitions completed before recentMatches tracking existed.
+ */
+export async function resyncCompetitionMatchHistory(
+  comp: import('@/lib/competition/types').Competition,
+  token: string,
+  meta?: { compKind?: CompetitionKind; compScope?: CompetitionScope; teamStrengths?: Record<string, number> },
+): Promise<{ synced: number; skipped: number }> {
+  const completedMatches = comp.matches.filter((m) => m.status === 'completed' && m.matchFileId);
+
+  const stored = await Promise.all(
+    completedMatches.map((m) => readJson<StoredMatch>(MATCH_PATH(m.matchFileId!), token)),
+  );
+
+  const bySlug = new Map<string, RecentMatchSummary[]>();
+
+  for (let i = 0; i < completedMatches.length; i++) {
+    const s = stored[i];
+    if (!s) continue;
+    const match = s.data;
+
+    const homeStrength = meta?.teamStrengths?.[match.home.teamId] ?? 50;
+    const awayStrength = meta?.teamStrengths?.[match.away.teamId] ?? 50;
+
+    const homeSummary: RecentMatchSummary = {
+      matchId: match.id, playedAt: match.playedAt,
+      opponentSlug: match.away.teamSlug, opponentName: match.away.teamName,
+      homeTeamId: match.home.teamId, awayTeamId: match.away.teamId,
+      homeAway: 'home', scoreFor: match.finalScore.home, scoreAgainst: match.finalScore.away,
+      opponentStrength: awayStrength, compKind: meta?.compKind, compScope: meta?.compScope,
+      cmfPoints: calcCmfMatchPoints({ scoreFor: match.finalScore.home, scoreAgainst: match.finalScore.away, opponentStrength: awayStrength, compKind: meta?.compKind, compScope: meta?.compScope }),
+    };
+    const awaySummary: RecentMatchSummary = {
+      matchId: match.id, playedAt: match.playedAt,
+      opponentSlug: match.home.teamSlug, opponentName: match.home.teamName,
+      homeTeamId: match.home.teamId, awayTeamId: match.away.teamId,
+      homeAway: 'away', scoreFor: match.finalScore.away, scoreAgainst: match.finalScore.home,
+      opponentStrength: homeStrength, compKind: meta?.compKind, compScope: meta?.compScope,
+      cmfPoints: calcCmfMatchPoints({ scoreFor: match.finalScore.away, scoreAgainst: match.finalScore.home, opponentStrength: homeStrength, compKind: meta?.compKind, compScope: meta?.compScope }),
+    };
+
+    const hl = bySlug.get(match.home.teamSlug) ?? []; hl.push(homeSummary); bySlug.set(match.home.teamSlug, hl);
+    const al = bySlug.get(match.away.teamSlug) ?? []; al.push(awaySummary); bySlug.set(match.away.teamSlug, al);
+  }
+
+  if (bySlug.size === 0) return { synced: 0, skipped: completedMatches.length };
+
+  let synced = 0;
+  await Promise.all(
+    Array.from(bySlug.entries()).map(async ([slug, newSummaries]) => {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        type TW = Team & { recentMatches?: RecentMatchSummary[] };
+        const existing = await readJson<TW>(TEAM_PATH(slug), token);
+        if (!existing) break;
+        const prev = existing.data.recentMatches ?? [];
+        const matchIds = new Set(newSummaries.map((s) => s.matchId));
+        const kept = prev.filter((r) => !matchIds.has(r.matchId));
+        const sorted = [...newSummaries].sort((a, b) => b.playedAt.localeCompare(a.playedAt));
+        const next = [...sorted, ...kept].slice(0, RECENT_LIMIT);
+        try {
+          await writeJson({
+            path: TEAM_PATH(slug), token,
+            data: { ...existing.data, recentMatches: next } as TW,
+            message: `chore(teams/${slug}): resync match history from ${comp.name}`,
+            sha: existing.sha,
+          });
+          synced++;
+          break;
+        } catch (err) {
+          const msg = String(err);
+          if ((msg.includes('409') || msg.includes('422')) && attempt < 3) continue;
+          throw err;
+        }
+      }
+    }),
+  );
+
+  return { synced, skipped: completedMatches.length - stored.filter(Boolean).length };
+}

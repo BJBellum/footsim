@@ -30,6 +30,7 @@ import { PRESS_CATEGORY_COLOR, PRESS_CATEGORY_LABEL, generateCmfItems } from '@/
 import { COACH_TRAIT_LABEL, COACH_TRAIT_DESCRIPTION } from '@/lib/gen/coach';
 import { batchUpdateTeamCompHistory } from '@/lib/github/store';
 import { commitFiles, readJson as ghReadJson } from '@/lib/github/api';
+import { resyncCompetitionMatchHistory } from '@/lib/github/matches';
 import type { Injury, Suspension } from '@/lib/competition/injuries';
 import { SEVERITY_COLOR, CAUSE_LABEL } from '@/lib/competition/injuries';
 
@@ -55,6 +56,7 @@ export default function CompetitionDetail() {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [resyncing, setResyncing] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'bracket' | 'rounds' | 'stats' | 'presse' | 'medical' | 'suspensions'>('overview');
   const [knockoutDraw, setKnockoutDraw] = useState<DrawResult | null>(null);
   const [lpmDraw, setLpmDraw] = useState<LPMPair[] | null>(null);
@@ -229,6 +231,28 @@ export default function CompetitionDetail() {
       toast('error', String(err));
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function handleResyncMatchHistory() {
+    if (!pat || !current) return;
+    setResyncing(true);
+    try {
+      const strengths: Record<string, number> = {};
+      for (const id of current.teamIds) {
+        const snap = current.teamSnapshot?.[id];
+        if (snap?.globalStrength) strengths[id] = snap.globalStrength;
+      }
+      const { synced, skipped } = await resyncCompetitionMatchHistory(current, pat, {
+        compKind: current.kind,
+        compScope: current.scope,
+        teamStrengths: strengths,
+      });
+      toast('success', `Historique resynchronisé : ${synced} équipes mises à jour, ${skipped} matchs sans fichier.`);
+    } catch (err) {
+      toast('error', String(err));
+    } finally {
+      setResyncing(false);
     }
   }
 
@@ -495,6 +519,11 @@ export default function CompetitionDetail() {
             {!current.teamSnapshot && (
               <Button size="sm" variant="ghost" onClick={handlePatchSnapshot} disabled={syncing}>
                 🔧 Réparer noms
+              </Button>
+            )}
+            {current.status === 'completed' && (
+              <Button size="sm" variant="ghost" onClick={handleResyncMatchHistory} disabled={resyncing}>
+                {resyncing ? <Spinner className="h-4 w-4" /> : '🔄 Resync historique'}
               </Button>
             )}
             {dirty && (
