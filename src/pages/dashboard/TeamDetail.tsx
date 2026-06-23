@@ -12,6 +12,7 @@ import { TacticsPanel } from '@/components/team/TacticsPanel';
 import { TacticsSummary } from '@/components/team/TacticsSummary';
 import type { Player, SavedTactic, Team, TeamTactics, Culture, Continent } from '@/lib/types';
 import type { CompHistoryEntry } from '@/lib/competition/types';
+import type { RecentMatchSummary } from '@/lib/github/matches';
 import { FORMAT_LABEL } from '@/lib/competition/types';
 import { CULTURE_LABEL, CONTINENT_LABEL, CULTURES_BY_CONTINENT } from '@/lib/types';
 import { FlagUpload } from '@/components/team/FlagUpload';
@@ -42,7 +43,7 @@ export default function TeamDetail() {
   const [deleteCount, setDeleteCount] = useState(1);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [tab, setTab] = useState<'roster' | 'tactique' | 'entraineur' | 'infos' | 'palmares'>('roster');
+  const [tab, setTab] = useState<'roster' | 'tactique' | 'entraineur' | 'infos' | 'palmares' | 'historique'>('roster');
   const [savedTactics, setSavedTactics] = useState<SavedTactic[]>([]);
   const [activeTacticId, setActiveTacticId] = useState<string | undefined>();
   const [editingTacticId, setEditingTacticId] = useState<string | null>(null);
@@ -558,13 +559,13 @@ async function applyNewStrength(strength: number) {
 
       {/* Tab bar */}
       <div className="flex items-center gap-1 border-b border-border">
-        {(['roster', 'tactique', 'entraineur', 'palmares'] as const).map((t) => (
+        {(['roster', 'tactique', 'entraineur', 'palmares', 'historique'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium transition-colors ${tab === t ? 'border-b-2 border-accent text-accent' : 'text-muted hover:text-text'}`}
           >
-            {t === 'roster' ? 'Roster' : t === 'tactique' ? 'Tactique' : t === 'entraineur' ? 'Entraîneur' : 'Palmarès'}
+            {t === 'roster' ? 'Roster' : t === 'tactique' ? 'Tactique' : t === 'entraineur' ? 'Entraîneur' : t === 'palmares' ? 'Palmarès' : 'Historique'}
           </button>
         ))}
         <div className="ml-auto">
@@ -722,6 +723,21 @@ async function applyNewStrength(strength: number) {
 
       {tab === 'palmares' && (
         <PalmaresTab compHistory={team.compHistory ?? []} />
+      )}
+
+      {tab === 'historique' && (
+        <HistoriqueTab
+          matches={team.recentMatches ?? []}
+          onDelete={(matchId) => {
+            const next = (team.recentMatches ?? []).filter((m) => m.matchId !== matchId);
+            mutate({ team: { ...team, recentMatches: next }, players });
+            setDirty(true);
+          }}
+          onDeleteAll={() => {
+            mutate({ team: { ...team, recentMatches: [] }, players });
+            setDirty(true);
+          }}
+        />
       )}
 
       {tab === 'infos' && editCultures !== null && (
@@ -1461,6 +1477,86 @@ function PalmaresTab({ compHistory }: { compHistory: CompHistoryEntry[] }) {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function HistoriqueTab({
+  matches,
+  onDelete,
+  onDeleteAll,
+}: {
+  matches: RecentMatchSummary[];
+  onDelete: (matchId: string) => void;
+  onDeleteAll: () => void;
+}) {
+  if (matches.length === 0) {
+    return (
+      <div className="py-16 text-center text-muted text-sm">
+        Aucun match dans l'historique.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-muted">{matches.length} match{matches.length > 1 ? 's' : ''} — les suppressions s'appliquent localement, publie pour valider sur GitHub.</p>
+        <button
+          onClick={() => { if (confirm('Supprimer tout l\'historique de matchs ?')) onDeleteAll(); }}
+          className="rounded-md border border-danger/40 px-3 py-1.5 text-xs text-danger hover:bg-danger/10 transition-colors"
+        >
+          Tout supprimer
+        </button>
+      </div>
+
+      <div className="overflow-hidden rounded-lg border border-border bg-surface">
+        <table className="w-full text-sm">
+          <thead className="bg-bg text-left text-xs text-muted uppercase tracking-wide">
+            <tr>
+              <th className="px-3 py-2">Date</th>
+              <th className="px-3 py-2">Adversaire</th>
+              <th className="px-3 py-2 text-center">D/E</th>
+              <th className="px-3 py-2 text-center">Score</th>
+              <th className="px-3 py-2 text-center">Résultat</th>
+              <th className="px-3 py-2 text-right">Pts CMF</th>
+              <th className="px-3 py-2 text-right">Importance</th>
+              <th className="px-2 py-2"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {matches.map((m) => {
+              const result = m.scoreFor > m.scoreAgainst ? 'V' : m.scoreFor === m.scoreAgainst ? 'N' : 'D';
+              const resultColor = result === 'V' ? 'text-green-500' : result === 'N' ? 'text-yellow-400' : 'text-red-500';
+              const date = new Date(m.playedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+              return (
+                <tr key={m.matchId} className="border-t border-border hover:bg-border/10 transition-colors">
+                  <td className="px-3 py-2 text-xs text-muted tabular-nums">{date}</td>
+                  <td className="px-3 py-2 font-medium">{m.opponentName}</td>
+                  <td className="px-3 py-2 text-center text-xs text-muted">{m.homeAway === 'home' ? 'D' : 'E'}</td>
+                  <td className="px-3 py-2 text-center tabular-nums font-mono">{m.scoreFor}–{m.scoreAgainst}</td>
+                  <td className={`px-3 py-2 text-center font-bold ${resultColor}`}>{result}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-xs text-accent">
+                    {m.cmfPoints != null ? `+${m.cmfPoints}` : '—'}
+                  </td>
+                  <td className="px-3 py-2 text-right text-xs text-muted">
+                    {m.compImportance ?? '—'}
+                  </td>
+                  <td className="px-2 py-2 text-right">
+                    <button
+                      onClick={() => onDelete(m.matchId)}
+                      className="rounded px-2 py-0.5 text-xs text-danger hover:bg-danger/10 transition-colors"
+                      title="Supprimer ce match de l'historique"
+                    >
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
