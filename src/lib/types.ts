@@ -302,6 +302,8 @@ export type Team = {
   actionFoot?: { rating: number; funding: number };
   /** Competition history — populated when a competition is saved to GitHub */
   compHistory?: import('@/lib/competition/types').CompHistoryEntry[];
+  /** Last N match results — appended by saveMatch */
+  recentMatches?: import('@/lib/github/matches').RecentMatchSummary[];
 };
 
 export type LeagueClub = {

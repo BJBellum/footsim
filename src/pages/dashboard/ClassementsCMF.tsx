@@ -7,6 +7,7 @@ import { listTeams, loadTeam } from '@/lib/github/store';
 import { POSITION_LABEL, CULTURE_LABEL } from '@/lib/types';
 import type { Team, Position } from '@/lib/types';
 import type { CompHistoryEntry, CompetitionKind, CompetitionScope } from '@/lib/competition/types';
+import type { RecentMatchSummary } from '@/lib/github/matches';
 
 // ─── Points system ────────────────────────────────────────────────────────────
 
@@ -40,6 +41,8 @@ function entryPoints(entry: CompHistoryEntry): number {
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+type MatchResult = 'W' | 'D' | 'L';
+
 type TeamRankEntry = {
   team: Team;
   points: number;
@@ -47,6 +50,7 @@ type TeamRankEntry = {
   finals: number;
   thirds: number;
   participations: number;
+  form: MatchResult[]; // last 5, most recent last
 };
 
 type PlayerEntry = {
@@ -110,6 +114,12 @@ export default function ClassementsCMF() {
               else if (entry.result === 'third') thirds++;
             }
 
+            // Form: last 5 matches most recent last
+            const recent: RecentMatchSummary[] = data.team.recentMatches ?? [];
+            const form: MatchResult[] = recent.slice(-5).map((m) =>
+              m.scoreFor > m.scoreAgainst ? 'W' : m.scoreFor === m.scoreAgainst ? 'D' : 'L',
+            );
+
             rankEntries.push({
               team: data.team,
               points,
@@ -117,6 +127,7 @@ export default function ClassementsCMF() {
               finals,
               thirds,
               participations: history.length,
+              form,
             });
           }),
         );
@@ -263,6 +274,31 @@ export default function ClassementsCMF() {
   );
 }
 
+// ─── Form icons ───────────────────────────────────────────────────────────────
+
+function FormIcon({ result }: { result: MatchResult }) {
+  if (result === 'W') {
+    return (
+      <svg viewBox="0 0 16 16" className="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="Victoire">
+        <polyline points="2,8 6,12 14,4" />
+      </svg>
+    );
+  }
+  if (result === 'L') {
+    return (
+      <svg viewBox="0 0 16 16" className="w-4 h-4 text-red-500 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="Défaite">
+        <line x1="3" y1="3" x2="13" y2="13" />
+        <line x1="13" y1="3" x2="3" y2="13" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 16 16" className="w-4 h-4 text-yellow-400 shrink-0" fill="currentColor" aria-label="Match nul">
+      <rect x="2" y="7" width="12" height="2" rx="1" />
+    </svg>
+  );
+}
+
 // ─── Team ranking sub-component ───────────────────────────────────────────────
 
 function TeamRanking({ entries }: { entries: TeamRankEntry[] }) {
@@ -287,6 +323,7 @@ function TeamRanking({ entries }: { entries: TeamRankEntry[] }) {
             <th className="px-3 py-2 text-center">🥈</th>
             <th className="px-3 py-2 text-center">🥉</th>
             <th className="px-3 py-2 text-center">Participations</th>
+            <th className="px-3 py-2 text-center">Forme</th>
             <th className="px-3 py-2 text-right font-bold">Points</th>
           </tr>
         </thead>
@@ -324,6 +361,14 @@ function TeamRanking({ entries }: { entries: TeamRankEntry[] }) {
                   <td className="px-3 py-2.5 text-center tabular-nums">{e.finals || '—'}</td>
                   <td className="px-3 py-2.5 text-center tabular-nums">{e.thirds || '—'}</td>
                   <td className="px-3 py-2.5 text-center tabular-nums text-muted">{e.participations}</td>
+                  <td className="px-3 py-2.5">
+                    <div className="flex items-center justify-center gap-0.5">
+                      {e.form.length === 0
+                        ? <span className="text-xs text-muted">—</span>
+                        : e.form.map((r, i) => <FormIcon key={i} result={r} />)
+                      }
+                    </div>
+                  </td>
                   <td className="px-3 py-2.5 text-right tabular-nums font-bold text-accent">{e.points}</td>
                 </tr>
                 {isOpen && (
