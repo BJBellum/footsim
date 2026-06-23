@@ -6,6 +6,7 @@ import { useCredentials } from '@/stores/credentials';
 import { useBackendArgs } from '@/hooks/useBackendArgs';
 import { listTeams, loadTeam } from '@/lib/github/store';
 import { POSITION_LABEL, CULTURE_LABEL } from '@/lib/types';
+import { env } from '@/lib/env';
 import type { Team, Position } from '@/lib/types';
 import type { CompHistoryEntry, CompetitionKind, CompetitionScope, CompetitionImportance } from '@/lib/competition/types';
 import { calcCmfMatchPoints } from '@/lib/github/matches';
@@ -90,7 +91,7 @@ type Tab = 'equipes' | 'joueurs' | 'explications';
 export default function ClassementsCMF({ embedded }: { embedded?: boolean }) {
   const pat = useCredentials((s) => s.githubPat);
   const { pat: effectivePat } = useBackendArgs();
-  const token = pat ?? effectivePat ?? null;
+  const token = pat ?? effectivePat ?? env.githubReadToken ?? null;
   const location = useLocation();
   const isPublicRoute = !embedded && location.pathname === '/classements-cmf';
 
@@ -204,26 +205,19 @@ export default function ClassementsCMF({ embedded }: { embedded?: boolean }) {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border">
-        {([['equipes', 'Meilleures équipes'], ['joueurs', 'Meilleurs joueurs'], ['explications', 'Explications']] as const).map(([t, label]) => {
-          const disabled = t === 'joueurs' && !token;
-          return (
-            <button
-              key={t}
-              onClick={() => !disabled && setTab(t)}
-              disabled={disabled}
-              title={disabled ? 'Connexion requise pour voir les joueurs' : undefined}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                tab === t
-                  ? 'border-accent text-accent'
-                  : disabled
-                  ? 'border-transparent text-muted/40 cursor-not-allowed'
-                  : 'border-transparent text-muted hover:text-text'
-              }`}
-            >
-              {label}
-            </button>
-          );
-        })}
+        {([['equipes', 'Meilleures équipes'], ['joueurs', 'Meilleurs joueurs'], ['explications', 'Explications']] as const).map(([t, label]) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              tab === t
+                ? 'border-accent text-accent'
+                : 'border-transparent text-muted hover:text-text'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {tab === 'equipes' && (
