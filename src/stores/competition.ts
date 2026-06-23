@@ -5,6 +5,7 @@ import {
   loadCompetition,
   saveCompetition,
   deleteCompetition,
+  invalidateIndexCache,
 } from '@/lib/github/competitions';
 
 const LS_KEY = (id: string) => `footsim.competition.${id}`;
@@ -84,6 +85,10 @@ export const useCompetition = create<State>((set, get) => ({
       teamCount: competition.teamIds.length,
       createdAt: competition.createdAt,
       winner: competition.winner,
+      year: competition.year,
+      kind: competition.kind,
+      scope: competition.scope,
+      teamIds: competition.teamIds,
     };
     const list = get().summaries;
     const next = list.some((c) => c.id === competition.id)
@@ -95,6 +100,7 @@ export const useCompetition = create<State>((set, get) => ({
   async remove(id, token) {
     await deleteCompetition(id, token);
     lsDelete(id);
+    invalidateIndexCache();
     set({ summaries: get().summaries.filter((c) => c.id !== id) });
     if (get().current?.id === id) set({ current: null, dirty: false });
   },

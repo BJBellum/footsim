@@ -53,6 +53,11 @@ function enqueue<T>(fn: () => Promise<T>): Promise<T> {
   return result;
 }
 
+export function invalidateIndexCache(): void {
+  cachedIndexSha = undefined;
+  cachedIndexData = undefined;
+}
+
 export async function listCompetitions(token: string | null): Promise<CompetitionSummary[]> {
   const res = await readIndex(token);
   return res?.data ?? [];
@@ -105,9 +110,10 @@ export function deleteCompetition(id: string, token: string): Promise<void> {
     if (existing) {
       await deleteFile(COMP_PATH(id), existing.sha, token, `chore(competitions): delete ${id}`);
     }
-    const idx = cachedIndexData !== undefined && cachedIndexSha !== undefined
-      ? { data: cachedIndexData, sha: cachedIndexSha }
-      : await readIndex(token);
+    // Always fresh-read index on delete — avoids stale SHA writing back a ghost entry
+    cachedIndexSha = undefined;
+    cachedIndexData = undefined;
+    const idx = await readIndex(token);
     if (!idx) return;
     const next = idx.data.filter((c) => c.id !== id);
     await writeIndex(next, token, `chore(competitions): remove ${id} from index`);
