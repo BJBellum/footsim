@@ -12,8 +12,8 @@ export function setThemeOverride(mode: ThemeMode | null): void {
   else localStorage.setItem(OVERRIDE_KEY, mode);
 }
 
-export function modeForHour(hour: number): ThemeMode {
-  return hour >= 6 && hour < 19 ? 'day' : 'night';
+export function modeForHour(_hour: number): ThemeMode {
+  return 'night';
 }
 
 export function applyTheme(mode: ThemeMode): void {
