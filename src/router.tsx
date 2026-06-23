@@ -1,5 +1,5 @@
 import { createBrowserRouter } from 'react-router-dom';
-import { lazy, Suspense } from 'react';
+import React, { lazy, Suspense } from 'react';
 import Home from '@/pages/Home';
 import Callback from '@/pages/auth/Callback';
 import NoAccess from '@/pages/NoAccess';
@@ -34,7 +34,7 @@ const Simulation = lazyWithReload(() => import('@/pages/dashboard/Simulation'));
 const Postes = lazyWithReload(() => import('@/pages/dashboard/Postes'));
 const NotesJoueurs = lazyWithReload(() => import('@/pages/dashboard/NotesJoueurs'));
 const MeilleursJoueurs = lazyWithReload(() => import('@/pages/dashboard/MeilleursJoueurs'));
-const ClassementsCMF = lazyWithReload(() => import('@/pages/dashboard/ClassementsCMF'));
+const ClassementsCMF = lazyWithReload(() => import('@/pages/dashboard/ClassementsCMF') as Promise<{ default: React.ComponentType<unknown> }>);
 const Competitions = lazyWithReload(() => import('@/pages/dashboard/Competitions'));
 const CompetitionNew = lazyWithReload(() => import('@/pages/dashboard/CompetitionNew'));
 const CompetitionDetail = lazyWithReload(() => import('@/pages/dashboard/CompetitionDetail'));
@@ -94,14 +94,6 @@ export const router = createBrowserRouter(
       element: (
         <RequireAuth>
           <S><MyTeam /></S>
-        </RequireAuth>
-      ),
-    },
-    {
-      path: '/classements-cmf',
-      element: (
-        <RequireAuth>
-          <S><ClassementsCMF /></S>
         </RequireAuth>
       ),
     },

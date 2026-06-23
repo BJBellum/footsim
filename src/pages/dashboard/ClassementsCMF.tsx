@@ -87,12 +87,12 @@ type Tab = 'equipes' | 'joueurs' | 'explications';
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function ClassementsCMF() {
+export default function ClassementsCMF({ embedded }: { embedded?: boolean }) {
   const pat = useCredentials((s) => s.githubPat);
   const { pat: effectivePat } = useBackendArgs();
   const token = pat ?? effectivePat ?? null;
   const location = useLocation();
-  const isPublicRoute = location.pathname === '/classements-cmf';
+  const isPublicRoute = !embedded && location.pathname === '/classements-cmf';
 
   const [tab, setTab] = useState<Tab>('equipes');
   const [loading, setLoading] = useState(true);
@@ -186,19 +186,21 @@ export default function ClassementsCMF() {
 
   return (
     <div className="max-w-5xl space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-display text-4xl">Classements CMF</h1>
-          <p className="mt-1 text-muted text-sm">
-            Classements officiels de la Confédération Mondiale du Football.
-          </p>
+      {!embedded && (
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="font-display text-4xl">Classements CMF</h1>
+            <p className="mt-1 text-muted text-sm">
+              Classements officiels de la Confédération Mondiale du Football.
+            </p>
+          </div>
+          {isPublicRoute && (
+            <Link to="/my-team" className="text-sm text-muted hover:text-text transition-colors shrink-0">
+              ← Retour
+            </Link>
+          )}
         </div>
-        {isPublicRoute && (
-          <Link to="/my-team" className="text-sm text-muted hover:text-text transition-colors shrink-0">
-            ← Retour
-          </Link>
-        )}
-      </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border">

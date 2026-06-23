@@ -13,7 +13,6 @@ import { GithubTeamBackend } from '@/lib/github/backend';
 import { saveTeamWithRoster } from '@/lib/github/store';
 import { listCompetitions } from '@/lib/github/competitions';
 import { POSITIONS, POSITION_LABEL, POSITION_FULL, CULTURES_BY_CONTINENT, CULTURE_LABEL } from '@/lib/types';
-import { listTeams, loadTeam } from '@/lib/github/store';
 import type { Continent } from '@/lib/types';
 import { FORMAT_LABEL } from '@/lib/competition/types';
 import type { Player, SavedTactic, Team, TeamTactics } from '@/lib/types';
@@ -25,8 +24,8 @@ import type { CultureWeight } from '@/lib/gen/names';
 import { loadLocalTactics, loadLocalSavedTactics, saveLocalSavedTactics } from '@/lib/localTactics';
 import { env } from '@/lib/env';
 import { PlayerView } from '@/components/team/PlayerView';
-import { TeamTacticLink } from '@/components/team/TeamTacticCard';
 import Simulation from '@/pages/dashboard/Simulation';
+import ClassementsCMF from '@/pages/dashboard/ClassementsCMF';
 import { COACH_TRAIT_LABEL, COACH_TRAIT_DESCRIPTION } from '@/lib/gen/coach';
 import type { Coach } from '@/lib/gen/coach';
 
@@ -43,7 +42,7 @@ const STATUS_COLOR: Record<string, string> = {
   completed: 'text-warning',
 };
 
-type Tab = 'tactique' | 'joueurs' | 'noms' | 'postes' | 'competitions' | 'palmares' | 'historique' | 'top' | 'simulation' | 'entraineur';
+type Tab = 'tactique' | 'joueurs' | 'noms' | 'postes' | 'competitions' | 'palmares' | 'historique' | 'classements' | 'simulation' | 'entraineur';
 
 export default function MyTeam() {
   const session = useSession((s) => s.session);
@@ -58,8 +57,6 @@ export default function MyTeam() {
   const [tab, setTab] = useState<Tab>('tactique');
   const [summaries, setSummaries] = useState<CompetitionSummary[]>([]);
   const [loadingComps, setLoadingComps] = useState(false);
-  const [topPlayers, setTopPlayers] = useState<{ player: Player; team: Team }[]>([]);
-  const [loadingTop, setLoadingTop] = useState(false);
   const [viewingPlayer, setViewingPlayer] = useState<Player | null>(null);
   const [nameWeights, setNameWeights] = useState<CultureWeight[]>([]);
   const [generatingNames, setGeneratingNames] = useState(false);
@@ -135,30 +132,6 @@ export default function MyTeam() {
       .finally(() => setLoadingComps(false));
   }, [tab]);
 
-  useEffect(() => {
-    if (tab !== 'top' || topPlayers.length > 0) return;
-    setLoadingTop(true);
-    async function loadTop() {
-      try {
-        const teams = await listTeams(env.githubReadToken ?? null);
-        const all: { player: Player; team: Team }[] = [];
-        await Promise.all(
-          teams.map(async (team) => {
-            const d = await loadTeam(team.slug, env.githubReadToken ?? null);
-            if (!d) return;
-            for (const p of d.players) all.push({ player: p, team });
-          }),
-        );
-        all.sort((a, b) => b.player.overall - a.player.overall);
-        setTopPlayers(all);
-      } catch {
-        toast('error', 'Impossible de charger les joueurs.');
-      } finally {
-        setLoadingTop(false);
-      }
-    }
-    loadTop();
-  }, [tab]);
 
   function persistSavedTactics(next: SavedTactic[], activeId?: string) {
     if (!data) return;
@@ -352,7 +325,7 @@ export default function MyTeam() {
 
       {/* Tabs */}
       <div className="flex flex-wrap items-center gap-1 border-b border-border">
-        {(['tactique', 'joueurs', 'noms', 'postes', 'competitions', 'palmares', 'historique', 'top', 'entraineur', 'simulation'] as Tab[]).map((t) => (
+        {(['tactique', 'joueurs', 'noms', 'postes', 'competitions', 'palmares', 'historique', 'classements', 'entraineur', 'simulation'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -365,7 +338,7 @@ export default function MyTeam() {
               : t === 'competitions' ? 'Compétitions'
               : t === 'palmares' ? 'Palmarès'
               : t === 'historique' ? 'Historique matchs'
-              : t === 'top' ? 'Meilleurs joueurs'
+              : t === 'classements' ? 'Classements CMF'
               : t === 'entraineur' ? 'Entraîneur'
               : 'Simulation'}
           </button>
@@ -556,69 +529,8 @@ export default function MyTeam() {
       {tab === 'historique' && (
         <MyTeamHistoriqueTab recentMatches={data.team.recentMatches ?? []} />
       )}
-      {/* Meilleurs joueurs */}
-      {tab === 'top' && (
-        <div className="space-y-4">
-          <div className="flex justify-end">
-            <Link to="/classements-cmf">
-              <Button size="sm" variant="ghost">Classements CMF →</Button>
-            </Link>
-          </div>
-          {loadingTop ? (
-            <div className="space-y-1">
-              {Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)}
-            </div>
-          ) : topPlayers.length === 0 ? (
-            <div className="rounded-lg border border-border bg-surface p-12 text-center text-muted">
-              Aucun joueur chargé.
-            </div>
-          ) : (
-            <div className="overflow-hidden rounded-lg border border-border bg-surface">
-              <table className="w-full text-sm">
-                <thead className="bg-bg text-left text-xs text-muted uppercase tracking-wide">
-                  <tr>
-                    <th className="px-3 py-2 w-10 text-center">#</th>
-                    <th className="px-4 py-2">Joueur</th>
-                    <th className="px-4 py-2">Poste</th>
-                    <th className="px-4 py-2">Nationalité</th>
-                    <th className="px-4 py-2">Culture</th>
-                    <th className="px-3 py-2 text-right font-bold">OVR</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {topPlayers.slice(0, 100).map((e, i) => {
-                    const { player: p, team: t } = e;
-                    const rankColor = i === 0 ? 'text-yellow-500 font-bold' : i === 1 ? 'text-zinc-400 font-bold' : i === 2 ? 'text-orange-500 font-bold' : 'text-muted';
-                    return (
-                      <tr
-                        key={p.id}
-                        className="border-t border-border hover:bg-accent/5 cursor-pointer transition-colors"
-                        onClick={() => setViewingPlayer(p)}
-                      >
-                        <td className={`px-3 py-2.5 text-center tabular-nums ${rankColor}`}>{i + 1}</td>
-                        <td className="px-4 py-2.5 font-medium">{p.firstName} {p.lastName}</td>
-                        <td className="px-4 py-2.5">
-                          <span className="rounded bg-border/40 px-2 py-0.5 font-mono text-xs">{POSITION_LABEL[p.position]}</span>
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <div className="flex items-center gap-2">
-                            {t.flag && <img src={t.flag} alt="" className="h-5 w-5 rounded-sm object-cover shrink-0" />}
-                            <TeamTacticLink team={t} token={env.githubReadToken ?? null} className="text-sm truncate max-w-[100px] hover:text-accent hover:underline transition-colors cursor-pointer text-left">
-                              {t.name}
-                            </TeamTacticLink>
-                          </div>
-                        </td>
-                        <td className="px-4 py-2.5 text-xs text-muted">{CULTURE_LABEL[t.culture] ?? t.culture}</td>
-                        <td className="px-3 py-2.5 text-right font-bold tabular-nums text-accent">{p.overall}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Classements CMF */}
+      {tab === 'classements' && <ClassementsCMF embedded />}
       {tab === 'entraineur' && (
         <CoachReadPanel coach={data.team.coach ?? null} teamSlug={data.team.slug} isAdmin={isAdmin} />
       )}
