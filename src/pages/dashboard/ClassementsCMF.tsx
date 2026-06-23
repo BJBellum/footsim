@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { Spinner } from '@/components/ui/Spinner';
 import { toast } from '@/components/ui/Toast';
 import { useCredentials } from '@/stores/credentials';
@@ -58,7 +59,7 @@ type PlayerEntry = {
   team: Team;
 };
 
-type Tab = 'equipes' | 'joueurs';
+type Tab = 'equipes' | 'joueurs' | 'explications';
 
 // ─── Result label ─────────────────────────────────────────────────────────────
 
@@ -76,6 +77,8 @@ export default function ClassementsCMF() {
   const pat = useCredentials((s) => s.githubPat);
   const { pat: effectivePat } = useBackendArgs();
   const token = pat ?? effectivePat ?? null;
+  const location = useLocation();
+  const isPublicRoute = location.pathname === '/classements-cmf';
 
   const [tab, setTab] = useState<Tab>('equipes');
   const [loading, setLoading] = useState(true);
@@ -103,7 +106,7 @@ export default function ClassementsCMF() {
               players.push({ player: p, team: data.team });
             }
 
-            // Team points from compHistory
+            // Team points: palmarès bonus + match points
             const history = data.team.compHistory ?? [];
             let points = 0;
             let wins = 0, finals = 0, thirds = 0;
@@ -114,8 +117,13 @@ export default function ClassementsCMF() {
               else if (entry.result === 'third') thirds++;
             }
 
-            // Form: last 5 matches most recent last
             const recent: RecentMatchSummary[] = data.team.recentMatches ?? [];
+            for (const m of recent) {
+              points += m.cmfPoints ?? 0;
+            }
+            points = Math.round(points * 10) / 10;
+
+            // Form: last 5 matches most recent last
             const form: MatchResult[] = recent.slice(-5).map((m) =>
               m.scoreFor > m.scoreAgainst ? 'W' : m.scoreFor === m.scoreAgainst ? 'D' : 'L',
             );
@@ -163,16 +171,23 @@ export default function ClassementsCMF() {
 
   return (
     <div className="max-w-5xl space-y-6">
-      <div>
-        <h1 className="font-display text-4xl">Classements CMF</h1>
-        <p className="mt-1 text-muted text-sm">
-          Classements officiels de la Confédération Mondiale du Football.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-display text-4xl">Classements CMF</h1>
+          <p className="mt-1 text-muted text-sm">
+            Classements officiels de la Confédération Mondiale du Football.
+          </p>
+        </div>
+        {isPublicRoute && (
+          <Link to="/my-team" className="text-sm text-muted hover:text-text transition-colors shrink-0">
+            ← Retour
+          </Link>
+        )}
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border">
-        {([['equipes', 'Meilleures équipes'], ['joueurs', 'Meilleurs joueurs']] as const).map(([t, label]) => (
+        {([['equipes', 'Meilleures équipes'], ['joueurs', 'Meilleurs joueurs'], ['explications', 'Explications']] as const).map(([t, label]) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -189,6 +204,10 @@ export default function ClassementsCMF() {
 
       {tab === 'equipes' && (
         <TeamRanking entries={teamEntries} />
+      )}
+
+      {tab === 'explications' && (
+        <ExplicationsTab />
       )}
 
       {tab === 'joueurs' && (
@@ -270,6 +289,185 @@ export default function ClassementsCMF() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Explications tab ─────────────────────────────────────────────────────────
+
+function ExplicationsTab() {
+  return (
+    <div className="space-y-8 text-sm max-w-3xl">
+
+      <section className="space-y-3">
+        <h2 className="font-display text-2xl">Principe général</h2>
+        <p className="text-muted leading-relaxed">
+          Le classement CMF (Confédération Mondiale du Football) attribue des points aux équipes selon deux sources :
+          leurs <strong className="text-text">performances en match</strong> (jusqu'aux 20 derniers matchs de compétition)
+          et leurs <strong className="text-text">résultats finals</strong> dans chaque compétition (palmarès).
+          Le score total est la somme des deux.
+        </p>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="font-display text-2xl">Points par match</h2>
+        <p className="text-muted leading-relaxed">
+          Chaque match de compétition simulé rapporte des points selon la formule :
+        </p>
+        <div className="rounded-lg border border-border bg-surface p-4 font-mono text-xs leading-relaxed">
+          pts = base × multiplicateur_portée × multiplicateur_statut × facteur_adversaire
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <div className="font-medium mb-2">Base selon le résultat</div>
+            <table className="w-full text-xs border border-border rounded-lg overflow-hidden">
+              <thead className="bg-bg text-muted uppercase tracking-wide">
+                <tr>
+                  <th className="px-4 py-2 text-left">Résultat</th>
+                  <th className="px-4 py-2 text-right">Points de base</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[['Victoire', '3'], ['Match nul', '1'], ['Défaite', '0']].map(([r, p]) => (
+                  <tr key={r} className="border-t border-border">
+                    <td className="px-4 py-2">{r}</td>
+                    <td className="px-4 py-2 text-right font-bold text-accent">{p}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div>
+            <div className="font-medium mb-2">Multiplicateur de portée</div>
+            <table className="w-full text-xs border border-border rounded-lg overflow-hidden">
+              <thead className="bg-bg text-muted uppercase tracking-wide">
+                <tr>
+                  <th className="px-4 py-2 text-left">Portée</th>
+                  <th className="px-4 py-2 text-right">Multiplicateur</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[['Internationale', '×2.0'], ['Continentale', '×1.6'], ['Nationale', '×1.2'], ['Régionale', '×1.0'], ['Autre', '×0.8']].map(([s, m]) => (
+                  <tr key={s} className="border-t border-border">
+                    <td className="px-4 py-2">{s}</td>
+                    <td className="px-4 py-2 text-right font-bold text-accent">{m}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div>
+            <div className="font-medium mb-2">Multiplicateur de statut</div>
+            <table className="w-full text-xs border border-border rounded-lg overflow-hidden">
+              <thead className="bg-bg text-muted uppercase tracking-wide">
+                <tr>
+                  <th className="px-4 py-2 text-left">Statut</th>
+                  <th className="px-4 py-2 text-right">Multiplicateur</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[['Officielle', '×1.5'], ['Amicale', '×0.8']].map(([k, m]) => (
+                  <tr key={k} className="border-t border-border">
+                    <td className="px-4 py-2">{k}</td>
+                    <td className="px-4 py-2 text-right font-bold text-accent">{m}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div>
+            <div className="font-medium mb-2">Facteur adversaire</div>
+            <p className="text-muted leading-relaxed mb-2">
+              Inspiré du classement FIFA : battre une équipe forte rapporte plus, perdre contre une équipe faible coûte plus.
+              Calculé depuis la force globale de l'adversaire (1–100) :
+            </p>
+            <div className="rounded-lg border border-border bg-surface p-4 font-mono text-xs">
+              facteur = √(force_adverse / 50) — clampé entre 0.5 et 2.0
+            </div>
+            <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-muted">
+              <div className="rounded border border-border bg-surface px-3 py-2 text-center">
+                <div className="font-bold text-text">×0.71</div>
+                <div>Force 25</div>
+              </div>
+              <div className="rounded border border-border bg-surface px-3 py-2 text-center">
+                <div className="font-bold text-text">×1.00</div>
+                <div>Force 50</div>
+              </div>
+              <div className="rounded border border-border bg-surface px-3 py-2 text-center">
+                <div className="font-bold text-text">×1.41</div>
+                <div>Force 100</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-accent/30 bg-accent/5 p-4 text-xs text-muted leading-relaxed">
+          <strong className="text-text">Exemple :</strong> Victoire contre une équipe force 80 dans une compétition internationale officielle :<br />
+          <span className="font-mono">3 × 2.0 × 1.5 × √(80/50) = 3 × 2.0 × 1.5 × 1.265 ≈ <strong className="text-accent">11.4 pts</strong></span>
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="font-display text-2xl">Bonus palmarès</h2>
+        <p className="text-muted leading-relaxed">
+          En plus des points match, chaque résultat final dans une compétition rapporte un bonus permanent (non limité aux 20 derniers) :
+        </p>
+        <table className="w-full text-xs border border-border rounded-lg overflow-hidden">
+          <thead className="bg-bg text-muted uppercase tracking-wide">
+            <tr>
+              <th className="px-4 py-2 text-left">Résultat final</th>
+              <th className="px-4 py-2 text-right">Base</th>
+              <th className="px-4 py-2 text-right">Exemple (Internationale Officielle)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              ['Vainqueur', '100', '300'],
+              ['Finaliste', '60', '180'],
+              ['3e place', '40', '120'],
+              ['Demi-finale', '25', '75'],
+              ['Participant', '10', '30'],
+            ].map(([r, b, ex]) => (
+              <tr key={r} className="border-t border-border">
+                <td className="px-4 py-2">{r}</td>
+                <td className="px-4 py-2 text-right font-bold text-accent">{b}</td>
+                <td className="px-4 py-2 text-right text-muted">{ex}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="text-xs text-muted">
+          Les mêmes multiplicateurs portée × statut s'appliquent. Portée internationale officielle = ×2.0 × 1.5 = ×3.0.
+        </p>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="font-display text-2xl">Forme (5 derniers matchs)</h2>
+        <p className="text-muted leading-relaxed">
+          La colonne Forme affiche les 5 derniers matchs de compétition simulés.
+          Les matchs 1v1 hors compétition ne sont pas comptabilisés — seuls les matchs sauvegardés
+          dans une compétition active ou terminée apparaissent.
+        </p>
+        <div className="flex items-center gap-4 text-xs">
+          <div className="flex items-center gap-1.5">
+            <svg viewBox="0 0 16 16" className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="2,8 6,12 14,4" /></svg>
+            <span>Victoire</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <svg viewBox="0 0 16 16" className="w-4 h-4 text-yellow-400" fill="currentColor"><rect x="2" y="7" width="12" height="2" rx="1" /></svg>
+            <span>Match nul</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <svg viewBox="0 0 16 16" className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="3" x2="13" y2="13" /><line x1="13" y1="3" x2="3" y2="13" /></svg>
+            <span>Défaite</span>
+          </div>
+        </div>
+      </section>
+
     </div>
   );
 }

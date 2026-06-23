@@ -16,6 +16,7 @@ import { useTeams } from '@/stores/teams';
 import { useCredentials } from '@/stores/credentials';
 import { useBackendArgs } from '@/hooks/useBackendArgs';
 import { saveMatch } from '@/lib/github/matches';
+import type { SaveMatchMeta } from '@/lib/github/matches';
 import { advanceBracket, applyResultToStandings, applyCorruptionDisqualification } from '@/lib/competition/scheduler';
 import { rulesForPhase } from '@/lib/competition/types';
 import type { MatchSummary } from '@/lib/competition/types';
@@ -831,7 +832,13 @@ export default function CompetitionMatchLive() {
                   if (!pat || !current) return;
                   setSaving(true);
                   try {
-                    await saveMatch(matchInput, matchState, pat);
+                    const matchMeta: SaveMatchMeta = {
+                      compKind: current.kind,
+                      compScope: current.scope,
+                      homeStrength: current.teamSnapshot?.[matchInput.home.team.id]?.globalStrength ?? matchInput.home.team.globalStrength,
+                      awayStrength: current.teamSnapshot?.[matchInput.away.team.id]?.globalStrength ?? matchInput.away.team.globalStrength,
+                    };
+                    await saveMatch(matchInput, matchState, pat, matchMeta);
                     toast('success', 'Match sauvegardé sur GitHub.');
                   } catch (err) {
                     toast('error', `Match : ${err}`);

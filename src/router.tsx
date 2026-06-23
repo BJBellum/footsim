@@ -98,6 +98,14 @@ export const router = createBrowserRouter(
       ),
     },
     {
+      path: '/classements-cmf',
+      element: (
+        <RequireAuth>
+          <S><ClassementsCMF /></S>
+        </RequireAuth>
+      ),
+    },
+    {
       path: '/competition-view/:id',
       element: (
         <RequireAuth>

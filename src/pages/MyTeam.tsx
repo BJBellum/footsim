@@ -550,6 +550,11 @@ export default function MyTeam() {
       {/* Meilleurs joueurs */}
       {tab === 'top' && (
         <div className="space-y-4">
+          <div className="flex justify-end">
+            <Link to="/classements-cmf">
+              <Button size="sm" variant="ghost">Classements CMF →</Button>
+            </Link>
+          </div>
           {loadingTop ? (
             <div className="space-y-1">
               {Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)}
