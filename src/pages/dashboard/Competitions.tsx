@@ -55,8 +55,9 @@ export default function Competitions() {
   }
 
   useEffect(() => {
-    if (pat && summaries.length === 0) refresh(pat);
-  }, [pat, refresh, summaries.length]);
+    if (pat) refresh(pat);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pat]);
 
   if (!isAdmin) {
     return (
