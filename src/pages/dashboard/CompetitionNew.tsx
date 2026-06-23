@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -18,10 +18,40 @@ import {
 import { FORMAT_LABEL, FORMAT_DESCRIPTION, COMPETITION_KIND_LABEL, COMPETITION_SCOPE_LABEL } from '@/lib/competition/types';
 import { CULTURE_CONTINENT, CONTINENT_LABEL, type Continent } from '@/lib/types';
 import type { CompetitionFormat, CompetitionConfig, Competition, CompetitionKind, CompetitionScope } from '@/lib/competition/types';
+import { COMPETITION_IMPORTANCE_LABEL } from '@/lib/competition/types';
+import type { CompetitionImportance } from '@/lib/competition/types';
 import type { MatchRules } from '@/lib/sim/types';
 import { DEFAULT_RULES } from '@/lib/sim/types';
 import { buildPots, conductDraw, isEvenTeamCount } from '@/lib/competition/draw';
 import { DrawCeremony } from '@/components/competition/DrawCeremony';
+
+const PRESETS_KEY = 'footsim.competition.presets';
+
+type CompetitionPreset = {
+  id: string;
+  label: string;
+  savedAt: string;
+  name: string;
+  format: CompetitionFormat;
+  year?: number;
+  kind: CompetitionKind;
+  scope: CompetitionScope;
+  importance?: CompetitionImportance;
+  legs: 1 | 2;
+  thirdPlace: boolean;
+  groupsCount: number;
+  qualifyPerGroup: number;
+  rules: MatchRules;
+  knockoutRules: MatchRules;
+  teamIds?: string[];
+};
+
+function loadPresets(): CompetitionPreset[] {
+  try { return JSON.parse(localStorage.getItem(PRESETS_KEY) ?? '[]'); } catch { return []; }
+}
+function savePresets(presets: CompetitionPreset[]) {
+  localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
+}
 
 export default function CompetitionNew() {
   const teams = useTeams((s) => s.teams);
@@ -46,11 +76,68 @@ export default function CompetitionNew() {
   const [year, setYear] = useState<number | undefined>(undefined);
   const [kind, setKind] = useState<CompetitionKind>('officielle');
   const [scope, setScope] = useState<CompetitionScope>('internationale');
+  const [importance, setImportance] = useState<CompetitionImportance | undefined>(undefined);
   const [busy, setBusy] = useState(false);
+  const [presets, setPresets] = useState<CompetitionPreset[]>(() => loadPresets());
+  const [showPresets, setShowPresets] = useState(false);
+  const [presetLabel, setPresetLabel] = useState('');
+  const [savingPreset, setSavingPreset] = useState(false);
+  const [includeTeams, setIncludeTeams] = useState(false);
+  const presetLabelRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (ownerId && teams.length === 0) refresh(ownerId, effectivePat);
   }, [pat, teams.length, refresh]);
+
+  function currentPresetData(withTeams: boolean): Omit<CompetitionPreset, 'id' | 'label' | 'savedAt'> {
+    return {
+      name, format, year, kind, scope, importance,
+      legs, thirdPlace, groupsCount, qualifyPerGroup,
+      rules, knockoutRules,
+      teamIds: withTeams ? [...selectedTeams] : undefined,
+    };
+  }
+
+  function doSavePreset() {
+    const label = presetLabel.trim();
+    if (!label) return;
+    const preset: CompetitionPreset = {
+      id: crypto.randomUUID(),
+      label,
+      savedAt: new Date().toISOString(),
+      ...currentPresetData(includeTeams),
+    };
+    const next = [preset, ...presets];
+    savePresets(next);
+    setPresets(next);
+    setPresetLabel('');
+    setSavingPreset(false);
+    toast('success', `Preset "${label}" sauvegardé.`);
+  }
+
+  function applyPreset(p: CompetitionPreset) {
+    setName(p.name);
+    setFormat(p.format);
+    setYear(p.year);
+    setKind(p.kind);
+    setScope(p.scope);
+    setImportance(p.importance);
+    setLegs(p.legs);
+    setThirdPlace(p.thirdPlace);
+    setGroupsCount(p.groupsCount);
+    setQualifyPerGroup(p.qualifyPerGroup);
+    setRules(p.rules);
+    setKnockoutRules(p.knockoutRules);
+    if (p.teamIds) setSelectedTeams(p.teamIds);
+    setShowPresets(false);
+    toast('success', `Preset "${p.label}" chargé.`);
+  }
+
+  function deletePreset(id: string) {
+    const next = presets.filter((p) => p.id !== id);
+    savePresets(next);
+    setPresets(next);
+  }
 
   function toggleTeam(id: string) {
     setSelectedTeams((prev) =>
@@ -132,6 +219,7 @@ export default function CompetitionNew() {
         year,
         kind,
         scope,
+        importance,
         teamIds,
         matches,
         groups,
@@ -195,6 +283,27 @@ export default function CompetitionNew() {
           <h1 className="mb-1 font-display text-4xl">Tirage au sort</h1>
           <p className="text-muted text-sm">{name}</p>
         </div>
+        <div className="flex flex-wrap gap-3 items-end rounded-lg border border-border bg-surface p-4">
+          <div className="text-xs uppercase tracking-widest text-muted w-full">Paramètres finaux</div>
+          <div className="text-sm text-muted">
+            <span className="text-text font-medium">{kind === 'officielle' ? 'Officielle' : 'Amicale'}</span>
+            {' · '}
+            <span className="text-text font-medium">{scope}</span>
+          </div>
+          <label className="flex items-center gap-2 text-sm ml-auto">
+            <span className="text-muted shrink-0">Importance CMF</span>
+            <select
+              className="h-8 rounded-md border border-border bg-bg px-2 text-sm"
+              value={importance ?? ''}
+              onChange={(e) => setImportance(e.target.value ? e.target.value as CompetitionImportance : undefined)}
+            >
+              <option value="">— National (défaut) —</option>
+              {(Object.keys(COMPETITION_IMPORTANCE_LABEL) as CompetitionImportance[]).map((i) => (
+                <option key={i} value={i}>{COMPETITION_IMPORTANCE_LABEL[i]}</option>
+              ))}
+            </select>
+          </label>
+        </div>
         <DrawCeremony
           result={drawResult}
           teams={teams.filter((t) => selectedTeams.includes(t.id))}
@@ -214,7 +323,53 @@ export default function CompetitionNew() {
         <p className="text-muted">Configure le format et les équipes participantes.</p>
       </div>
 
-      {/* Presets */}
+      {/* Presets sauvegardés */}
+      {presets.length > 0 && (
+        <div className="rounded-lg border border-border bg-surface p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="text-xs uppercase tracking-widest text-muted">Mes presets</div>
+            <button
+              type="button"
+              onClick={() => setShowPresets((v) => !v)}
+              className="text-xs text-accent hover:text-accent/70 transition-colors"
+            >
+              {showPresets ? 'Masquer' : `Afficher (${presets.length})`}
+            </button>
+          </div>
+          {showPresets && (
+            <div className="space-y-2">
+              {presets.map((p) => (
+                <div key={p.id} className="flex items-center gap-3 rounded-md border border-border px-3 py-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{p.label}</div>
+                    <div className="text-xs text-muted">
+                      {p.name} · {p.format} · {p.kind}
+                      {p.teamIds ? ` · ${p.teamIds.length} équipes` : ''}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset(p)}
+                    className="shrink-0 text-xs px-2.5 py-1 rounded-md border border-accent/40 bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
+                  >
+                    Charger
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deletePreset(p.id)}
+                    className="shrink-0 text-xs text-danger hover:text-danger/70 transition-colors"
+                    title="Supprimer"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Presets built-in */}
       <div className="space-y-2">
         <div className="rounded-lg border border-accent/30 bg-accent/5 p-4 flex items-start gap-4">
           <div className="flex-1 min-w-0">
@@ -287,6 +442,19 @@ export default function CompetitionNew() {
             </select>
           </label>
         </div>
+        <label className="block text-sm">
+          <span className="mb-1 block text-muted">Importance CMF</span>
+          <select
+            className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm"
+            value={importance ?? ''}
+            onChange={(e) => setImportance(e.target.value ? e.target.value as CompetitionImportance : undefined)}
+          >
+            <option value="">— Non défini (National par défaut) —</option>
+            {(Object.keys(COMPETITION_IMPORTANCE_LABEL) as CompetitionImportance[]).map((i) => (
+              <option key={i} value={i}>{COMPETITION_IMPORTANCE_LABEL[i]}</option>
+            ))}
+          </select>
+        </label>
       </section>
 
       <section className="space-y-4 rounded-lg border border-border bg-surface p-5">
@@ -497,6 +665,59 @@ export default function CompetitionNew() {
           La LPM requiert exactement 48 équipes ({selectedTeams.length} sélectionnée{selectedTeams.length > 1 ? 's' : ''}).
         </p>
       )}
+
+      {/* Sauvegarde preset */}
+      <div className="rounded-lg border border-border bg-surface p-4 space-y-3">
+        <div className="text-xs uppercase tracking-widest text-muted">Sauvegarder comme preset</div>
+        {savingPreset ? (
+          <div className="space-y-2">
+            <input
+              ref={presetLabelRef}
+              autoFocus
+              type="text"
+              value={presetLabel}
+              onChange={(e) => setPresetLabel(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') doSavePreset(); if (e.key === 'Escape') setSavingPreset(false); }}
+              placeholder="Nom du preset (ex : LPM standard)"
+              className="h-9 w-full rounded-md border border-border bg-bg px-3 text-sm focus:border-accent outline-none"
+            />
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={includeTeams}
+                onChange={(e) => setIncludeTeams(e.target.checked)}
+                className="h-4 w-4 rounded border-border"
+              />
+              Inclure la sélection des équipes ({selectedTeams.length} pays)
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={doSavePreset}
+                disabled={!presetLabel.trim()}
+                className="text-xs px-3 py-1.5 rounded-md bg-accent text-white disabled:opacity-40 hover:bg-accent/80 transition-colors"
+              >
+                Sauvegarder
+              </button>
+              <button
+                type="button"
+                onClick={() => setSavingPreset(false)}
+                className="text-xs px-3 py-1.5 rounded-md border border-border text-muted hover:text-text transition-colors"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => { setSavingPreset(true); setTimeout(() => presetLabelRef.current?.focus(), 50); }}
+            className="text-xs px-3 py-1.5 rounded-md border border-border text-muted hover:text-text hover:border-accent/40 transition-colors"
+          >
+            + Enregistrer la configuration actuelle
+          </button>
+        )}
+      </div>
 
       <div className="flex items-center gap-3">
         <Button onClick={create} size="lg" disabled={!valid || busy}>

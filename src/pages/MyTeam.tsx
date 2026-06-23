@@ -18,6 +18,9 @@ import type { Continent } from '@/lib/types';
 import { FORMAT_LABEL } from '@/lib/competition/types';
 import type { Player, SavedTactic, Team, TeamTactics } from '@/lib/types';
 import type { CompetitionSummary, CompHistoryEntry } from '@/lib/competition/types';
+import { COMPETITION_IMPORTANCE_LABEL } from '@/lib/competition/types';
+import { calcCmfMatchPoints } from '@/lib/github/matches';
+import type { RecentMatchSummary } from '@/lib/github/matches';
 import type { CultureWeight } from '@/lib/gen/names';
 import { loadLocalTactics, loadLocalSavedTactics, saveLocalSavedTactics } from '@/lib/localTactics';
 import { env } from '@/lib/env';
@@ -39,7 +42,7 @@ const STATUS_COLOR: Record<string, string> = {
   completed: 'text-warning',
 };
 
-type Tab = 'tactique' | 'joueurs' | 'noms' | 'postes' | 'competitions' | 'palmares' | 'top' | 'simulation' | 'entraineur';
+type Tab = 'tactique' | 'joueurs' | 'noms' | 'postes' | 'competitions' | 'palmares' | 'historique' | 'top' | 'simulation' | 'entraineur';
 
 export default function MyTeam() {
   const session = useSession((s) => s.session);
@@ -348,7 +351,7 @@ export default function MyTeam() {
 
       {/* Tabs */}
       <div className="flex flex-wrap items-center gap-1 border-b border-border">
-        {(['tactique', 'joueurs', 'noms', 'postes', 'competitions', 'palmares', 'top', 'entraineur', 'simulation'] as Tab[]).map((t) => (
+        {(['tactique', 'joueurs', 'noms', 'postes', 'competitions', 'palmares', 'historique', 'top', 'entraineur', 'simulation'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -360,6 +363,7 @@ export default function MyTeam() {
               : t === 'postes' ? 'Postes'
               : t === 'competitions' ? 'Compétitions'
               : t === 'palmares' ? 'Palmarès'
+              : t === 'historique' ? 'Historique matchs'
               : t === 'top' ? 'Meilleurs joueurs'
               : t === 'entraineur' ? 'Entraîneur'
               : 'Simulation'}
@@ -546,6 +550,10 @@ export default function MyTeam() {
       {/* Palmarès */}
       {tab === 'palmares' && (
         <MyTeamPalmaresTab compHistory={data.team.compHistory ?? []} />
+      )}
+      {/* Historique des matchs */}
+      {tab === 'historique' && (
+        <MyTeamHistoriqueTab recentMatches={data.team.recentMatches ?? []} />
       )}
       {/* Meilleurs joueurs */}
       {tab === 'top' && (
@@ -820,6 +828,67 @@ function NomExportPanel({
       >
         {busy ? 'Génération…' : `↓ Télécharger JSON (${playerCount} joueurs)`}
       </button>
+    </div>
+  );
+}
+
+function MyTeamHistoriqueTab({ recentMatches }: { recentMatches: RecentMatchSummary[] }) {
+  if (recentMatches.length === 0) {
+    return (
+      <div className="py-16 text-center text-muted text-sm">
+        Aucun match enregistré. L'historique apparaît ici après chaque compétition.
+      </div>
+    );
+  }
+
+  const sorted = [...recentMatches].sort((a, b) => b.playedAt.localeCompare(a.playedAt));
+
+  return (
+    <div className="space-y-3">
+      <div className="text-xs text-muted">{recentMatches.length} match{recentMatches.length > 1 ? 's' : ''} enregistré{recentMatches.length > 1 ? 's' : ''} (20 derniers)</div>
+      <div className="overflow-x-auto rounded-lg border border-border bg-surface">
+        <table className="w-full text-sm">
+          <thead className="bg-bg text-left text-xs text-muted uppercase tracking-wide">
+            <tr>
+              <th className="px-3 py-2">Date</th>
+              <th className="px-3 py-2">Adversaire</th>
+              <th className="px-3 py-2 text-center">D/E</th>
+              <th className="px-3 py-2 text-center">Score</th>
+              <th className="px-3 py-2 text-center">Résultat</th>
+              <th className="px-3 py-2 text-right">Pts CMF</th>
+              <th className="px-3 py-2">Importance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((m) => {
+              const won = m.scoreFor > m.scoreAgainst;
+              const drew = m.scoreFor === m.scoreAgainst;
+              const resultLabel = won ? 'V' : drew ? 'N' : 'D';
+              const resultColor = won ? 'text-green-400' : drew ? 'text-warning' : 'text-danger';
+              const pts = m.opponentStrength != null
+                ? calcCmfMatchPoints({ scoreFor: m.scoreFor, scoreAgainst: m.scoreAgainst, opponentStrength: m.opponentStrength, compKind: m.compKind, compScope: m.compScope, compImportance: m.compImportance })
+                : (m.cmfPoints ?? 0);
+              return (
+                <tr key={`${m.matchId}-${m.homeAway}`} className="border-t border-border hover:bg-accent/5 transition-colors">
+                  <td className="px-3 py-2 text-xs text-muted tabular-nums whitespace-nowrap">
+                    {new Date(m.playedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                  </td>
+                  <td className="px-3 py-2 font-medium">{m.opponentName}</td>
+                  <td className="px-3 py-2 text-center text-xs text-muted">{m.homeAway === 'home' ? 'D' : 'E'}</td>
+                  <td className="px-3 py-2 text-center font-mono tabular-nums">{m.scoreFor}–{m.scoreAgainst}</td>
+                  <td className="px-3 py-2 text-center">
+                    <span className={`font-bold text-xs ${resultColor}`}>{resultLabel}</span>
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums font-medium text-accent">{pts > 0 ? `+${pts}` : pts}</td>
+                  <td className="px-3 py-2 text-xs text-muted">
+                    {m.compImportance ? COMPETITION_IMPORTANCE_LABEL[m.compImportance] : '—'}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
