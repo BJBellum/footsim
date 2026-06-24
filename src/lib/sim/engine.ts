@@ -179,6 +179,7 @@ function resolveShot(
   oppName: string,
   pGoalMult = 1,
   zone?: { x: number; y: number },
+  assisterId?: string,
 ): boolean {
   state.shots[possessing]++;
   const shooter = pickAttacker(possessing, ctx, state);
@@ -193,7 +194,8 @@ function resolveShot(
     state.shotsOnTarget[possessing]++;
     if (chance(pGoal)) {
       state.score[possessing]++;
-      pushEvent(state, ctx, { type: 'goal', side: possessing, playerId: shooter?.id, ballPos: ballZone },
+      const effectiveAssist = assisterId !== shooter?.id ? assisterId : undefined;
+      pushEvent(state, ctx, { type: 'goal', side: possessing, playerId: shooter?.id, assistId: effectiveAssist, ballPos: ballZone },
         teamName, shooter ? `${shooter.firstName} ${shooter.lastName}` : undefined);
       state.ball = ZONE.centre;
       return true;
@@ -222,8 +224,9 @@ function tryShot(
   oppName: string,
   pGoalMult = 1,
   zone?: { x: number; y: number },
+  assisterId?: string,
 ): void {
-  if (resolveShot(state, ctx, possessing, opp, teamName, oppName, pGoalMult, zone)) {
+  if (resolveShot(state, ctx, possessing, opp, teamName, oppName, pGoalMult, zone, assisterId)) {
     checkGoldenGoal(state, ctx);
   }
 }
@@ -645,7 +648,7 @@ export function tick(state: MatchState, ctx: EngineCtx): MatchState {
           teamName, `${header.firstName} ${header.lastName}`);
         // heading quality influences shot chance on corners (base 0.35, +/- based on heading stat)
         const headerBonus = (header.stats.technical.heading - 10) / 100;
-        if (chance(0.35 + headerBonus)) tryShot(state, ctx, possessing, opp, teamName, oppName, 0.85, hz);
+        if (chance(0.35 + headerBonus)) tryShot(state, ctx, possessing, opp, teamName, oppName, 0.85, hz, header.id);
       }
     }
 
@@ -666,7 +669,7 @@ export function tick(state: MatchState, ctx: EngineCtx): MatchState {
     }, teamName, passer ? `${passer.firstName} ${passer.lastName}` : undefined);
     // vision influences how often a key pass creates a real chance
     const visionBonus = passer ? (passer.stats.mental.vision - 10) / 100 : 0;
-    if (chance(0.35 + visionBonus)) tryShot(state, ctx, possessing, opp, teamName, oppName, 1.0);
+    if (chance(0.35 + visionBonus)) tryShot(state, ctx, possessing, opp, teamName, oppName, 1.0, undefined, passer?.id);
 
   } else if (r < wShot + wFoul + wCorner + wOffside + wKeyPass + wFreeKick) {
     const fkShooter = pickFreeKickTaker(possessing, ctx, state);
@@ -676,7 +679,7 @@ export function tick(state: MatchState, ctx: EngineCtx): MatchState {
       teamName, fkShooter ? `${fkShooter.firstName} ${fkShooter.lastName}` : undefined);
     // longShots quality influences shot chance on free kicks
     const fkBonus = fkShooter ? (fkShooter.stats.technical.longShots - 10) / 100 : 0;
-    if (chance(0.30 + fkBonus)) tryShot(state, ctx, possessing, opp, teamName, oppName, 0.75, fkZone);
+    if (chance(0.30 + fkBonus)) tryShot(state, ctx, possessing, opp, teamName, oppName, 0.75, fkZone, fkShooter?.id);
 
   } else if (r < wShot + wFoul + wCorner + wOffside + wKeyPass + wFreeKick + wDribble) {
     const dribbler = pickDribbler(possessing, ctx, state);
@@ -688,7 +691,7 @@ export function tick(state: MatchState, ctx: EngineCtx): MatchState {
     }, teamName, dribbler ? `${dribbler.firstName} ${dribbler.lastName}` : undefined);
     // dribbling quality influences how often a dribble creates a shot
     const dribBonus = dribbler ? (dribbler.stats.technical.dribbling - 10) / 100 : 0;
-    if (chance(0.40 + dribBonus)) tryShot(state, ctx, possessing, opp, teamName, oppName, 1.05);
+    if (chance(0.40 + dribBonus)) tryShot(state, ctx, possessing, opp, teamName, oppName, 1.05, undefined, dribbler?.id);
 
   } else if (r < total) {
     const defender = pickDefender(opp, ctx, state);

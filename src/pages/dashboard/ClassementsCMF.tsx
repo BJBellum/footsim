@@ -13,6 +13,7 @@ import { calcCmfMatchPoints } from '@/lib/github/matches';
 import type { RecentMatchSummary } from '@/lib/github/matches';
 import { pickXI } from '@/lib/sim/lineup';
 import { PlayerView } from '@/components/team/PlayerView';
+import { TacticPitch } from '@/components/team/TeamTacticCard';
 
 // ─── Points system ────────────────────────────────────────────────────────────
 
@@ -607,6 +608,16 @@ function LineupSection({ players, formation, lineup, onPlayerClick }: {
 
   return (
     <div className="space-y-3">
+      {/* Formation terrain */}
+      <div className="mx-auto" style={{ maxWidth: 220 }}>
+        <TacticPitch
+          formation={formation}
+          lineup={starters.map((p) => p.id)}
+          players={starters}
+        />
+        <div className="text-center text-[10px] text-muted mt-1 uppercase tracking-widest">{formation}</div>
+      </div>
+
       <div className="overflow-hidden rounded-lg border border-border bg-surface">
         <div className="bg-bg px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted flex items-center justify-between">
           <span>XI titulaires · {formation}</span>
@@ -671,19 +682,6 @@ function ExpandedTeamDetail({ entry, onPlayerClick }: { entry: TeamRankEntry; on
 
   return (
     <div className="space-y-5">
-      {/* ── Compo ── */}
-      {entry.players.length > 0 && (
-        <LineupSection
-          players={entry.players}
-          formation={activeTactic?.formation ?? entry.team.formation}
-          lineup={activeTactic?.lineup}
-          onPlayerClick={onPlayerClick}
-        />
-      )}
-
-      {/* ── Séparateur ── */}
-      <div className="border-t border-border" />
-
       {/* ── Palmarès + Matchs ── */}
       <div className="grid gap-6 md:grid-cols-2">
         <div className="space-y-2">
@@ -749,6 +747,19 @@ function ExpandedTeamDetail({ entry, onPlayerClick }: { entry: TeamRankEntry; on
           )}
         </div>
       </div>
+
+      {/* ── Séparateur ── */}
+      {entry.players.length > 0 && <div className="border-t border-border" />}
+
+      {/* ── Terrain + Compo ── */}
+      {entry.players.length > 0 && (
+        <LineupSection
+          players={entry.players}
+          formation={activeTactic?.formation ?? entry.team.formation}
+          lineup={activeTactic?.lineup}
+          onPlayerClick={onPlayerClick}
+        />
+      )}
     </div>
   );
 }

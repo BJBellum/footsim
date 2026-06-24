@@ -1393,20 +1393,15 @@ export function generateMatchPressItem(opts: {
         headline = pick(isBigLoss ? HEAVY_LOSS_HEADLINES : LOSS_HEADLINES, r).replace(/{team}/g, opts.teamName);
         body = pick(isBigLoss ? HEAVY_LOSS_BODIES : LOSS_BODIES, r).replace(/{team}/g, opts.teamName);
       }
-      // Suffixes standings/danger seulement si encore en course
+      // Suffixes standings/danger seulement si encore en course et réellement en danger
       if (!opts.isEliminated) {
         if (opts.isInDangerZone || isLPMDanger) {
           body += ' ' + pick(DANGER_ZONE_BODIES, r).replace(/{team}/g, opts.teamName);
-        } else if (opts.standing && opts.totalTeams) {
+        } else if (opts.standing && opts.rank && opts.totalTeams && opts.rank > Math.ceil(opts.totalTeams / 2)) {
+          // Seulement si team est dans la moitié basse du tableau
           const ptsPerGame = opts.standing.played > 0 ? opts.standing.points / opts.standing.played : 0;
-          if (ptsPerGame < 1 && r() < 0.65) {
-            const suffix = pick(
-              opts.standing.played >= 3 ? STANDINGS_ELIMINATED_RISK : STANDINGS_DANGER_LOSS,
-              r,
-            ).replace(/{team}/g, opts.teamName);
-            body += ' ' + suffix;
-          } else if (r() < 0.4) {
-            body += ' ' + pick(STANDINGS_DANGER_LOSS, r).replace(/{team}/g, opts.teamName);
+          if (ptsPerGame < 1 && opts.standing.played >= 2 && r() < 0.55) {
+            body += ' ' + pick(STANDINGS_ELIMINATED_RISK, r).replace(/{team}/g, opts.teamName);
           }
         }
       }

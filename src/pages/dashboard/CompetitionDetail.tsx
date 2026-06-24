@@ -1033,6 +1033,7 @@ function RoundMatchRow({
               </div>
             </div>
           )}
+          <MatchEventsTimeline summary={match.matchSummary} homeName={home?.name ?? 'Dom.'} awayName={away?.name ?? 'Ext.'} />
           <MatchSummaryStatsInline
             snap={match.matchSummary.stats}
             homeName={home?.name ?? 'Domicile'}
@@ -1040,6 +1041,62 @@ function RoundMatchRow({
           />
         </div>
       )}
+    </div>
+  );
+}
+
+function MatchEventsTimeline({ summary, homeName, awayName }: {
+  summary: import('@/lib/competition/types').MatchSummary;
+  homeName: string;
+  awayName: string;
+}) {
+  type Ev = { minute: number; side: 'home' | 'away'; icon: string; label: string; sub?: string };
+  const evs: Ev[] = [];
+  for (const g of summary.homeGoals ?? []) {
+    evs.push({ minute: g.minute, side: 'home', icon: '⚽', label: g.playerName, sub: g.assistName ? `Passe : ${g.assistName}` : undefined });
+  }
+  for (const g of summary.awayGoals ?? []) {
+    evs.push({ minute: g.minute, side: 'away', icon: '⚽', label: g.playerName, sub: g.assistName ? `Passe : ${g.assistName}` : undefined });
+  }
+  for (const c of summary.homeCards ?? []) {
+    evs.push({ minute: c.minute, side: 'home', icon: c.type === 'red' ? '🟥' : '🟨', label: c.playerName });
+  }
+  for (const c of summary.awayCards ?? []) {
+    evs.push({ minute: c.minute, side: 'away', icon: c.type === 'red' ? '🟥' : '🟨', label: c.playerName });
+  }
+  if (evs.length === 0) return null;
+  evs.sort((a, b) => a.minute - b.minute);
+
+  return (
+    <div className="space-y-1">
+      <div className="grid grid-cols-[1fr_40px_1fr] items-center text-[10px] font-medium text-muted mb-1">
+        <span className="truncate">{homeName}</span>
+        <span />
+        <span className="truncate text-right">{awayName}</span>
+      </div>
+      {evs.map((ev, i) => (
+        <div key={i} className="grid grid-cols-[1fr_40px_1fr] items-center gap-1 text-[11px]">
+          {ev.side === 'home' ? (
+            <>
+              <div className="text-right min-w-0">
+                <span className="font-medium truncate block">{ev.label}</span>
+                {ev.sub && <span className="text-muted truncate block text-[10px]">{ev.sub}</span>}
+              </div>
+              <span className="text-center text-muted/60 tabular-nums">{ev.icon} {ev.minute}'</span>
+              <div />
+            </>
+          ) : (
+            <>
+              <div />
+              <span className="text-center text-muted/60 tabular-nums">{ev.minute}' {ev.icon}</span>
+              <div className="min-w-0">
+                <span className="font-medium truncate block">{ev.label}</span>
+                {ev.sub && <span className="text-muted truncate block text-[10px]">{ev.sub}</span>}
+              </div>
+            </>
+          )}
+        </div>
+      ))}
     </div>
   );
 }

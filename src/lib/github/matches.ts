@@ -1,6 +1,6 @@
 import type { MatchState, MatchInput } from '@/lib/sim/types';
-import type { Team } from '@/lib/types';
-import type { CompetitionKind, CompetitionScope, CompetitionImportance } from '@/lib/competition/types';
+import type { Team, Player } from '@/lib/types';
+import type { CompetitionKind, CompetitionScope, CompetitionImportance, GoalEvent, CardEvent } from '@/lib/competition/types';
 import { readJson, writeJson } from './api';
 
 // ─── CMF match point formula ─────────────────────────────────────────────────
@@ -95,6 +95,10 @@ export type RecentMatchSummary = {
   compKind?: import('@/lib/competition/types').CompetitionKind;
   compScope?: import('@/lib/competition/types').CompetitionScope;
   compImportance?: import('@/lib/competition/types').CompetitionImportance;
+  /** Goal scorers for this team in this match */
+  scorers?: import('@/lib/competition/types').GoalEvent[];
+  /** Cards (yellow/red) for this team in this match */
+  cards?: import('@/lib/competition/types').CardEvent[];
 };
 
 const MATCH_PATH = (id: string) => `data/matches/${id}.json`;
@@ -152,6 +156,10 @@ export async function saveMatch(
     compImportance: meta?.compImportance,
   });
 
+  const allPlayers = [...input.home.players, ...input.away.players];
+  const homeEvents = extractGoalsAndCards(state.events, 'home', allPlayers);
+  const awayEvents = extractGoalsAndCards(state.events, 'away', allPlayers);
+
   await Promise.all([
     appendRecent(input.home.team, {
       matchId: state.matchId,
@@ -168,6 +176,8 @@ export async function saveMatch(
       compKind: meta?.compKind,
       compScope: meta?.compScope,
       compImportance: meta?.compImportance,
+      scorers: homeEvents.goals.length ? homeEvents.goals : undefined,
+      cards: homeEvents.cards.length ? homeEvents.cards : undefined,
     }, token),
     appendRecent(input.away.team, {
       matchId: state.matchId,
@@ -184,6 +194,8 @@ export async function saveMatch(
       compKind: meta?.compKind,
       compScope: meta?.compScope,
       compImportance: meta?.compImportance,
+      scorers: awayEvents.goals.length ? awayEvents.goals : undefined,
+      cards: awayEvents.cards.length ? awayEvents.cards : undefined,
     }, token),
   ]);
 
@@ -209,6 +221,36 @@ async function updateCoachSuspension(team: Team, suspended: boolean, token: stri
     message: `fix(coach): ${suspended ? 'suspend' : 'reinstate'} coach for ${team.slug}`,
     sha: existing.sha,
   });
+}
+
+export function extractGoalsAndCards(
+  events: MatchState['events'],
+  side: 'home' | 'away',
+  allPlayers: Player[],
+): { goals: GoalEvent[]; cards: CardEvent[] } {
+  const playerMap = new Map(allPlayers.map((p) => [p.id, `${p.firstName} ${p.lastName}`]));
+  const goals: GoalEvent[] = [];
+  const cards: CardEvent[] = [];
+  for (const ev of events) {
+    if (ev.side !== side) continue;
+    if (ev.type === 'goal' && ev.playerId) {
+      goals.push({
+        minute: ev.minute,
+        playerId: ev.playerId,
+        playerName: playerMap.get(ev.playerId) ?? '?',
+        assistId: ev.assistId,
+        assistName: ev.assistId ? (playerMap.get(ev.assistId) ?? undefined) : undefined,
+      });
+    } else if ((ev.type === 'yellow' || ev.type === 'red') && ev.playerId) {
+      cards.push({
+        minute: ev.minute,
+        playerId: ev.playerId,
+        playerName: playerMap.get(ev.playerId) ?? '?',
+        type: ev.type,
+      });
+    }
+  }
+  return { goals, cards };
 }
 
 function buildSide(

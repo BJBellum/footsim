@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, Fragment } from 'react';
 import { Link } from 'react-router-dom';
 import { AccountMenu } from '@/components/layout/AccountMenu';
 import { SkeletonCard, SkeletonRow } from '@/components/ui/Skeleton';
@@ -748,6 +748,8 @@ function NomExportPanel({
 }
 
 function MyTeamHistoriqueTab({ recentMatches }: { recentMatches: RecentMatchSummary[] }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+
   if (recentMatches.length === 0) {
     return (
       <div className="py-16 text-center text-muted text-sm">
@@ -783,22 +785,53 @@ function MyTeamHistoriqueTab({ recentMatches }: { recentMatches: RecentMatchSumm
               const pts = m.opponentStrength != null
                 ? calcCmfMatchPoints({ scoreFor: m.scoreFor, scoreAgainst: m.scoreAgainst, opponentStrength: m.opponentStrength, compKind: m.compKind, compScope: m.compScope, compImportance: m.compImportance })
                 : (m.cmfPoints ?? 0);
+              const key = `${m.matchId}-${m.homeAway}`;
+              const hasDetails = !!(m.scorers?.length || m.cards?.length);
+              const isExpanded = expanded === key;
               return (
-                <tr key={`${m.matchId}-${m.homeAway}`} className="border-t border-border hover:bg-accent/5 transition-colors">
-                  <td className="px-3 py-2 text-xs text-muted tabular-nums whitespace-nowrap">
-                    {new Date(m.playedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
-                  </td>
-                  <td className="px-3 py-2 font-medium">{m.opponentName}</td>
-                  <td className="px-3 py-2 text-center text-xs text-muted">{m.homeAway === 'home' ? 'D' : 'E'}</td>
-                  <td className="px-3 py-2 text-center font-mono tabular-nums">{m.scoreFor}–{m.scoreAgainst}</td>
-                  <td className="px-3 py-2 text-center">
-                    <span className={`font-bold text-xs ${resultColor}`}>{resultLabel}</span>
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums font-medium text-accent">{pts > 0 ? `+${pts}` : pts}</td>
-                  <td className="px-3 py-2 text-xs text-muted">
-                    {m.compImportance ? COMPETITION_IMPORTANCE_LABEL[m.compImportance] : '—'}
-                  </td>
-                </tr>
+                <Fragment key={key}>
+                  <tr
+                    className={`border-t border-border transition-colors ${hasDetails ? 'cursor-pointer hover:bg-accent/5' : ''}`}
+                    onClick={() => hasDetails && setExpanded(isExpanded ? null : key)}
+                  >
+                    <td className="px-3 py-2 text-xs text-muted tabular-nums whitespace-nowrap">
+                      {new Date(m.playedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                    </td>
+                    <td className="px-3 py-2 font-medium">{m.opponentName}</td>
+                    <td className="px-3 py-2 text-center text-xs text-muted">{m.homeAway === 'home' ? 'D' : 'E'}</td>
+                    <td className="px-3 py-2 text-center font-mono tabular-nums">{m.scoreFor}–{m.scoreAgainst}</td>
+                    <td className="px-3 py-2 text-center">
+                      <span className={`font-bold text-xs ${resultColor}`}>{resultLabel}</span>
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums font-medium text-accent">{pts > 0 ? `+${pts}` : pts}</td>
+                    <td className="px-3 py-2 text-xs text-muted">
+                      {m.compImportance ? COMPETITION_IMPORTANCE_LABEL[m.compImportance] : '—'}
+                    </td>
+                  </tr>
+                  {isExpanded && hasDetails && (
+                    <tr className="border-t border-border/30">
+                      <td colSpan={7} className="px-4 py-2 bg-surface/60">
+                        <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted">
+                          {(m.scorers ?? []).map((g, i) => (
+                            <span key={i} className="flex items-center gap-1">
+                              <span>⚽</span>
+                              <span className="font-medium text-text">{g.playerName}</span>
+                              <span className="text-muted/60">{g.minute}'</span>
+                              {g.assistName && <span className="text-muted/60">(p. {g.assistName})</span>}
+                            </span>
+                          ))}
+                          {(m.cards ?? []).map((c, i) => (
+                            <span key={i} className="flex items-center gap-1">
+                              <span>{c.type === 'red' ? '🟥' : '🟨'}</span>
+                              <span className="font-medium text-text">{c.playerName}</span>
+                              <span className="text-muted/60">{c.minute}'</span>
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               );
             })}
           </tbody>

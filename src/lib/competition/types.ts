@@ -67,6 +67,21 @@ export type MatchStatSnapshot = {
   redCards: { home: number; away: number };
 };
 
+export type GoalEvent = {
+  minute: number;
+  playerId: string;
+  playerName: string;
+  assistId?: string;
+  assistName?: string;
+};
+
+export type CardEvent = {
+  minute: number;
+  playerId: string;
+  playerName: string;
+  type: 'yellow' | 'red';
+};
+
 export type MatchSummary = {
   motm?: {
     playerId: string;
@@ -76,6 +91,10 @@ export type MatchSummary = {
     rating: number;
   };
   stats: MatchStatSnapshot;
+  homeGoals?: GoalEvent[];
+  awayGoals?: GoalEvent[];
+  homeCards?: CardEvent[];
+  awayCards?: CardEvent[];
 };
 
 export type CompMatch = {

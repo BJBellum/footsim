@@ -60,6 +60,7 @@ export type MatchEvent = {
   type: EventKind;
   side: 'home' | 'away' | null;
   playerId?: string;
+  assistId?: string;
   text: string;
   ballPos?: { x: number; y: number };
 };

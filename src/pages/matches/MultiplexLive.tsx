@@ -864,7 +864,7 @@ export default function MultiplexLive() {
   }
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-8 space-y-6">
+    <main className="mx-auto max-w-7xl px-6 py-8 pb-20 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <Link to={`/dashboard/competitions/${competitionId}`} className="text-sm text-muted hover:text-text">
@@ -896,10 +896,18 @@ export default function MultiplexLive() {
       </div>
 
       {!allFinished && slots.some((s) => s.state?.status === 'halftime') && (
-        <div className="rounded-lg border border-warning/30 bg-warning/5 p-4 flex items-center justify-between gap-3">
+        <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-warning/40 bg-bg/95 backdrop-blur px-6 py-3 flex items-center justify-between gap-3 shadow-lg">
           <span className="text-sm font-medium">⏸ Mi-temps — {slots.filter((s) => s.state?.status === 'halftime').length} match(s) en pause</span>
           <Button size="sm" onClick={() => { resumeAll(); setPaused(false); }}>
             ▶ Reprendre la 2e mi-temps
+          </Button>
+        </div>
+      )}
+      {!allFinished && slots.some((s) => s.state?.status === 'extraTimeHalfTime') && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-accent/40 bg-bg/95 backdrop-blur px-6 py-3 flex items-center justify-between gap-3 shadow-lg">
+          <span className="text-sm font-medium">⏸ Mi-temps prolongations — {slots.filter((s) => s.state?.status === 'extraTimeHalfTime').length} match(s) en pause</span>
+          <Button size="sm" onClick={() => { resumeAll(); setPaused(false); }}>
+            ▶ Reprendre la 2e période de prolongations
           </Button>
         </div>
       )}
@@ -1056,7 +1064,7 @@ function MatchCard({ slot }: { slot: import('@/stores/multiplex').MultiplexSlot 
         <div className="space-y-1 border-t border-border/50 pt-2">
           {notableEvents.map((ev) => (
             <div key={ev.id} className="text-xs text-muted truncate">
-              {ev.minute}' {ev.text}
+              {ev.text}
             </div>
           ))}
         </div>

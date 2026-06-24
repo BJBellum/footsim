@@ -96,7 +96,7 @@ const FORMATION_LAYOUT: Record<Formation, SlotDef[]> = {
 
 // ── Pitch visual ──────────────────────────────────────────────────────────────
 
-function TacticPitch({ formation, lineup, players }: { formation: Formation; lineup: string[]; players: Player[] }) {
+export function TacticPitch({ formation, lineup, players }: { formation: Formation; lineup: string[]; players: Player[] }) {
   const layout = FORMATION_LAYOUT[formation] ?? FORMATION_LAYOUT['4-3-3'];
   const playerMap = new Map(players.map((p) => [p.id, p]));
 

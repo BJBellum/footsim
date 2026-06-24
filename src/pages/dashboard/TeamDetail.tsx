@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, Fragment } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
@@ -1484,6 +1484,31 @@ function PalmaresTab({ compHistory }: { compHistory: CompHistoryEntry[] }) {
   );
 }
 
+function RecentMatchDetails({ m }: { m: RecentMatchSummary }) {
+  const goals = m.scorers ?? [];
+  const cards = m.cards ?? [];
+  if (!goals.length && !cards.length) return null;
+  return (
+    <div className="flex flex-wrap gap-x-6 gap-y-1 py-1 text-xs text-muted">
+      {goals.map((g, i) => (
+        <span key={i} className="flex items-center gap-1">
+          <span>⚽</span>
+          <span className="font-medium text-text">{g.playerName}</span>
+          <span className="text-muted/60">{g.minute}'</span>
+          {g.assistName && <span className="text-muted/60">(p. {g.assistName})</span>}
+        </span>
+      ))}
+      {cards.map((c, i) => (
+        <span key={i} className="flex items-center gap-1">
+          <span>{c.type === 'red' ? '🟥' : '🟨'}</span>
+          <span className="font-medium text-text">{c.playerName}</span>
+          <span className="text-muted/60">{c.minute}'</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function HistoriqueTab({
   matches,
   onDelete,
@@ -1493,6 +1518,8 @@ function HistoriqueTab({
   onDelete: (matchId: string) => void;
   onDeleteAll: () => void;
 }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+
   if (matches.length === 0) {
     return (
       <div className="py-16 text-center text-muted text-sm">
@@ -1532,29 +1559,43 @@ function HistoriqueTab({
               const result = m.scoreFor > m.scoreAgainst ? 'V' : m.scoreFor === m.scoreAgainst ? 'N' : 'D';
               const resultColor = result === 'V' ? 'text-green-500' : result === 'N' ? 'text-yellow-400' : 'text-red-500';
               const date = new Date(m.playedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+              const hasDetails = !!(m.scorers?.length || m.cards?.length);
+              const isExpanded = expanded === m.matchId;
               return (
-                <tr key={m.matchId} className="border-t border-border hover:bg-border/10 transition-colors">
-                  <td className="px-3 py-2 text-xs text-muted tabular-nums">{date}</td>
-                  <td className="px-3 py-2 font-medium">{m.opponentName}</td>
-                  <td className="px-3 py-2 text-center text-xs text-muted">{m.homeAway === 'home' ? 'D' : 'E'}</td>
-                  <td className="px-3 py-2 text-center tabular-nums font-mono">{m.scoreFor}–{m.scoreAgainst}</td>
-                  <td className={`px-3 py-2 text-center font-bold ${resultColor}`}>{result}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-xs text-accent">
-                    {m.cmfPoints != null ? (m.cmfPoints > 0 ? `+${m.cmfPoints}` : m.cmfPoints) : '—'}
-                  </td>
-                  <td className="px-3 py-2 text-right text-xs text-muted">
-                    {m.compImportance ?? '—'}
-                  </td>
-                  <td className="px-2 py-2 text-right">
-                    <button
-                      onClick={() => onDelete(m.matchId)}
-                      className="rounded px-2 py-0.5 text-xs text-danger hover:bg-danger/10 transition-colors"
-                      title="Supprimer ce match de l'historique"
-                    >
-                      ✕
-                    </button>
-                  </td>
-                </tr>
+                <Fragment key={m.matchId}>
+                  <tr
+                    className={`border-t border-border transition-colors ${hasDetails ? 'cursor-pointer hover:bg-border/10' : ''}`}
+                    onClick={() => hasDetails && setExpanded(isExpanded ? null : m.matchId)}
+                  >
+                    <td className="px-3 py-2 text-xs text-muted tabular-nums">{date}</td>
+                    <td className="px-3 py-2 font-medium">{m.opponentName}</td>
+                    <td className="px-3 py-2 text-center text-xs text-muted">{m.homeAway === 'home' ? 'D' : 'E'}</td>
+                    <td className="px-3 py-2 text-center tabular-nums font-mono">{m.scoreFor}–{m.scoreAgainst}</td>
+                    <td className={`px-3 py-2 text-center font-bold ${resultColor}`}>{result}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-xs text-accent">
+                      {m.cmfPoints != null ? (m.cmfPoints > 0 ? `+${m.cmfPoints}` : m.cmfPoints) : '—'}
+                    </td>
+                    <td className="px-3 py-2 text-right text-xs text-muted">
+                      {m.compImportance ?? '—'}
+                    </td>
+                    <td className="px-2 py-2 text-right">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onDelete(m.matchId); }}
+                        className="rounded px-2 py-0.5 text-xs text-danger hover:bg-danger/10 transition-colors"
+                        title="Supprimer ce match de l'historique"
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                  {isExpanded && hasDetails && (
+                    <tr className="border-t border-border/30">
+                      <td colSpan={8} className="px-4 py-2 bg-surface/60">
+                        <RecentMatchDetails m={m} />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               );
             })}
           </tbody>

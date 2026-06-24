@@ -15,7 +15,7 @@ import { useCompetition } from '@/stores/competition';
 import { useTeams } from '@/stores/teams';
 import { useCredentials } from '@/stores/credentials';
 import { useBackendArgs } from '@/hooks/useBackendArgs';
-import { saveMatch } from '@/lib/github/matches';
+import { saveMatch, extractGoalsAndCards } from '@/lib/github/matches';
 import type { SaveMatchMeta } from '@/lib/github/matches';
 import { batchUpdateTeamMedical } from '@/lib/github/store';
 import { advanceBracket, applyResultToStandings, applyCorruptionDisqualification } from '@/lib/competition/scheduler';
@@ -232,6 +232,9 @@ export default function CompetitionMatchLive() {
         { team: matchInput!.away.team, players: matchInput!.away.players },
       );
       const ms = matchState!;
+      const allPlayers = [...matchInput!.home.players, ...matchInput!.away.players];
+      const homeGoalCards = extractGoalsAndCards(ms.events, 'home', allPlayers);
+      const awayGoalCards = extractGoalsAndCards(ms.events, 'away', allPlayers);
       const matchSummary: MatchSummary = {
         motm: motmResult ?? undefined,
         stats: {
@@ -250,6 +253,10 @@ export default function CompetitionMatchLive() {
           yellowCards: { home: ms.cards.home.yellow.length, away: ms.cards.away.yellow.length },
           redCards: { home: ms.cards.home.red.length, away: ms.cards.away.red.length },
         },
+        homeGoals: homeGoalCards.goals.length ? homeGoalCards.goals : undefined,
+        awayGoals: awayGoalCards.goals.length ? awayGoalCards.goals : undefined,
+        homeCards: homeGoalCards.cards.length ? homeGoalCards.cards : undefined,
+        awayCards: awayGoalCards.cards.length ? awayGoalCards.cards : undefined,
       };
 
       let updatedMatches = snap!.matches.map((m) =>
@@ -445,7 +452,9 @@ export default function CompetitionMatchLive() {
         const tidRank = rankOf(tid);
         const tidStanding = updatedStandings[tid];
         // isEliminated: top N qualify — can't mathematically reach qualification
+        // Never true if the team just won this match (a win article takes priority)
         const qualifyCount = snap!.config.qualifyPerGroup ?? Math.ceil(totalTeams / 4);
+        const justWon = goalsFor > goalsAgainst;
         const maxRemainingPts = (() => {
           const totalRounds = snap!.matches.filter((m) => m.phase === compMatch.phase).reduce((max, m) => Math.max(max, m.round), 0);
           const remaining = Math.max(0, totalRounds - round);
@@ -454,7 +463,8 @@ export default function CompetitionMatchLive() {
         const minPtsForSafeZone = sortedStandings[qualifyCount - 1]?.points ?? 0;
         const isEliminated = (compMatch.phase === 'group' || compMatch.phase === 'league')
           && !!tidStanding && tidStanding.played >= 3
-          && maxRemainingPts < minPtsForSafeZone;
+          && maxRemainingPts < minPtsForSafeZone
+          && !justWon;
         // isInDangerZone: bottom 20% of table (or specific relegation zone)
         const dangerThreshold = Math.max(qualifyCount + 1, Math.ceil(totalTeams * 0.75));
         const isInDangerZone = (compMatch.phase === 'group' || compMatch.phase === 'league')
