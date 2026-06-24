@@ -1414,6 +1414,9 @@ function deriveTeamResult(teamId: string, comp: Competition): CompHistoryEntry['
     return 'finalist';
   }
 
+  // Manual 3rd place assignment (when no 3rd-place match was played)
+  if (comp.manualThird === teamId) return 'third';
+
   const thirdMatch = comp.matches.find((m) => m.phase === '3rd' && m.status === 'completed');
   if (thirdMatch) {
     const thirdWinner = thirdMatch.result
@@ -2217,6 +2220,27 @@ function CompletedMetaEditor({
               ))}
             </select>
           </label>
+          {!current.matches.some((m) => m.phase === '3rd' && m.status === 'completed') && (
+            <label className="block text-sm sm:col-span-2">
+              <span className="mb-1 block text-muted">3ème place (manuel)</span>
+              <select
+                className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm"
+                value={current.manualThird ?? ''}
+                onChange={(e) => setCurrent({ ...current, manualThird: e.target.value || undefined })}
+              >
+                <option value="">— Non désigné —</option>
+                {current.teamIds
+                  .filter((id) => id !== current.winner)
+                  .filter((id) => {
+                    const finalMatch = current.matches.find((m) => m.phase === 'F' && m.status === 'completed');
+                    return !(finalMatch && (finalMatch.homeTeamId === id || finalMatch.awayTeamId === id));
+                  })
+                  .map((id) => (
+                    <option key={id} value={id}>{current.teamSnapshot?.[id]?.name ?? id}</option>
+                  ))}
+              </select>
+            </label>
+          )}
         </div>
       )}
     </div>

@@ -229,6 +229,8 @@ export type Competition = {
   drawRevealed?: boolean;
   /** True once the CMF debut articles have been generated (before round 1) */
   cmfDebutGenerated?: boolean;
+  /** Manually assigned 3rd place teamId (when no 3rd-place match was played) */
+  manualThird?: string;
 };
 
 export type CompetitionSummary = {
