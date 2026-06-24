@@ -140,6 +140,8 @@ export type CompetitionConfig = {
   thirdPlaceMatch: boolean;
   groupsCount?: number;
   qualifyPerGroup?: number;
+  /** Number of best third-place teams to qualify for knockout (groups_knockout only) */
+  bestThirds?: number;
   /** Used for league/cup, and as group-phase rules for groups_knockout */
   matchRules: MatchRules;
   /** Knockout-phase rules for groups_knockout (if absent, falls back to matchRules) */

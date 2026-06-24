@@ -42,6 +42,7 @@ type CompetitionPreset = {
   thirdPlace: boolean;
   groupsCount: number;
   qualifyPerGroup: number;
+  bestThirds?: number;
   rules: MatchRules;
   knockoutRules: MatchRules;
   teamIds?: string[];
@@ -70,6 +71,7 @@ export default function CompetitionNew() {
   const [thirdPlace, setThirdPlace] = useState(false);
   const [groupsCount, setGroupsCount] = useState(4);
   const [qualifyPerGroup, setQualifyPerGroup] = useState(2);
+  const [bestThirds, setBestThirds] = useState(0);
   const [rules, setRules] = useState<MatchRules>(DEFAULT_RULES);
   const [knockoutRules, setKnockoutRules] = useState<MatchRules>({ ...DEFAULT_RULES, extraTime: true, penalties: true });
   const [drawResult, setDrawResult] = useState<ReturnType<typeof conductDraw> | null>(null);
@@ -93,7 +95,7 @@ export default function CompetitionNew() {
   function currentPresetData(withTeams: boolean): Omit<CompetitionPreset, 'id' | 'label' | 'savedAt'> {
     return {
       name, format, year, kind, scope, importance,
-      legs, thirdPlace, groupsCount, qualifyPerGroup,
+      legs, thirdPlace, groupsCount, qualifyPerGroup, bestThirds,
       rules, knockoutRules,
       teamIds: withTeams ? [...selectedTeams] : undefined,
     };
@@ -127,6 +129,7 @@ export default function CompetitionNew() {
     setThirdPlace(p.thirdPlace);
     setGroupsCount(p.groupsCount);
     setQualifyPerGroup(p.qualifyPerGroup);
+    setBestThirds(p.bestThirds ?? 0);
     setRules(p.rules);
     setKnockoutRules(p.knockoutRules);
     if (p.teamIds) setSelectedTeams(p.teamIds);
@@ -172,6 +175,7 @@ export default function CompetitionNew() {
         thirdPlaceMatch: thirdPlace,
         groupsCount: format === 'groups_knockout' ? groupsCount : undefined,
         qualifyPerGroup: format === 'groups_knockout' ? qualifyPerGroup : undefined,
+        bestThirds: format === 'groups_knockout' && bestThirds > 0 ? bestThirds : undefined,
         matchRules: rules,
         knockoutRules: (format === 'groups_knockout' || format === 'lpm') ? knockoutRules : undefined,
       };
@@ -202,7 +206,7 @@ export default function CompetitionNew() {
           teamIds: tids,
         }));
         teamIds = groupList.flatMap((g) => g.teamIds);
-        const result = generateGroupsKnockoutFromGroups(groupList, qualifyPerGroup, legs, thirdPlace);
+        const result = generateGroupsKnockoutFromGroups(groupList, qualifyPerGroup, legs, thirdPlace, bestThirds);
         matches = result.matches;
         groups = result.groups;
       }
@@ -561,13 +565,37 @@ export default function CompetitionNew() {
               <select
                 className="h-9 rounded-md border border-border bg-surface px-3 text-sm"
                 value={qualifyPerGroup}
-                onChange={(e) => setQualifyPerGroup(Number(e.target.value))}
+                onChange={(e) => { setQualifyPerGroup(Number(e.target.value)); setBestThirds(0); }}
               >
                 {[1, 2, 3, 4].map((n) => (
                   <option key={n} value={n}>{n} {n === 1 ? 'équipe' : 'équipes'}</option>
                 ))}
               </select>
             </label>
+            {(() => {
+              const base = groupsCount * qualifyPerGroup;
+              // Valid bestThirds values: those where base + n is a power of 2, n <= groupsCount, n > 0
+              const validOptions = Array.from({ length: groupsCount }, (_, i) => i + 1).filter((n) => {
+                const total = base + n;
+                return total >= 2 && (total & (total - 1)) === 0;
+              });
+              if (validOptions.length === 0) return null;
+              return (
+                <label className="block text-sm">
+                  <span className="mb-1 block text-muted">Meilleurs 3es qualifiés</span>
+                  <select
+                    className="h-9 rounded-md border border-border bg-surface px-3 text-sm"
+                    value={bestThirds}
+                    onChange={(e) => setBestThirds(Number(e.target.value))}
+                  >
+                    <option value={0}>Aucun</option>
+                    {validOptions.map((n) => (
+                      <option key={n} value={n}>{n} meilleur{n > 1 ? 's' : ''} 3e{n > 1 ? 's' : ''} → {base + n} équipes en phase finale</option>
+                    ))}
+                  </select>
+                </label>
+              );
+            })()}
           </>
         )}
       </section>

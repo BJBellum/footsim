@@ -740,11 +740,15 @@ function ExpandedTeamDetail({ entry, onPlayerClick }: { entry: TeamRankEntry; on
             <div className="space-y-1.5">
               {[...history].sort((a, b) => (b.year ?? 0) - (a.year ?? 0)).map((e, i) => {
                 const badge = RESULT_BADGE[e.result];
+                const KO_PHASE_LABEL: Record<string, string> = { R64: '32èmes', R32: '16èmes', R16: '8èmes', QF: 'Quarts', SF: 'Demies' };
+                const badgeLabel = e.result === 'semi' && e.phase && KO_PHASE_LABEL[e.phase]
+                  ? KO_PHASE_LABEL[e.phase]
+                  : badge.label;
                 const pts = entryPoints(e);
                 return (
                   <div key={i} className="flex items-center gap-2 text-xs">
                     <span className="text-muted w-8 tabular-nums shrink-0">{e.year ?? '—'}</span>
-                    <span className={`rounded border px-1.5 py-0.5 font-medium shrink-0 ${badge.cls}`}>{badge.label}</span>
+                    <span className={`rounded border px-1.5 py-0.5 font-medium shrink-0 ${badge.cls}`}>{badgeLabel}</span>
                     <span className="truncate text-muted flex-1">{e.compName}</span>
                     <span className="text-[10px] text-muted shrink-0">{SCOPE_SHORT[e.scope ?? 'autre'] ?? e.scope}</span>
                     <span className="tabular-nums font-bold text-accent shrink-0">+{pts}</span>

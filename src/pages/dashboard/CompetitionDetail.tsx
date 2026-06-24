@@ -367,6 +367,17 @@ export default function CompetitionDetail() {
   function startKnockoutDraw() {
     if (!current || !current.groups || !current.config.qualifyPerGroup) return;
     const byRank = getQualifiersByRank(current.groups, current.standings, current.config.qualifyPerGroup);
+    // Append best thirds as an extra pot if configured
+    const bestThirds = current.config.bestThirds ?? 0;
+    if (bestThirds > 0) {
+      const thirds: import('@/lib/competition/types').Standing[] = [];
+      for (const group of current.groups) {
+        const sorted = sortStandings(group.teamIds.map((id) => current.standings[id]).filter(Boolean));
+        if (sorted[current.config.qualifyPerGroup]) thirds.push(sorted[current.config.qualifyPerGroup]);
+      }
+      const bestThirdTeams = sortStandings(thirds).slice(0, bestThirds).map((s) => s.teamId);
+      byRank.push(bestThirdTeams);
+    }
     const pots = buildKnockoutPots(byRank);
     const result = conductKnockoutDraw(pots, byRank);
     setKnockoutDraw(result);
@@ -881,6 +892,8 @@ function RoundsView({
             ? `Poules — J${round}`
             : (() => {
                 const KO_LABEL: Record<string, string> = { R64: '32èmes', R32: '16èmes', R16: '8èmes', QF: 'Quarts', SF: 'Demies', '3rd': '3ème place', F: 'Finale' };
+                const koMatch = phase?.match(/^KO(\d+)$/);
+                if (koMatch) return `Tour final (${koMatch[1]} matchs)`;
                 return KO_LABEL[phase ?? ''] ?? `Tour ${round}${phase ? ` · ${phase}` : ''}`;
               })();
 
@@ -1412,6 +1425,11 @@ function deriveTeamResult(teamId: string, comp: Competition): CompHistoryEntry['
 
   const sfMatches = comp.matches.filter((m) => m.phase === 'SF' && m.status === 'completed');
   if (sfMatches.some((m) => m.homeTeamId === teamId || m.awayTeamId === teamId)) return 'semi';
+
+  // Toute équipe ayant atteint la phase finale knockout (QF, R16, R32, R64) = 'semi' (phase finale atteinte)
+  const koPhases = ['QF', 'R16', 'R32', 'R64'];
+  const koMatches = comp.matches.filter((m) => koPhases.includes(m.phase) && m.status === 'completed');
+  if (koMatches.some((m) => m.homeTeamId === teamId || m.awayTeamId === teamId)) return 'semi';
 
   return 'participant';
 }

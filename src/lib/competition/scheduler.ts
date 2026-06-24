@@ -81,7 +81,9 @@ function bracketPhaseName(matchesInRound: number): string {
   if (matchesInRound === 4) return 'QF';
   if (matchesInRound === 8) return 'R16';
   if (matchesInRound === 16) return 'R32';
-  return `R${matchesInRound * 2}`;
+  if (matchesInRound === 32) return 'R64';
+  // Non-standard bracket size — use generic round label
+  return `KO${matchesInRound}`;
 }
 
 export function generateCupBracket(
@@ -231,6 +233,7 @@ export function generateGroupsKnockoutFromGroups(
   qualifyPerGroup: number,
   legs: 1 | 2,
   thirdPlace: boolean,
+  bestThirds = 0,
 ): { matches: CompMatch[]; groups: CompGroup[] } {
   const allGroupMatches: CompMatch[] = [];
   let maxGroupRound = 0;
@@ -254,7 +257,7 @@ export function generateGroupsKnockoutFromGroups(
     });
   }
 
-  const qualifiedCount = groups.length * qualifyPerGroup;
+  const qualifiedCount = groups.length * qualifyPerGroup + bestThirds;
   const qualifiedPlaceholders = Array.from({ length: qualifiedCount }, (_, i) => `qualified:${i}`);
   const knockoutMatches = generateCupBracket(qualifiedPlaceholders, legs, thirdPlace, maxGroupRound + 1).map((m) => ({
     ...m,
@@ -535,18 +538,27 @@ export function getQualifiersByRank(
   return byRank;
 }
 
-// After group stage completes, seed knockout bracket with group qualifiers
+// After group stage completes, seed knockout bracket with group qualifiers + best thirds
 export function seedKnockoutFromGroups(
   matches: CompMatch[],
   groups: CompGroup[],
   standings: Record<string, Standing>,
   qualifyPerGroup: number,
+  bestThirds = 0,
 ): CompMatch[] {
   const qualifiers: string[] = [];
+  const thirds: Standing[] = [];
   for (const group of groups) {
     const groupStandings = group.teamIds.map((id) => standings[id]).filter(Boolean);
     const sorted = sortStandings(groupStandings);
     qualifiers.push(...sorted.slice(0, qualifyPerGroup).map((s) => s.teamId));
+    if (bestThirds > 0 && sorted[qualifyPerGroup]) {
+      thirds.push(sorted[qualifyPerGroup]);
+    }
+  }
+  if (bestThirds > 0) {
+    const bestThirdTeams = sortStandings(thirds).slice(0, bestThirds).map((s) => s.teamId);
+    qualifiers.push(...bestThirdTeams);
   }
   return seedKnockoutWithOrder(matches, qualifiers);
 }
