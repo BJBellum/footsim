@@ -67,9 +67,9 @@ export default function Competitions() {
     return matchSearch && matchStatus;
   });
 
-  // Group by year (createdAt)
+  // Group by RP year (s.year field) or fallback to createdAt calendar year
   const byYear = filtered.reduce<Record<string, CompetitionSummary[]>>((acc, s) => {
-    const year = new Date(s.createdAt).getFullYear().toString();
+    const year = s.year != null ? String(s.year) : new Date(s.createdAt).getFullYear().toString();
     (acc[year] = acc[year] ?? []).push(s);
     return acc;
   }, {});
