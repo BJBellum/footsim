@@ -149,7 +149,7 @@ export default function ClassementsCMF({ embedded }: { embedded?: boolean }) {
             for (const m of recent) {
               points += matchPoints(m);
             }
-            points = Math.round(points * 10) / 10;
+            points = Math.max(0, Math.round(points * 10) / 10);
 
             const form: MatchResult[] = recent.slice(0, 5).reverse().map((m) =>
               m.scoreFor > m.scoreAgainst ? 'W' : m.scoreFor === m.scoreAgainst ? 'D' : 'L',
@@ -385,7 +385,7 @@ function ExplicationsTab() {
                       <div>Défaite 2 buts → <span className="font-bold text-danger">−0.5 pt</span></div>
                       <div>Défaite 3–4 buts → <span className="font-bold text-danger">−1.0 pt</span></div>
                       <div>Défaite 5+ buts → <span className="font-bold text-danger">−2.0 pts</span></div>
-                      <div className="mt-1 text-muted">Points toujours ≥ 0 (jamais négatif)</div>
+                      <div className="mt-1 text-muted">Points par match peuvent être négatifs — le total CMF est clampé à 0</div>
                     </div>
                   </td>
                 </tr>
