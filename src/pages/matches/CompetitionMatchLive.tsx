@@ -166,11 +166,13 @@ export default function CompetitionMatchLive() {
             unavailablePlayerIds: [...homeUnavail].filter((id) => id !== 'coach'),
             positionMap: homeTactics?.positionMap,
             tokenPositions: homeTactics?.tokenPositions,
+            formationLabel: homeTactics?.formationLabel,
           },
           away: {
             team: awayData.team,
             players: awayData.players,
             formation: awayTactics?.formation ?? awayData.team.formation,
+            formationLabel: awayTactics?.formationLabel,
             lineup: awayTactics?.lineup,
             bench: awayTactics?.bench,
             plannedSubs: awayTactics?.plannedSubs,
@@ -822,7 +824,14 @@ export default function CompetitionMatchLive() {
         )}
       </div>
 
-      <Scoreboard state={matchState} home={matchInput.home.team} away={matchInput.away.team} leg1Score={matchInput.leg1Score} />
+      <Scoreboard
+        state={matchState}
+        home={matchInput.home.team}
+        away={matchInput.away.team}
+        homeFormation={matchInput.home.formationLabel ?? matchInput.home.formation}
+        awayFormation={matchInput.away.formationLabel ?? matchInput.away.formation}
+        leg1Score={matchInput.leg1Score}
+      />
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
         <div className="space-y-4">

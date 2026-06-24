@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import type { MatchState } from '@/lib/sim/types';
 import type { Team } from '@/lib/types';
 
-type Props = { state: MatchState; home: Team; away: Team; leg1Score?: { home: number; away: number } };
+type Props = { state: MatchState; home: Team; away: Team; homeFormation?: string; awayFormation?: string; leg1Score?: { home: number; away: number } };
 
 function minuteLabel(state: MatchState): string {
   if (state.status === 'pregame') return '0\'';
@@ -24,13 +24,13 @@ function periodLabel(state: MatchState): string {
   return ' · 2ᵉ MT';
 }
 
-export function Scoreboard({ state, home, away, leg1Score }: Props) {
+export function Scoreboard({ state, home, away, homeFormation, awayFormation, leg1Score }: Props) {
   const aggHome = leg1Score ? leg1Score.home + state.score.home : null;
   const aggAway = leg1Score ? leg1Score.away + state.score.away : null;
 
   return (
     <div className="flex items-center justify-between gap-6 rounded-lg border border-border bg-surface p-5 shadow-subtle-sm">
-      <Side team={home} score={state.score.home} side="left" />
+      <Side team={home} score={state.score.home} side="left" formation={homeFormation} />
       <div className="flex flex-col items-center">
         <AnimatePresence mode="popLayout">
           <motion.div
@@ -57,12 +57,12 @@ export function Scoreboard({ state, home, away, leg1Score }: Props) {
           </div>
         )}
       </div>
-      <Side team={away} score={state.score.away} side="right" />
+      <Side team={away} score={state.score.away} side="right" formation={awayFormation} />
     </div>
   );
 }
 
-function Side({ team, score, side }: { team: Team; score: number; side: 'left' | 'right' }) {
+function Side({ team, score, side, formation }: { team: Team; score: number; side: 'left' | 'right'; formation?: string }) {
   return (
     <div className={`flex min-w-0 items-center gap-3 ${side === 'right' ? 'flex-row-reverse text-right' : ''}`}>
       {team.flag ? (
@@ -72,6 +72,7 @@ function Side({ team, score, side }: { team: Team; score: number; side: 'left' |
       )}
       <div className="min-w-0">
         <div className="truncate font-display text-lg">{team.name}</div>
+        {formation && <div className="text-xs font-mono text-accent">{formation}</div>}
         <div className="text-xs text-muted">Score : {score}</div>
       </div>
     </div>

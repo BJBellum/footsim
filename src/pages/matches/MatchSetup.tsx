@@ -81,6 +81,7 @@ export default function MatchSetup() {
           team: home.team,
           players: home.players,
           formation: homeFormation,
+          formationLabel: homeTactics?.formationLabel,
           lineup: homeTactics?.lineup,
           bench: homeTactics?.bench,
           plannedSubs: homeTactics?.plannedSubs,
@@ -93,6 +94,7 @@ export default function MatchSetup() {
           team: away.team,
           players: away.players,
           formation: awayFormation,
+          formationLabel: awayTactics?.formationLabel,
           lineup: awayTactics?.lineup,
           bench: awayTactics?.bench,
           plannedSubs: awayTactics?.plannedSubs,
@@ -310,18 +312,20 @@ function SidePicker({
           </div>
         </div>
       )}
-      <label className="block text-sm">
-        <span className="mb-1 block text-muted">Formation</span>
-        <select
-          className="h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
-          value={formation}
-          onChange={(e) => onFormation(e.target.value as Formation)}
-        >
-          {FORMATIONS.map((f) => (
-            <option key={f} value={f}>{f}</option>
-          ))}
-        </select>
-      </label>
+      {!savedTactics && (
+        <label className="block text-sm">
+          <span className="mb-1 block text-muted">Formation</span>
+          <select
+            className="h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
+            value={formation}
+            onChange={(e) => onFormation(e.target.value as Formation)}
+          >
+            {FORMATIONS.map((f) => (
+              <option key={f} value={f}>{f}</option>
+            ))}
+          </select>
+        </label>
+      )}
     </section>
   );
 }

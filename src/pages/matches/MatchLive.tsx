@@ -124,7 +124,13 @@ export default function MatchLive() {
         ) : null}
       </div>
 
-      <Scoreboard state={state} home={input.home.team} away={input.away.team} />
+      <Scoreboard
+        state={state}
+        home={input.home.team}
+        away={input.away.team}
+        homeFormation={input.home.formationLabel ?? input.home.formation}
+        awayFormation={input.away.formationLabel ?? input.away.formation}
+      />
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
         <div className="space-y-4">
