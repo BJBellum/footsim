@@ -628,10 +628,12 @@ const SCOPE_SHORT: Record<string, string> = {
   internationale: 'Intl', continentale: 'Cont', nationale: 'Nat', regionale: 'Rég', autre: 'Autre',
 };
 
-function LineupSection({ players, formation, lineup, onPlayerClick }: {
+function LineupSection({ players, formation, formationLabel, lineup, tokenPositions, onPlayerClick }: {
   players: Player[];
   formation: Formation;
+  formationLabel?: string;
   lineup?: string[];
+  tokenPositions?: Record<string, { x: number; y: number }>;
   onPlayerClick: (p: Player) => void;
 }) {
   const byId = new Map(players.map((p) => [p.id, p]));
@@ -656,8 +658,9 @@ function LineupSection({ players, formation, lineup, onPlayerClick }: {
           formation={formation}
           lineup={starters.map((p) => p.id)}
           players={starters}
+          tokenPositions={tokenPositions}
         />
-        <div className="text-center text-[10px] text-muted mt-1 uppercase tracking-widest">{formation}</div>
+        <div className="text-center text-[10px] text-muted mt-1 uppercase tracking-widest">{formationLabel ?? formation}</div>
       </div>
 
       <div className="overflow-hidden rounded-lg border border-border bg-surface">
@@ -798,7 +801,9 @@ function ExpandedTeamDetail({ entry, onPlayerClick }: { entry: TeamRankEntry; on
         <LineupSection
           players={entry.players}
           formation={activeTactic?.formation ?? entry.team.formation}
+          formationLabel={activeTactic?.formationLabel}
           lineup={activeTactic?.lineup}
+          tokenPositions={activeTactic?.tokenPositions}
           onPlayerClick={onPlayerClick}
         />
       )}

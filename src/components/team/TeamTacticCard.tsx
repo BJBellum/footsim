@@ -96,24 +96,33 @@ const FORMATION_LAYOUT: Record<Formation, SlotDef[]> = {
 
 // ── Pitch visual ──────────────────────────────────────────────────────────────
 
-export function TacticPitch({ formation, lineup, players }: { formation: Formation; lineup: string[]; players: Player[] }) {
+export function TacticPitch({ formation, lineup, players, tokenPositions }: { formation: Formation; lineup: string[]; players: Player[]; tokenPositions?: Record<string, { x: number; y: number }> }) {
   const layout = FORMATION_LAYOUT[formation] ?? FORMATION_LAYOUT['4-3-3'];
   const playerMap = new Map(players.map((p) => [p.id, p]));
+
+  // Build slots: use tokenPositions when available, fall back to layout
+  const slots: { x: number; y: number; pos: string; playerId: string | undefined }[] = lineup.map((id, i) => {
+    const tok = tokenPositions?.[id];
+    const fallback = layout[i] ?? layout[0];
+    return { x: tok ? tok.x : fallback.x, y: tok ? tok.y : fallback.y, pos: fallback.pos, playerId: id };
+  });
+  // If lineup shorter than layout (shouldn't happen), pad with layout slots
+  if (slots.length === 0) {
+    layout.forEach((s) => slots.push({ ...s, playerId: undefined }));
+  }
 
   return (
     <div
       className="relative select-none mx-auto"
       style={{ width: '100%', maxWidth: 280, aspectRatio: '7/10', background: 'var(--pitch)', borderRadius: 8, border: '2px solid var(--pitch-line)' }}
     >
-      {/* pitch markings */}
       <div style={{ position: 'absolute', top: '50%', left: '8%', right: '8%', height: 1, background: 'var(--pitch-line)', opacity: 0.4 }} />
       <div style={{ position: 'absolute', top: '50%', left: '50%', width: 56, height: 56, transform: 'translate(-50%,-50%)', borderRadius: '50%', border: '1px solid var(--pitch-line)', opacity: 0.4 }} />
       <div style={{ position: 'absolute', top: '4%', left: '25%', right: '25%', height: '14%', border: '1px solid var(--pitch-line)', opacity: 0.35 }} />
       <div style={{ position: 'absolute', bottom: '4%', left: '25%', right: '25%', height: '14%', border: '1px solid var(--pitch-line)', opacity: 0.35 }} />
 
-      {layout.map((slot, i) => {
-        const playerId = lineup[i];
-        const player = playerId ? playerMap.get(playerId) : null;
+      {slots.map((slot, i) => {
+        const player = slot.playerId ? playerMap.get(slot.playerId) : null;
         return (
           <div
             key={i}
@@ -206,7 +215,7 @@ export function TeamTacticCard({ team, token, onClose }: Props) {
                 <span className="text-white/50 text-xs">Chargement…</span>
               </div>
             ) : (
-              <TacticPitch formation={formation} lineup={lineup} players={players} />
+              <TacticPitch formation={formation} lineup={lineup} players={players} tokenPositions={tactics?.tokenPositions} />
             )}
           </div>
 
