@@ -625,6 +625,7 @@ async function applyNewStrength(strength: number) {
             players={players}
             formation={team.tactics?.formation ?? team.formation}
             lineup={team.tactics?.lineup}
+            positionMap={team.tactics?.positionMap}
             onSaveAutoXI={effectivePat ? async (lineupIds) => {
               if (!data) return;
               // Update active tactic lineup or create one

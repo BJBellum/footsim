@@ -321,11 +321,17 @@ export function TacticsPanel({ team, players, onSave }: Props) {
                 const playerId = lineup[i];
                 const player = playerId ? playerMap.get(playerId) : null;
                 const filled = !!player;
+                // Use free-editor token coords when available for this player
+                const tok = playerId && tokenPositions ? tokenPositions[playerId] : undefined;
+                const sx = tok ? tok.x : slot.x;
+                const sy = tok ? tok.y : slot.y;
+                const assignedPos = playerId && positionMap ? positionMap[playerId] : undefined;
+                const displayPos = assignedPos ?? (slot.pos as keyof typeof POSITION_LABEL);
                 return (
                   <button
                     key={i}
                     onClick={() => setPickingSlot(i)}
-                    style={{ position: 'absolute', left: `${slot.x}%`, top: `${slot.y}%`, transform: 'translate(-50%, -50%)', zIndex: 1 }}
+                    style={{ position: 'absolute', left: `${sx}%`, top: `${sy}%`, transform: 'translate(-50%, -50%)', zIndex: 1 }}
                     className="flex flex-col items-center gap-0.5 group"
                     title={filled ? `${player.firstName} ${player.lastName}` : slot.pos}
                   >
@@ -333,7 +339,7 @@ export function TacticsPanel({ team, players, onSave }: Props) {
                       {filled ? `${player.firstName[0]}${player.lastName[0]}` : '+'}
                     </div>
                     <span className="max-w-[56px] truncate rounded bg-black/40 px-0.5 text-center text-[9px] leading-tight text-white/90">
-                      {filled ? player.lastName : POSITION_LABEL[slot.pos as keyof typeof POSITION_LABEL] ?? slot.pos}
+                      {filled ? player.lastName : POSITION_LABEL[displayPos] ?? slot.pos}
                     </span>
                   </button>
                 );

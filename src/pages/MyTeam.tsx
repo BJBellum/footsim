@@ -413,6 +413,7 @@ export default function MyTeam() {
           players={players}
           formation={(savedTactics.find((t) => t.id === activeTacticId) ?? savedTactics[0])?.formation ?? team.formation}
           lineup={(savedTactics.find((t) => t.id === activeTacticId) ?? savedTactics[0])?.lineup}
+          positionMap={(savedTactics.find((t) => t.id === activeTacticId) ?? savedTactics[0])?.positionMap}
         />
         <div className="overflow-hidden rounded-lg border border-border bg-surface">
           <table className="w-full text-sm">

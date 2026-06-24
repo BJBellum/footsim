@@ -2,80 +2,84 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Formation, Player, Position } from '@/lib/types';
 import { POSITION_LABEL } from '@/lib/types';
 
-// ── position inference from pitch coords ─────────────────────────────────────
+// ── position zones ────────────────────────────────────────────────────────────
 //
-// Y axis: 0 = top (attack), 100 = bottom (GK)
-// 7 horizontal bands → each maps to a position family
-// X axis within each band: leftmost → L role, rightmost → R role, center → C role
+// Terrain: y=0 (haut=attaque), y=100 (bas=GK), x=0 (gauche), x=100 (droite)
+// Chaque zone rectangulaire → 1 poste exact.
+// Attribution: zone contenant le token. Si hors zone → zone la plus proche (dist² centre).
 
-type Band = 'ATT' | 'AM' | 'CM' | 'DM' | 'DEF' | 'GK';
+type PosZone = {
+  pos: Position;
+  x1: number; x2: number; // x range %
+  y1: number; y2: number; // y range %
+  cx: number; cy: number; // center (precomputed)
+  color: string;          // bg fill rgba
+  border: string;         // border color rgba
+};
 
-const BANDS: { from: number; to: number; id: Band; label: string; color: string }[] = [
-  { from: 0,  to: 26, id: 'ATT', label: 'Attaquants (BU / AG / AD)', color: 'rgba(239,68,68,0.10)'   },
-  { from: 26, to: 44, id: 'AM',  label: 'Milieux offensifs (MO)',     color: 'rgba(249,115,22,0.08)'  },
-  { from: 44, to: 58, id: 'CM',  label: 'Milieux centraux (MC/MG/MD)',color: 'rgba(34,197,94,0.08)'   },
-  { from: 58, to: 70, id: 'DM',  label: 'Milieux défensifs (MDF)',    color: 'rgba(16,185,129,0.08)'  },
-  { from: 70, to: 84, id: 'DEF', label: 'Défenseurs (DC/DG/DD)',      color: 'rgba(59,130,246,0.10)'  },
-  { from: 84, to: 100,id: 'GK',  label: 'Gardien (GB)',               color: 'rgba(234,179,8,0.10)'   },
+const POS_ZONES: PosZone[] = [
+  // GK
+  { pos: 'GK', x1: 30, x2: 70, y1: 84, y2: 98, cx: 50, cy: 91, color: 'rgba(234,179,8,0.12)',   border: 'rgba(234,179,8,0.5)'    },
+  // DEF
+  { pos: 'LB', x1:  2, x2: 32, y1: 68, y2: 84, cx: 17, cy: 76, color: 'rgba(59,130,246,0.10)',  border: 'rgba(59,130,246,0.45)'  },
+  { pos: 'CB', x1: 28, x2: 72, y1: 68, y2: 84, cx: 50, cy: 76, color: 'rgba(59,130,246,0.10)',  border: 'rgba(59,130,246,0.45)'  },
+  { pos: 'RB', x1: 68, x2: 98, y1: 68, y2: 84, cx: 83, cy: 76, color: 'rgba(59,130,246,0.10)',  border: 'rgba(59,130,246,0.45)'  },
+  // DM
+  { pos: 'DM', x1: 22, x2: 78, y1: 54, y2: 68, cx: 50, cy: 61, color: 'rgba(16,185,129,0.10)',  border: 'rgba(16,185,129,0.45)'  },
+  // CM row
+  { pos: 'LM', x1:  2, x2: 32, y1: 38, y2: 54, cx: 17, cy: 46, color: 'rgba(34,197,94,0.10)',   border: 'rgba(34,197,94,0.45)'   },
+  { pos: 'CM', x1: 28, x2: 72, y1: 38, y2: 54, cx: 50, cy: 46, color: 'rgba(34,197,94,0.10)',   border: 'rgba(34,197,94,0.45)'   },
+  { pos: 'RM', x1: 68, x2: 98, y1: 38, y2: 54, cx: 83, cy: 46, color: 'rgba(34,197,94,0.10)',   border: 'rgba(34,197,94,0.45)'   },
+  // AM
+  { pos: 'AM', x1: 22, x2: 78, y1: 25, y2: 38, cx: 50, cy: 31, color: 'rgba(249,115,22,0.10)',  border: 'rgba(249,115,22,0.45)'  },
+  // ATT row
+  { pos: 'LW', x1:  2, x2: 32, y1:  4, y2: 25, cx: 17, cy: 14, color: 'rgba(239,68,68,0.10)',   border: 'rgba(239,68,68,0.45)'   },
+  { pos: 'ST', x1: 28, x2: 72, y1:  4, y2: 25, cx: 50, cy: 14, color: 'rgba(239,68,68,0.10)',   border: 'rgba(239,68,68,0.45)'   },
+  { pos: 'RW', x1: 68, x2: 98, y1:  4, y2: 25, cx: 83, cy: 14, color: 'rgba(239,68,68,0.10)',   border: 'rgba(239,68,68,0.45)'   },
 ];
 
-function yBand(y: number): Band {
-  for (const b of BANDS) if (y >= b.from && y < b.to) return b.id;
-  return 'GK';
-}
+const POS_ZONE_COLORS: Record<Position, string> = {
+  GK: 'border-yellow-400 bg-yellow-400/20 text-yellow-200',
+  LB: 'border-blue-400 bg-blue-400/20 text-blue-100',
+  CB: 'border-blue-400 bg-blue-400/20 text-blue-100',
+  RB: 'border-blue-400 bg-blue-400/20 text-blue-100',
+  DM: 'border-teal-400 bg-teal-400/20 text-teal-100',
+  LM: 'border-green-400 bg-green-400/20 text-green-100',
+  CM: 'border-green-400 bg-green-400/20 text-green-100',
+  RM: 'border-green-400 bg-green-400/20 text-green-100',
+  AM: 'border-orange-400 bg-orange-400/20 text-orange-100',
+  LW: 'border-red-400 bg-red-400/20 text-red-100',
+  ST: 'border-red-400 bg-red-400/20 text-red-100',
+  RW: 'border-red-400 bg-red-400/20 text-red-100',
+};
 
-// Legacy 4-zone used only for formation string derivation (def/mid/att counts)
-function yZoneLegacy(y: number): 'GK' | 'DEF' | 'MID' | 'ATT' {
-  if (y >= 84) return 'GK';
-  if (y >= 70) return 'DEF';
-  if (y >= 26) return 'MID';
-  return 'ATT';
-}
-
-function inferPosition(x: number, y: number, sameBand: { x: number; y: number }[]): Position {
-  const band = yBand(y);
-  if (band === 'GK') return 'GK';
-
-  const sorted = [...sameBand].sort((a, b) => a.x - b.x);
-  const rank = sorted.findIndex((p) => p.x === x && p.y === y);
-  const n = sorted.length;
-  const isLeft  = rank === 0;
-  const isRight = rank === n - 1;
-
-  if (band === 'DEF') {
-    if (n === 1) return 'CB';
-    return isLeft ? 'LB' : isRight ? 'RB' : 'CB';
+function posFromCoords(x: number, y: number): Position {
+  // Find zone containing the point
+  const hit = POS_ZONES.find((z) => x >= z.x1 && x <= z.x2 && y >= z.y1 && y <= z.y2);
+  if (hit) return hit.pos;
+  // Fallback: closest zone center
+  let best = POS_ZONES[0];
+  let bestD = Infinity;
+  for (const z of POS_ZONES) {
+    const d = (x - z.cx) ** 2 + (y - z.cy) ** 2;
+    if (d < bestD) { bestD = d; best = z; }
   }
-  if (band === 'DM') {
-    if (n === 1) return 'DM';
-    return isLeft ? 'LM' : isRight ? 'RM' : 'DM';
-  }
-  if (band === 'CM') {
-    if (n === 1) return 'CM';
-    return isLeft ? 'LM' : isRight ? 'RM' : 'CM';
-  }
-  if (band === 'AM') {
-    if (n === 1) return 'AM';
-    return isLeft ? 'LW' : isRight ? 'RW' : 'AM';
-  }
-  // ATT
-  if (n === 1) return 'ST';
-  return isLeft ? 'LW' : isRight ? 'RW' : 'ST';
+  return best.pos;
 }
 
 function deriveFormation(tokens: TokenState[]): string {
-  const def = tokens.filter((t) => yZoneLegacy(t.y) === 'DEF').length;
-  const mid = tokens.filter((t) => yZoneLegacy(t.y) === 'MID').length;
-  const att = tokens.filter((t) => yZoneLegacy(t.y) === 'ATT').length;
+  const positions = tokens.map((t) => posFromCoords(t.x, t.y));
+  const defPositions = new Set<Position>(['LB', 'CB', 'RB']);
+  const midPositions = new Set<Position>(['DM', 'LM', 'CM', 'RM', 'AM']);
+  const attPositions = new Set<Position>(['LW', 'ST', 'RW']);
+  const def = positions.filter((p) => defPositions.has(p)).length;
+  const mid = positions.filter((p) => midPositions.has(p)).length;
+  const att = positions.filter((p) => attPositions.has(p)).length;
   return `${def}-${mid}-${att}`;
 }
 
 function derivePositions(tokens: TokenState[]): Position[] {
-  return tokens.map((token) => {
-    const band = yBand(token.y);
-    const sameBand = tokens.filter((t) => yBand(t.y) === band);
-    return inferPosition(token.x, token.y, sameBand);
-  });
+  return tokens.map((t) => posFromCoords(t.x, t.y));
 }
 
 // ── types ─────────────────────────────────────────────────────────────────────
@@ -273,15 +277,6 @@ export function FormationEditor({ players, initialLineup, onSave, onCancel }: Pr
     onSave({ formation, closestPredefined: closestFormation(formation), lineup, positionMap, tokenPositions });
   }
 
-  const BAND_TOKEN_COLORS: Record<Band, string> = {
-    GK:  'border-yellow-400 bg-yellow-400/20 text-yellow-200',
-    DEF: 'border-blue-400 bg-blue-400/20 text-blue-100',
-    DM:  'border-teal-400 bg-teal-400/20 text-teal-100',
-    CM:  'border-green-400 bg-green-400/20 text-green-100',
-    AM:  'border-orange-400 bg-orange-400/20 text-orange-100',
-    ATT: 'border-red-400 bg-red-400/20 text-red-100',
-  };
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -306,15 +301,8 @@ export function FormationEditor({ players, initialLineup, onSave, onCancel }: Pr
       </div>
 
       <p className="text-xs text-muted">
-        Glisse les joueurs sur le terrain. La bande détermine le poste, la position gauche/centre/droite affine le rôle.
+        Glisse les joueurs dans les zones. Chaque zone correspond à un poste précis.
       </p>
-
-      {/* Band legend */}
-      <div className="flex flex-wrap gap-2 text-[10px]">
-        {[...BANDS].reverse().map((b) => (
-          <span key={b.id} className={`rounded px-2 py-0.5 border ${BAND_TOKEN_COLORS[b.id]}`}>{b.label}</span>
-        ))}
-      </div>
 
       {/* Pitch */}
       <div
@@ -330,21 +318,29 @@ export function FormationEditor({ players, initialLineup, onSave, onCancel }: Pr
           userSelect: 'none',
         }}
       >
-        {/* Zone bands (visual) */}
-        {BANDS.map((b) => (
+        {/* Position zones */}
+        {POS_ZONES.map((z) => (
           <div
-            key={b.id}
+            key={z.pos}
             style={{
               position: 'absolute',
-              top: `${b.from}%`,
-              left: 0,
-              right: 0,
-              height: `${b.to - b.from}%`,
-              background: b.color,
-              borderBottom: b.id !== 'GK' ? '1px dashed rgba(255,255,255,0.12)' : 'none',
+              left: `${z.x1}%`,
+              top: `${z.y1}%`,
+              width: `${z.x2 - z.x1}%`,
+              height: `${z.y2 - z.y1}%`,
+              background: z.color,
+              border: `1px dashed ${z.border}`,
+              borderRadius: 4,
               pointerEvents: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
-          />
+          >
+            <span style={{ fontSize: 9, color: z.border, fontWeight: 700, letterSpacing: 1, opacity: 0.9, pointerEvents: 'none' }}>
+              {POSITION_LABEL[z.pos]}
+            </span>
+          </div>
         ))}
 
         {/* Midfield line */}
@@ -362,8 +358,7 @@ export function FormationEditor({ players, initialLineup, onSave, onCancel }: Pr
           const isGK = token.id === tokens[0]?.id;
           const isDragging = token.id === dragging;
           const isSwapTarget = token.id === swapTarget;
-          const band = yBand(token.y);
-          const pos = positionMap[token.id];
+          const pos = positionMap[token.id] ?? 'CM';
 
           return (
             <div
@@ -395,7 +390,7 @@ export function FormationEditor({ players, initialLineup, onSave, onCancel }: Pr
                 className={`flex h-9 w-9 items-center justify-center rounded-full border-2 text-[10px] font-bold shadow-md
                   ${isSwapTarget ? 'ring-2 ring-white scale-110' : ''}
                   ${isDragging ? 'opacity-90 scale-110' : ''}
-                  ${BAND_TOKEN_COLORS[band]}
+                  ${POS_ZONE_COLORS[pos]}
                 `}
               >
                 {player.firstName[0]}{player.lastName[0]}

@@ -8,11 +8,13 @@ type Props = {
   formation: Formation;
   /** IDs du lineup custom (tactics.lineup) — si absent ou invalide → meilleur XI auto */
   lineup?: string[];
+  /** Position overrides from free editor: playerId → assigned Position */
+  positionMap?: Record<string, import('@/lib/types').Position>;
   /** If provided, shows a button to save the current auto XI as the active tactic */
   onSaveAutoXI?: (lineupIds: string[]) => Promise<void>;
 };
 
-export function StartingXI({ players, formation, lineup, onSaveAutoXI }: Props) {
+export function StartingXI({ players, formation, lineup, positionMap, onSaveAutoXI }: Props) {
   const [saving, setSaving] = useState(false);
   const hasCustom = !!(lineup && lineup.length === 11);
 
@@ -118,7 +120,7 @@ export function StartingXI({ players, formation, lineup, onSaveAutoXI }: Props) 
                 <td className="w-8 px-3 py-2 text-center text-xs text-muted tabular-nums">{i + 1}</td>
                 <td className="px-3 py-2">
                   <span className="rounded bg-border/40 px-1.5 py-0.5 font-mono text-xs">
-                    {POSITION_LABEL[p.position]}
+                    {POSITION_LABEL[positionMap?.[p.id] ?? p.position]}
                   </span>
                 </td>
                 <td className="px-3 py-2 font-medium">{p.firstName} {p.lastName}</td>
