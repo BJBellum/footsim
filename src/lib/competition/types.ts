@@ -180,7 +180,7 @@ export type CompHistoryEntry = {
   kind?: CompetitionKind;
   scope?: CompetitionScope;
   importance?: CompetitionImportance;
-  result: 'winner' | 'finalist' | 'third' | 'semi' | 'participant';
+  result: 'winner' | 'finalist' | 'third' | 'semi' | 'quarter' | 'round16' | 'round32' | 'round64' | 'participant';
   /** Phase reached (e.g. 'F', 'SF', 'QF', 'R16', 'group') */
   phase?: string;
 };

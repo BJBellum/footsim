@@ -23,7 +23,11 @@ const RESULT_BASE: Record<CompHistoryEntry['result'], number> = {
   finalist: 60,
   third: 40,
   semi: 25,
-  participant: 10,
+  quarter: 18,
+  round16: 13,
+  round32: 9,
+  round64: 6,
+  participant: 3,
 };
 
 const SCOPE_MULT: Record<CompetitionScope, number> = {
@@ -547,7 +551,11 @@ function ExplicationsTab() {
               ['Finaliste', '60', '180'],
               ['3e place', '40', '120'],
               ['Demi-finale', '25', '75'],
-              ['Participant', '10', '30'],
+              ['Quart de finale', '18', '54'],
+              ['8e de finale', '13', '39'],
+              ['16e de finale', '9', '27'],
+              ['32e de finale', '6', '18'],
+              ['Participant', '3', '9'],
             ].map(([r, b, ex]) => (
               <tr key={r} className="border-t border-border">
                 <td className="px-4 py-2">{r}</td>
@@ -620,7 +628,11 @@ const RESULT_BADGE: Record<CompHistoryEntry['result'], { label: string; cls: str
   winner:    { label: '🏆 Vainqueur',    cls: 'border-warning/50 bg-warning/10 text-warning' },
   finalist:  { label: '🥈 Finaliste',    cls: 'border-zinc-400/40 bg-zinc-400/10 text-zinc-300' },
   third:     { label: '🥉 3e place',     cls: 'border-orange-400/40 bg-orange-400/10 text-orange-300' },
-  semi:      { label: '4e (demi)',       cls: 'border-border bg-surface text-muted' },
+  semi:      { label: 'Demi-finale',     cls: 'border-border bg-surface text-muted' },
+  quarter:   { label: 'Quart de finale', cls: 'border-border bg-surface text-muted' },
+  round16:   { label: '8e de finale',    cls: 'border-border bg-surface text-muted' },
+  round32:   { label: '16e de finale',   cls: 'border-border bg-surface text-muted' },
+  round64:   { label: '32e de finale',   cls: 'border-border bg-surface text-muted' },
   participant:{ label: 'Participant',    cls: 'border-border bg-surface text-muted' },
 };
 
@@ -739,11 +751,8 @@ function ExpandedTeamDetail({ entry, onPlayerClick }: { entry: TeamRankEntry; on
           ) : (
             <div className="space-y-1.5">
               {[...history].sort((a, b) => (b.year ?? 0) - (a.year ?? 0)).map((e, i) => {
-                const badge = RESULT_BADGE[e.result];
-                const KO_PHASE_LABEL: Record<string, string> = { R64: '32èmes', R32: '16èmes', R16: '8èmes', QF: 'Quarts', SF: 'Demies' };
-                const badgeLabel = e.result === 'semi' && e.phase && KO_PHASE_LABEL[e.phase]
-                  ? KO_PHASE_LABEL[e.phase]
-                  : badge.label;
+                const badge = RESULT_BADGE[e.result] ?? RESULT_BADGE.participant;
+                const badgeLabel = badge.label;
                 const pts = entryPoints(e);
                 return (
                   <div key={i} className="flex items-center gap-2 text-xs">

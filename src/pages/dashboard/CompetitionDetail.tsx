@@ -1429,10 +1429,17 @@ function deriveTeamResult(teamId: string, comp: Competition): CompHistoryEntry['
   const sfMatches = comp.matches.filter((m) => m.phase === 'SF' && m.status === 'completed');
   if (sfMatches.some((m) => m.homeTeamId === teamId || m.awayTeamId === teamId)) return 'semi';
 
-  // Toute équipe ayant atteint la phase finale knockout (QF, R16, R32, R64) = 'semi' (phase finale atteinte)
-  const koPhases = ['QF', 'R16', 'R32', 'R64'];
-  const koMatches = comp.matches.filter((m) => koPhases.includes(m.phase) && m.status === 'completed');
-  if (koMatches.some((m) => m.homeTeamId === teamId || m.awayTeamId === teamId)) return 'semi';
+  const qfMatches = comp.matches.filter((m) => m.phase === 'QF' && m.status === 'completed');
+  if (qfMatches.some((m) => m.homeTeamId === teamId || m.awayTeamId === teamId)) return 'quarter';
+
+  const r16Matches = comp.matches.filter((m) => m.phase === 'R16' && m.status === 'completed');
+  if (r16Matches.some((m) => m.homeTeamId === teamId || m.awayTeamId === teamId)) return 'round16';
+
+  const r32Matches = comp.matches.filter((m) => m.phase === 'R32' && m.status === 'completed');
+  if (r32Matches.some((m) => m.homeTeamId === teamId || m.awayTeamId === teamId)) return 'round32';
+
+  const r64Matches = comp.matches.filter((m) => m.phase === 'R64' && m.status === 'completed');
+  if (r64Matches.some((m) => m.homeTeamId === teamId || m.awayTeamId === teamId)) return 'round64';
 
   return 'participant';
 }
@@ -2220,7 +2227,7 @@ function CompletedMetaEditor({
               ))}
             </select>
           </label>
-          {!current.matches.some((m) => m.phase === '3rd' && m.status === 'completed') && (
+          {!current.matches.some((m) => m.phase === '3rd') && (
             <label className="block text-sm sm:col-span-2">
               <span className="mb-1 block text-muted">3ème place (manuel)</span>
               <select

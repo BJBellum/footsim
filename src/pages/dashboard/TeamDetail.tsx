@@ -1397,7 +1397,11 @@ const RESULT_LABEL: Record<CompHistoryEntry['result'], string> = {
   winner: '🏆 Vainqueur',
   finalist: '🥈 Finaliste',
   third: '🥉 3ème place',
-  semi: '4ème (demi-finale)',
+  semi: 'Demi-finale',
+  quarter: 'Quart de finale',
+  round16: '8e de finale',
+  round32: '16e de finale',
+  round64: '32e de finale',
   participant: 'Participant',
 };
 
@@ -1406,6 +1410,10 @@ const RESULT_COLOR: Record<CompHistoryEntry['result'], string> = {
   finalist: 'text-text border-border bg-surface',
   third: 'text-accent border-accent/40 bg-accent/10',
   semi: 'text-muted border-border bg-surface',
+  quarter: 'text-muted border-border bg-surface',
+  round16: 'text-muted border-border bg-surface',
+  round32: 'text-muted border-border bg-surface',
+  round64: 'text-muted border-border bg-surface',
   participant: 'text-muted border-border bg-surface',
 };
 
