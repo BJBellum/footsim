@@ -38,8 +38,8 @@ const SCOPE_MULT: Record<CompetitionScope, number> = {
 };
 
 const KIND_MULT: Record<CompetitionKind, number> = {
-  officielle: 1.2,
-  amicale: 0.2,
+  officielle: 1.5,
+  amicale: 0.8,
 };
 
 const IMPORTANCE_MULT: Record<CompetitionImportance, number> = {
@@ -423,7 +423,7 @@ function ExplicationsTab() {
                 </tr>
               </thead>
               <tbody>
-                {[['Officielle', '×1.2'], ['Amicale', '×0.2']].map(([k, m]) => (
+                {[['Officielle', '×1.5'], ['Amicale', '×0.8']].map(([k, m]) => (
                   <tr key={k} className="border-t border-border">
                     <td className="px-4 py-2">{k}</td>
                     <td className="px-4 py-2 text-right font-bold text-accent">{m}</td>

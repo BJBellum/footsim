@@ -15,8 +15,8 @@ const SCOPE_MATCH_MULT: Record<CompetitionScope, number> = {
   autre: 0.8,
 };
 const KIND_MATCH_MULT: Record<CompetitionKind, number> = {
-  officielle: 1.2,
-  amicale: 0.2,
+  officielle: 1.5,
+  amicale: 0.8,
 };
 const IMPORTANCE_MATCH_MULT: Record<CompetitionImportance, number> = {
   mineur: 0.4,
