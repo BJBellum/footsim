@@ -9,20 +9,19 @@ import { readJson, writeJson } from './api';
 // Size multiplier = based on participant count (more teams = higher stakes)
 
 const SCOPE_MATCH_MULT: Record<CompetitionScope, number> = {
-  internationale: 2.0,
-  continentale: 1.6,
-  nationale: 1.2,
+  internationale: 1.5,
+  continentale: 1.3,
   regionale: 1.0,
   autre: 0.8,
 };
 const KIND_MATCH_MULT: Record<CompetitionKind, number> = {
   officielle: 1.2,
-  amicale: 0.4,
+  amicale: 0.2,
 };
 const IMPORTANCE_MATCH_MULT: Record<CompetitionImportance, number> = {
   mineur: 0.4,
   regional: 0.6,
-  national: 0.8,
+  tournoi: 0.8,
   prestige: 1.1,
   continental: 1.4,
   mondial: 2.0,
@@ -57,7 +56,7 @@ export function calcCmfMatchPoints(opts: {
   const base = opts.scoreFor > opts.scoreAgainst ? 3 : opts.scoreFor === opts.scoreAgainst ? 1 : 0;
   const scope = SCOPE_MATCH_MULT[opts.compScope ?? 'autre'];
   const kind = KIND_MATCH_MULT[opts.compKind ?? 'amicale'];
-  const importance = IMPORTANCE_MATCH_MULT[opts.compImportance ?? 'national'];
+  const importance = IMPORTANCE_MATCH_MULT[opts.compImportance ?? 'tournoi'];
   const oppFactor = Math.min(2.0, Math.max(0.5, Math.sqrt(opts.opponentStrength / 50)));
   const sizeMult = participantSizeMult(opts.participantCount);
   const penalty = goalDiffPenalty(opts.scoreFor, opts.scoreAgainst);

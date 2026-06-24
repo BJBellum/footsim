@@ -31,32 +31,31 @@ const RESULT_BASE: Record<CompHistoryEntry['result'], number> = {
 };
 
 const SCOPE_MULT: Record<CompetitionScope, number> = {
-  internationale: 2.0,
-  continentale: 1.6,
-  nationale: 1.2,
+  internationale: 1.5,
+  continentale: 1.3,
   regionale: 1.0,
   autre: 0.8,
 };
 
 const KIND_MULT: Record<CompetitionKind, number> = {
   officielle: 1.2,
-  amicale: 0.4,
+  amicale: 0.2,
 };
 
 const IMPORTANCE_MULT: Record<CompetitionImportance, number> = {
   mineur: 0.4,
   regional: 0.6,
-  national: 0.8,
+  tournoi: 0.8,
   prestige: 1.1,
   continental: 1.4,
   mondial: 2.0,
 };
 
 function entryPoints(entry: CompHistoryEntry): number {
-  const base = RESULT_BASE[entry.result] ?? 10;
+  const base = RESULT_BASE[entry.result] ?? 3;
   const scope = SCOPE_MULT[entry.scope ?? 'autre'];
   const kind = KIND_MULT[entry.kind ?? 'amicale'];
-  const importance = IMPORTANCE_MULT[entry.importance ?? 'national'];
+  const importance = IMPORTANCE_MULT[entry.importance ?? 'tournoi'];
   return Math.round(base * scope * kind * importance);
 }
 
@@ -542,20 +541,20 @@ function ExplicationsTab() {
             <tr>
               <th className="px-4 py-2 text-left">Résultat final</th>
               <th className="px-4 py-2 text-right">Base</th>
-              <th className="px-4 py-2 text-right">Exemple (Internationale Officielle)</th>
+              <th className="px-4 py-2 text-right">Exemple (Intl · Officielle · Prestige)</th>
             </tr>
           </thead>
           <tbody>
             {[
-              ['Vainqueur', '100', '300'],
-              ['Finaliste', '60', '180'],
-              ['3e place', '40', '120'],
-              ['Demi-finale', '25', '75'],
-              ['Quart de finale', '18', '54'],
-              ['8e de finale', '13', '39'],
-              ['16e de finale', '9', '27'],
-              ['32e de finale', '6', '18'],
-              ['Participant', '3', '9'],
+              ['Vainqueur', '100', '198'],
+              ['Finaliste', '60', '119'],
+              ['3e place', '40', '79'],
+              ['Demi-finale', '25', '50'],
+              ['Quart de finale', '18', '36'],
+              ['8e de finale', '13', '26'],
+              ['16e de finale', '9', '18'],
+              ['32e de finale', '6', '12'],
+              ['Participant', '3', '6'],
             ].map(([r, b, ex]) => (
               <tr key={r} className="border-t border-border">
                 <td className="px-4 py-2">{r}</td>
@@ -566,7 +565,7 @@ function ExplicationsTab() {
           </tbody>
         </table>
         <p className="text-xs text-muted">
-          Les mêmes multiplicateurs portée × statut s'appliquent. Portée internationale officielle = ×2.0 × 1.2 = ×2.4.
+          Les mêmes multiplicateurs portée × statut s'appliquent. Intl · Officielle · Prestige = ×1.5 × 1.2 × 1.1 = ×1.98.
         </p>
       </section>
 
