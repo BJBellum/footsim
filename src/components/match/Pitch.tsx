@@ -8,6 +8,8 @@ type Props = {
   awayFormation: Formation;
   homeColor?: string;
   awayColor?: string;
+  homeTokenPositions?: Record<string, { x: number; y: number }>;
+  awayTokenPositions?: Record<string, { x: number; y: number }>;
 };
 
 const SECOND_HALF_STATUSES = new Set(['secondHalf', 'extraTimeFirst', 'extraTimeHalfTime', 'extraTimeSecond', 'penalties']);
@@ -102,6 +104,25 @@ function mirror(p: { x: number; y: number }) {
   return { x: 100 - p.x, y: p.y };
 }
 
+// Convert free-editor coords (x=width 0-100%, y=depth 0-100%, y=88=GK)
+// to Pitch SVG coords (viewBox 0 0 100 50, x=depth, y=width, home attacks right)
+function editorToSvg(t: { x: number; y: number }): { x: number; y: number } {
+  return { x: (100 - t.y) / 100 * 50, y: t.x / 100 * 50 };
+}
+
+// Returns positions in home-space (GK near x=5, attackers near x=45).
+// Caller applies mirror() for away side or for 2nd-half flip, same as FORMATION_POSITIONS path.
+function buildPositionsFromTokens(
+  onPitchIds: string[],
+  tokenPositions: Record<string, { x: number; y: number }>,
+): Array<{ x: number; y: number }> {
+  return onPitchIds.map((id) => {
+    const t = tokenPositions[id];
+    if (!t) return { x: 25, y: 25 };
+    return editorToSvg(t);
+  });
+}
+
 // Pentagon side points (radius 0.55, first vertex pointing up)
 const PENTAGON_ANGLES = [0, 1, 2, 3, 4].map((i) => (i / 5) * 2 * Math.PI - Math.PI / 2);
 const BALL_R = 0.55;
@@ -109,11 +130,18 @@ const BALL_R = 0.55;
 const BALL_TRANSITION = { type: 'tween', duration: 0.4, ease: 'easeOut' } as const;
 const PLAYER_TRANSITION = { type: 'tween', duration: 0.6, ease: 'easeOut' } as const;
 
-export function Pitch({ state, homeFormation, awayFormation, homeColor = '#F4F0E6', awayColor = '#C73E3E' }: Props) {
+export function Pitch({ state, homeFormation, awayFormation, homeColor = '#F4F0E6', awayColor = '#C73E3E', homeTokenPositions, awayTokenPositions }: Props) {
   const flipped = SECOND_HALF_STATUSES.has(state.status);
-  const rawHome = FORMATION_POSITIONS[homeFormation];
-  const rawAway = FORMATION_POSITIONS[awayFormation];
-  // In 1st half: home attacks right, away attacks left (mirrored)
+
+  // Use free-editor token positions when available, else fall back to preset formation layout
+  const rawHome = homeTokenPositions
+    ? buildPositionsFromTokens(state.homeOnPitch, homeTokenPositions)
+    : FORMATION_POSITIONS[homeFormation];
+  const rawAway = awayTokenPositions
+    ? buildPositionsFromTokens(state.awayOnPitch, awayTokenPositions)
+    : FORMATION_POSITIONS[awayFormation];
+
+  // In 1st half: home attacks right (rawHome as-is), away attacks left (mirrored)
   // In 2nd half: teams swap ends
   const homePositions = flipped ? rawHome.map(mirror) : rawHome;
   const awayPositions = flipped ? rawAway : rawAway.map(mirror);

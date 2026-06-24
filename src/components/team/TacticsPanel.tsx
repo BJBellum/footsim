@@ -135,12 +135,16 @@ export function TacticsPanel({ team, players, onSave }: Props) {
   const [positionMap, setPositionMap] = useState<Record<string, import('@/lib/types').Position> | undefined>(
     team.tactics?.positionMap,
   );
+  const [tokenPositions, setTokenPositions] = useState<Record<string, { x: number; y: number }> | undefined>(
+    team.tactics?.tokenPositions,
+  );
 
   function applyFreeEditor(result: FormationEditorResult) {
     setFormation(result.closestPredefined);
     setFormationLabel(result.formation !== result.closestPredefined ? result.formation : undefined);
     setLineup(result.lineup);
     setPositionMap(Object.keys(result.positionMap).length > 0 ? result.positionMap : undefined);
+    setTokenPositions(Object.keys(result.tokenPositions).length > 0 ? result.tokenPositions : undefined);
     setFreeEditor(false);
   }
 
@@ -157,6 +161,7 @@ export function TacticsPanel({ team, players, onSave }: Props) {
     setLineup(next);
     setPickingSlot(null);
     setPositionMap(undefined); // manual slot assignment invalidates free editor position overrides
+    setTokenPositions(undefined);
   }
 
   function clearSlot(slotIdx: number) {
@@ -165,6 +170,7 @@ export function TacticsPanel({ team, players, onSave }: Props) {
     setLineup(next);
     setPickingSlot(null);
     setPositionMap(undefined);
+    setTokenPositions(undefined);
   }
 
   async function save() {
@@ -176,7 +182,7 @@ export function TacticsPanel({ team, players, onSave }: Props) {
       const validBench = benchOrder.filter((id) => !filledSet.has(id));
       // Filter planned subs to only valid IDs
       const validPlannedSubs = plannedSubs.filter((s) => filledSet.has(s.outId) && players.some((p) => p.id === s.inId));
-      await onSave({ style, formation, lineup: filled, bench: validBench.length ? validBench : undefined, plannedSubs: validPlannedSubs.length ? validPlannedSubs : undefined, formationLabel, positionMap, customStyles, activeCustomStyleId });
+      await onSave({ style, formation, lineup: filled, bench: validBench.length ? validBench : undefined, plannedSubs: validPlannedSubs.length ? validPlannedSubs : undefined, formationLabel, positionMap, tokenPositions, customStyles, activeCustomStyleId });
     } finally {
       setSaving(false);
     }
@@ -624,8 +630,6 @@ function budgetCost(mods: TacticMods): number {
 function ModSlider({ label, value, onChange, budgetLeft }: { label: string; value: number; onChange: (v: number) => void; budgetLeft: number }) {
   const pct = Math.round((value - 1) * 100);
   const color = pct > 0 ? 'text-green-400' : pct < 0 ? 'text-danger' : 'text-muted';
-  // effectiveMax: current value + remaining budget (each +1% costs 1pt from budget)
-  const effectiveMax = Math.max(SLIDER_MIN, Math.min(SLIDER_MAX, Math.round(100 + pct + budgetLeft)));
 
   return (
     <div className="space-y-1">
@@ -635,9 +639,14 @@ function ModSlider({ label, value, onChange, budgetLeft }: { label: string; valu
       </div>
       <input
         type="range"
-        min={SLIDER_MIN} max={effectiveMax} step={5}
+        min={SLIDER_MIN} max={SLIDER_MAX} step={5}
         value={Math.round(value * 100)}
-        onChange={(e) => onChange(Number(e.target.value) / 100)}
+        onChange={(e) => {
+          const next = Number(e.target.value) / 100;
+          // block increase when budget exhausted (decrease always allowed)
+          if (next > value && budgetLeft <= 0) return;
+          onChange(next);
+        }}
         className="w-full accent-accent"
       />
     </div>

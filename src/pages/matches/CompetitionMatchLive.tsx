@@ -165,6 +165,7 @@ export default function CompetitionMatchLive() {
             morale: moraleMap[compMatch.homeTeamId!] ?? MORALE_DEFAULT,
             unavailablePlayerIds: [...homeUnavail].filter((id) => id !== 'coach'),
             positionMap: homeTactics?.positionMap,
+            tokenPositions: homeTactics?.tokenPositions,
           },
           away: {
             team: awayData.team,
@@ -177,6 +178,7 @@ export default function CompetitionMatchLive() {
             morale: moraleMap[compMatch.awayTeamId!] ?? MORALE_DEFAULT,
             unavailablePlayerIds: [...awayUnavail].filter((id) => id !== 'coach'),
             positionMap: awayTactics?.positionMap,
+            tokenPositions: awayTactics?.tokenPositions,
           },
           speed: '1',
           rules: matchRules,
@@ -830,6 +832,8 @@ export default function CompetitionMatchLive() {
             awayFormation={matchInput.away.formation}
             homeColor={matchInput.home.team.jerseyColor}
             awayColor={matchInput.away.team.jerseyColor}
+            homeTokenPositions={matchInput.home.tokenPositions}
+            awayTokenPositions={matchInput.away.tokenPositions}
           />
           <SpeedControls
             speed={matchState.speed}

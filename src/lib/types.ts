@@ -249,6 +249,8 @@ export type TeamTactics = {
   formationLabel?: string;
   /** position overrides from free editor: playerId → assigned Position */
   positionMap?: Record<string, Position>;
+  /** raw x/y coords (0-100%) from free editor: playerId → {x, y} */
+  tokenPositions?: Record<string, { x: number; y: number }>;
   /** user-created custom styles */
   customStyles?: CustomTacticStyle[];
   /** id of active custom style; if set, overrides style */

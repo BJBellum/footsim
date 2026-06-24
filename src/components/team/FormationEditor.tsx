@@ -3,71 +3,78 @@ import type { Formation, Player, Position } from '@/lib/types';
 import { POSITION_LABEL } from '@/lib/types';
 
 // ── position inference from pitch coords ─────────────────────────────────────
+//
+// Y axis: 0 = top (attack), 100 = bottom (GK)
+// 7 horizontal bands → each maps to a position family
+// X axis within each band: leftmost → L role, rightmost → R role, center → C role
 
-// Y zones (percent, 0=top=attack, 100=bottom=GK)
-const Y_GK = 85;    // >= this → GK zone
-const Y_DEF = 65;   // >= this → DEF zone
-const Y_MID = 35;   // >= this → MID zone
-// < Y_MID → ATT zone
+type Band = 'ATT' | 'AM' | 'CM' | 'DM' | 'DEF' | 'GK';
 
-type Zone = 'GK' | 'DEF' | 'MID' | 'ATT';
+const BANDS: { from: number; to: number; id: Band; label: string; color: string }[] = [
+  { from: 0,  to: 26, id: 'ATT', label: 'Attaquants (BU / AG / AD)', color: 'rgba(239,68,68,0.10)'   },
+  { from: 26, to: 44, id: 'AM',  label: 'Milieux offensifs (MO)',     color: 'rgba(249,115,22,0.08)'  },
+  { from: 44, to: 58, id: 'CM',  label: 'Milieux centraux (MC/MG/MD)',color: 'rgba(34,197,94,0.08)'   },
+  { from: 58, to: 70, id: 'DM',  label: 'Milieux défensifs (MDF)',    color: 'rgba(16,185,129,0.08)'  },
+  { from: 70, to: 84, id: 'DEF', label: 'Défenseurs (DC/DG/DD)',      color: 'rgba(59,130,246,0.10)'  },
+  { from: 84, to: 100,id: 'GK',  label: 'Gardien (GB)',               color: 'rgba(234,179,8,0.10)'   },
+];
 
-function yZone(y: number): Zone {
-  if (y >= Y_GK) return 'GK';
-  if (y >= Y_DEF) return 'DEF';
-  if (y >= Y_MID) return 'MID';
+function yBand(y: number): Band {
+  for (const b of BANDS) if (y >= b.from && y < b.to) return b.id;
+  return 'GK';
+}
+
+// Legacy 4-zone used only for formation string derivation (def/mid/att counts)
+function yZoneLegacy(y: number): 'GK' | 'DEF' | 'MID' | 'ATT' {
+  if (y >= 84) return 'GK';
+  if (y >= 70) return 'DEF';
+  if (y >= 26) return 'MID';
   return 'ATT';
 }
 
-function inferPosition(x: number, y: number, sameZone: { x: number; y: number }[]): Position {
-  const zone = yZone(y);
-  if (zone === 'GK') return 'GK';
+function inferPosition(x: number, y: number, sameBand: { x: number; y: number }[]): Position {
+  const band = yBand(y);
+  if (band === 'GK') return 'GK';
 
-  // Sort players in zone by X to assign left/center/right roles
-  const sorted = [...sameZone].sort((a, b) => a.x - b.x);
+  const sorted = [...sameBand].sort((a, b) => a.x - b.x);
   const rank = sorted.findIndex((p) => p.x === x && p.y === y);
   const n = sorted.length;
+  const isLeft  = rank === 0;
+  const isRight = rank === n - 1;
 
-  if (zone === 'DEF') {
-    if (n === 2) return rank === 0 ? 'LB' : 'RB';
-    if (n === 3) return rank === 0 ? 'LB' : rank === 2 ? 'RB' : 'CB';
-    if (n === 4) return rank === 0 ? 'LB' : rank === 3 ? 'RB' : 'CB';
-    if (n === 5) return rank === 0 ? 'LB' : rank === 4 ? 'RB' : 'CB';
-    if (n >= 6) return rank === 0 ? 'LB' : rank === n - 1 ? 'RB' : 'CB';
-    return 'CB';
+  if (band === 'DEF') {
+    if (n === 1) return 'CB';
+    return isLeft ? 'LB' : isRight ? 'RB' : 'CB';
   }
-
-  if (zone === 'MID') {
+  if (band === 'DM') {
+    if (n === 1) return 'DM';
+    return isLeft ? 'LM' : isRight ? 'RM' : 'DM';
+  }
+  if (band === 'CM') {
     if (n === 1) return 'CM';
-    if (n === 2) return rank === 0 ? 'LM' : 'RM';
-    if (n === 3) return rank === 0 ? 'LM' : rank === 2 ? 'RM' : 'CM';
-    if (n === 4) return rank === 0 ? 'LM' : rank === 3 ? 'RM' : 'CM';
-    if (n === 5) return rank === 0 ? 'LM' : rank === 4 ? 'RM' : rank === 2 ? 'DM' : 'CM';
-    if (n >= 6) return rank === 0 ? 'LM' : rank === n - 1 ? 'RM' : rank === Math.floor(n / 2) ? 'DM' : 'CM';
-    return 'CM';
+    return isLeft ? 'LM' : isRight ? 'RM' : 'CM';
   }
-
-  // ATT zone
+  if (band === 'AM') {
+    if (n === 1) return 'AM';
+    return isLeft ? 'LW' : isRight ? 'RW' : 'AM';
+  }
+  // ATT
   if (n === 1) return 'ST';
-  if (n === 2) return rank === 0 ? 'LW' : 'RW';
-  if (n === 3) return rank === 0 ? 'LW' : rank === 2 ? 'RW' : 'ST';
-  if (n >= 4) return rank === 0 ? 'LW' : rank === n - 1 ? 'RW' : rank <= 1 ? 'AM' : 'ST';
-  return 'ST';
+  return isLeft ? 'LW' : isRight ? 'RW' : 'ST';
 }
 
 function deriveFormation(tokens: TokenState[]): string {
-  const zones = tokens.map((t) => yZone(t.y));
-  const def = zones.filter((z) => z === 'DEF').length;
-  const mid = zones.filter((z) => z === 'MID').length;
-  const att = zones.filter((z) => z === 'ATT').length;
+  const def = tokens.filter((t) => yZoneLegacy(t.y) === 'DEF').length;
+  const mid = tokens.filter((t) => yZoneLegacy(t.y) === 'MID').length;
+  const att = tokens.filter((t) => yZoneLegacy(t.y) === 'ATT').length;
   return `${def}-${mid}-${att}`;
 }
 
 function derivePositions(tokens: TokenState[]): Position[] {
   return tokens.map((token) => {
-    const zone = yZone(token.y);
-    const sameZone = tokens.filter((t) => yZone(t.y) === zone);
-    return inferPosition(token.x, token.y, sameZone);
+    const band = yBand(token.y);
+    const sameBand = tokens.filter((t) => yBand(t.y) === band);
+    return inferPosition(token.x, token.y, sameBand);
   });
 }
 
@@ -109,6 +116,7 @@ export type FormationEditorResult = {
   closestPredefined: Formation;
   lineup: string[]; // ordered player ids [gk, ...outfield]
   positionMap: Record<string, Position>;
+  tokenPositions: Record<string, { x: number; y: number }>;
 };
 
 type Props = {
@@ -260,13 +268,17 @@ export function FormationEditor({ players, initialLineup, onSave, onCancel }: Pr
 
   function handleSave() {
     const lineup = tokens.map((t) => t.id);
-    onSave({ formation, closestPredefined: closestFormation(formation), lineup, positionMap });
+    const tokenPositions: Record<string, { x: number; y: number }> = {};
+    tokens.forEach((t) => { tokenPositions[t.id] = { x: t.x, y: t.y }; });
+    onSave({ formation, closestPredefined: closestFormation(formation), lineup, positionMap, tokenPositions });
   }
 
-  const ZONE_COLORS: Record<Zone, string> = {
-    GK: 'border-yellow-400 bg-yellow-400/20 text-yellow-200',
+  const BAND_TOKEN_COLORS: Record<Band, string> = {
+    GK:  'border-yellow-400 bg-yellow-400/20 text-yellow-200',
     DEF: 'border-blue-400 bg-blue-400/20 text-blue-100',
-    MID: 'border-green-400 bg-green-400/20 text-green-100',
+    DM:  'border-teal-400 bg-teal-400/20 text-teal-100',
+    CM:  'border-green-400 bg-green-400/20 text-green-100',
+    AM:  'border-orange-400 bg-orange-400/20 text-orange-100',
     ATT: 'border-red-400 bg-red-400/20 text-red-100',
   };
 
@@ -294,13 +306,13 @@ export function FormationEditor({ players, initialLineup, onSave, onCancel }: Pr
       </div>
 
       <p className="text-xs text-muted">
-        Glisse les joueurs sur le terrain. La formation se calcule automatiquement. Le gardien est fixe.
+        Glisse les joueurs sur le terrain. La bande détermine le poste, la position gauche/centre/droite affine le rôle.
       </p>
 
-      {/* Zone legend */}
-      <div className="flex gap-3 text-xs">
-        {(['ATT', 'MID', 'DEF', 'GK'] as Zone[]).map((z) => (
-          <span key={z} className={`rounded px-2 py-0.5 border ${ZONE_COLORS[z]}`}>{z}</span>
+      {/* Band legend */}
+      <div className="flex flex-wrap gap-2 text-[10px]">
+        {[...BANDS].reverse().map((b) => (
+          <span key={b.id} className={`rounded px-2 py-0.5 border ${BAND_TOKEN_COLORS[b.id]}`}>{b.label}</span>
         ))}
       </div>
 
@@ -319,9 +331,21 @@ export function FormationEditor({ players, initialLineup, onSave, onCancel }: Pr
         }}
       >
         {/* Zone bands (visual) */}
-        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: `${Y_MID}%`, background: 'rgba(239,68,68,0.04)', borderBottom: '1px dashed rgba(239,68,68,0.2)' }} />
-        <div style={{ position: 'absolute', top: `${Y_MID}%`, left: 0, right: 0, height: `${Y_DEF - Y_MID}%`, background: 'rgba(34,197,94,0.04)', borderBottom: '1px dashed rgba(34,197,94,0.2)' }} />
-        <div style={{ position: 'absolute', top: `${Y_DEF}%`, left: 0, right: 0, height: `${Y_GK - Y_DEF}%`, background: 'rgba(59,130,246,0.04)', borderBottom: '1px dashed rgba(59,130,246,0.2)' }} />
+        {BANDS.map((b) => (
+          <div
+            key={b.id}
+            style={{
+              position: 'absolute',
+              top: `${b.from}%`,
+              left: 0,
+              right: 0,
+              height: `${b.to - b.from}%`,
+              background: b.color,
+              borderBottom: b.id !== 'GK' ? '1px dashed rgba(255,255,255,0.12)' : 'none',
+              pointerEvents: 'none',
+            }}
+          />
+        ))}
 
         {/* Midfield line */}
         <div style={{ position: 'absolute', top: '50%', left: '8%', right: '8%', height: 1, background: 'var(--pitch-line)', opacity: 0.4 }} />
@@ -338,7 +362,7 @@ export function FormationEditor({ players, initialLineup, onSave, onCancel }: Pr
           const isGK = token.id === tokens[0]?.id;
           const isDragging = token.id === dragging;
           const isSwapTarget = token.id === swapTarget;
-          const zone = isGK ? 'GK' : yZone(token.y);
+          const band = yBand(token.y);
           const pos = positionMap[token.id];
 
           return (
@@ -371,7 +395,7 @@ export function FormationEditor({ players, initialLineup, onSave, onCancel }: Pr
                 className={`flex h-9 w-9 items-center justify-center rounded-full border-2 text-[10px] font-bold shadow-md
                   ${isSwapTarget ? 'ring-2 ring-white scale-110' : ''}
                   ${isDragging ? 'opacity-90 scale-110' : ''}
-                  ${ZONE_COLORS[zone]}
+                  ${BAND_TOKEN_COLORS[band]}
                 `}
               >
                 {player.firstName[0]}{player.lastName[0]}

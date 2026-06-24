@@ -134,6 +134,8 @@ export default function MatchLive() {
             awayFormation={input.away.formation}
             homeColor={input.home.team.jerseyColor}
             awayColor={input.away.team.jerseyColor}
+            homeTokenPositions={input.home.tokenPositions}
+            awayTokenPositions={input.away.tokenPositions}
           />
           <SpeedControls
             speed={state.speed}
