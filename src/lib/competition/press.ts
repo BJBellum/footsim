@@ -97,6 +97,14 @@ export type PressItem = {
     bestPlayer?: { playerName: string; teamId: string; teamName: string; avgRating: number; overall: number };
     bestGK?: { playerName: string; teamId: string; teamName: string; cleanSheets: number; overall: number };
     winner?: { teamId: string; teamName: string };
+    /** For lpm_playoff debut articles — per-pair favorites */
+    playoffPairs?: {
+      homeTeamId: string; homeTeamName: string;
+      awayTeamId: string; awayTeamName: string;
+      favoriteTeamId: string; favoriteTeamName: string;
+      underdogTeamId: string; underdogTeamName: string;
+      cote: number;
+    }[];
   };
 };
 
@@ -1094,10 +1102,65 @@ const CRITIQUE_PLAYER_L3 = [
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── Templates corruption arbitre — révèle le scandale ────────────────────────
+const REFEREE_REVEALS_PAIRS: [string, string][] = [
+  [
+    'BOMBE : l\'arbitre du match de {team} révèle une tentative de corruption',
+    'L\'arbitre central a brisé le silence : un intermédiaire lié à {team} l\'aurait approché avant la rencontre pour lui offrir une somme conséquente en échange d\'un arbitrage favorable. Il a refusé et décidé de tout révéler. L\'affaire est désormais entre les mains de la CMF.',
+  ],
+  [
+    'CHOC : l\'arbitre dénonce {team} — une tentative de corruption confirmée',
+    'Dans une déclaration fracassante, l\'arbitre de la rencontre affirme avoir été sollicité par des proches de {team} pour infléchir ses décisions. Il a conservé les preuves et les a transmises à la fédération. La CMF a ouvert une enquête en urgence.',
+  ],
+  [
+    '{team} dans la tourmente : l\'arbitre révèle tout à la presse',
+    'Il a choisi de parler. L\'arbitre du dernier match de {team} a accordé une interview exclusive révélant qu\'il avait reçu des propositions financières en échange d\'une aide discrète lors de la rencontre. Refus immédiat de sa part. Tempête sur {team}.',
+  ],
+];
+
+// ── Templates corruption arbitre — refuse & dénonce → sanction ───────────────
+const REFEREE_REPORTED_POINTS_PAIRS: [string, string][] = [
+  [
+    'CMF — Corruption avérée : {team} sanctionné de 3 points',
+    'Après enquête express, la CMF a établi qu\'un représentant de {team} a tenté de corrompre l\'arbitre de la rencontre. Sanction immédiate : retrait de 3 points au classement. L\'arbitre est salué pour son intégrité. {team} conteste mais la décision est irrévocable.',
+  ],
+  [
+    'OFFICIEL CMF : {team} perd 3 points pour tentative de corruption d\'arbitre',
+    'La commission disciplinaire a statué en 24h : la tentative de corruption avérée coûte 3 points à {team}. L\'arbitre, qui a transmis les preuves dès le lendemain du match, est protégé et salué. Un signal fort envoyé à l\'ensemble de la compétition.',
+  ],
+];
+
+const REFEREE_REPORTED_DISQUALIF_PAIRS: [string, string][] = [
+  [
+    'CMF — Corruption en phase finale : {team} disqualifié sur décision disciplinaire',
+    'La tentative de corruption de l\'arbitre par des membres de la délégation de {team} a été prouvée. En phase finale de compétition, la CMF applique la tolérance zéro : {team} est immédiatement disqualifié. Son adversaire avance. Une décision historique et dévastratrice pour {team}.',
+  ],
+  [
+    'SANCTION MAXIMALE : {team} exclu de la compétition pour corruption d\'arbitre',
+    'L\'enquête diligentée après le signalement de l\'arbitre n\'a laissé aucun doute. {team} est éliminé de la compétition sur décision disciplinaire. La CMF rappelle que l\'intégrité sportive est non négociable. Un scénario cauchemardesque pour {team}.',
+  ],
+];
+
+const REFEREE_REPORTED_WALKOVER_PAIRS: [string, string][] = [
+  [
+    'CMF — Corruption avérée : l\'adversaire de {team} vainqueur sur tapis vert',
+    'L\'arbitre du barrage opposant {team} à son adversaire a dénoncé une tentative de corruption. La CMF a statué en urgence : le match est annulé, l\'adversaire de {team} est déclaré qualifié sur tapis vert (3-0). {team} est éliminé sans recours possible.',
+  ],
+  [
+    'BARRAGE ANNULÉ : {team} perd sur tapis vert après dénonciation d\'arbitre',
+    'Une tentative de corruption dénoncée par l\'arbitre du barrage a conduit la CMF à annuler le résultat du terrain. L\'adversaire de {team} est qualifié d\'office. La commission disciplinaire a agi en 48h. Pour {team}, le cauchemar est total.',
+  ],
+];
+
+export type RefereeCorruptionOutcome =
+  | { kind: 'revealed' }       // arbitre révèle — CMF communiqué corruption (ancien comportement)
+  | { kind: 'refused_reported'; penalty: 'points' | 'disqualified' | 'walkover' };
+
 export type MatchPressResult = {
   item: PressItem;
   dopingSuspension: Suspension | null;
   teamDisqualified: boolean;
+  refereeCorruption?: RefereeCorruptionOutcome;
 };
 
 export function generateMatchPressItem(opts: {
@@ -1150,6 +1213,7 @@ export function generateMatchPressItem(opts: {
   let body: string;
   let dopingSuspension: Suspension | null = null;
   let teamDisqualified = false;
+  let refereeCorruption: RefereeCorruptionOutcome | undefined;
   const mentions: PressMention[] = [];
 
   // Pick a notable player to mention in body (non-GK preferred)
@@ -1234,9 +1298,44 @@ export function generateMatchPressItem(opts: {
     }
   } else if (scandalize) {
     category = 'scandale';
-    const [h, b] = pick(SCANDAL_PAIRS, r);
-    headline = h.replace(/{team}/g, opts.teamName);
-    body = b.replace(/{team}/g, opts.teamName);
+    // 30% chance the referee reveals/reports corruption → sanction; 70% generic scandal
+    const isRefereeScandale = r() < 0.30;
+    if (isRefereeScandale) {
+      const refuseAndReport = r() < 0.5; // 50/50 : révèle seul vs refuse+dénonce avec sanction
+      if (refuseAndReport) {
+        // Arbitre refuse ET dénonce → sanction CMF selon la phase
+        const isBarrage = phase === 'lpm_playoff' || phase.toLowerCase().includes('playoff') || phase.toLowerCase().includes('barrage');
+        const penaltyKind: RefereeCorruptionOutcome['kind'] = 'refused_reported';
+        let penalty: 'points' | 'disqualified' | 'walkover';
+        let templatePairs: [string, string][];
+        if (isBarrage) {
+          penalty = 'walkover';
+          templatePairs = REFEREE_REPORTED_WALKOVER_PAIRS;
+          teamDisqualified = true;
+        } else if (isKnockout) {
+          penalty = 'disqualified';
+          templatePairs = REFEREE_REPORTED_DISQUALIF_PAIRS;
+          teamDisqualified = true;
+        } else {
+          penalty = 'points';
+          templatePairs = REFEREE_REPORTED_POINTS_PAIRS;
+        }
+        refereeCorruption = { kind: penaltyKind, penalty };
+        const [h, b] = pick(templatePairs, r);
+        headline = h.replace(/{team}/g, opts.teamName);
+        body = b.replace(/{team}/g, opts.teamName);
+      } else {
+        // Arbitre révèle seul — communiqué CMF corruption sans sanction immédiate
+        refereeCorruption = { kind: 'revealed' };
+        const [h, b] = pick(REFEREE_REVEALS_PAIRS, r);
+        headline = h.replace(/{team}/g, opts.teamName);
+        body = b.replace(/{team}/g, opts.teamName);
+      }
+    } else {
+      const [h, b] = pick(SCANDAL_PAIRS, r);
+      headline = h.replace(/{team}/g, opts.teamName);
+      body = b.replace(/{team}/g, opts.teamName);
+    }
   } else if (isCritique) {
     category = 'critique';
     if (isHumiliation) {
@@ -1553,6 +1652,7 @@ export function generateMatchPressItem(opts: {
     },
     dopingSuspension,
     teamDisqualified,
+    refereeCorruption,
   };
 }
 
@@ -2071,6 +2171,21 @@ const CMF_COMMUNIQUE_CORRUPTION: [string, string][] = [
   ],
 ];
 
+const CMF_COMMUNIQUE_CORRUPTION_POINTS: [string, string][] = [
+  [
+    'CMF — Décision disciplinaire : retrait de 3 points pour tentative de corruption',
+    'Suite au signalement de l\'arbitre et à l\'enquête menée par la commission d\'intégrité, la CMF prononce un retrait de 3 points au classement de l\'équipe fautive. Cette sanction est immédiate et sans appel. La CMF remercie l\'arbitre pour son intégrité et son courage.',
+  ],
+  [
+    'OFFICIEL CMF : corruption d\'arbitre avérée — l\'équipe fautive perd 3 points',
+    'La commission disciplinaire a statué en urgence après réception du rapport de l\'arbitre. La tentative de corruption est établie. Sanction : retrait de 3 points au classement. L\'équipe fautive conserve ses résultats sur le terrain mais paie un lourd tribut au classement.',
+  ],
+  [
+    'CMF — Sanction disciplinaire : −3 points pour corruption d\'arbitre',
+    'L\'arbitre a transmis des preuves irréfutables d\'une tentative de corruption à la fédération. La CMF a agi en 48h : retrait de 3 points. Un signal fort envoyé à l\'ensemble des participants. L\'intégrité sportive ne se négocie pas.',
+  ],
+];
+
 const CMF_COMMUNIQUE_DRAME: [string, string][] = [
   [
     'CMF — Communiqué officiel : drame en tribune, la CMF présente ses condoléances',
@@ -2089,7 +2204,7 @@ const CMF_COMMUNIQUE_DRAME: [string, string][] = [
 export function generateCmfCommunique(opts: {
   round: number;
   seed: string;
-  type: 'doping_player' | 'doping_team' | 'corruption' | 'drame';
+  type: 'doping_player' | 'doping_team' | 'corruption' | 'corruption_points' | 'drame';
   matchId?: string;
   matchSnapshot?: NonNullable<PressItem['matchSnapshot']>;
   /** Player name for doping_player — injected into headline/body via {player} */
@@ -2105,6 +2220,8 @@ export function generateCmfCommunique(opts: {
     body = body.replace(/{player}/g, name);
   } else if (opts.type === 'doping_team') {
     [headline, body] = pick(CMF_COMMUNIQUE_DOPING_TEAM, r);
+  } else if (opts.type === 'corruption_points') {
+    [headline, body] = pick(CMF_COMMUNIQUE_CORRUPTION_POINTS, r);
   } else if (opts.type === 'corruption') {
     [headline, body] = pick(CMF_COMMUNIQUE_CORRUPTION, r);
   } else {
@@ -2138,6 +2255,10 @@ export type CmfOpts = {
   winner?: string;
   /** If provided, favoris are restricted to these team IDs (qualified teams for the new phase) */
   qualifiedTeamIds?: string[];
+  /** True only for the very first draw/debut — enables the "tout ce qu'il faut savoir" format article */
+  isFirstDraw?: boolean;
+  /** For lpm_playoff debut: pairs of (homeTeamId, awayTeamId) for the barrage draw */
+  playoffPairs?: { homeTeamId: string; awayTeamId: string }[];
 };
 
 // Phase labels
@@ -2221,6 +2342,17 @@ const CMF_PALMARES_CUP = [
   {
     headline: (winner: string, compName: string) => `LA GLOIRE POUR ${winner} — palmarès de la ${compName}`,
     body: (winner: string, compName: string) => `Le titre est décerné. ${winner} entre dans l'histoire de la ${compName}. La cérémonie de clôture a célébré les meilleurs acteurs de cette édition.`,
+  },
+];
+
+const CMF_DEBUT_BARRAGE_LPM = [
+  {
+    headline: (compName: string) => `Barrages ${compName} — le tirage est connu, les favoris désignés`,
+    body: (compName: string) => `Les barrages de la ${compName} sont lancés. Les équipes classées de la 25e à la 40e place s'affrontent en matchs aller-retour pour les dernières places qualificatives pour la Coupe du Monde. La CMF présente ses pronostics pour chaque affrontement.`,
+  },
+  {
+    headline: (compName: string) => `${compName} — barrages : qui décrochera le dernier billet ?`,
+    body: (compName: string) => `Le tirage des barrages de la ${compName} est tombé. Huit duels aller-retour pour huit billets pour la Coupe du Monde. La tension est maximale. Voici l'analyse barrage par barrage de la CMF.`,
   },
 ];
 
@@ -2362,8 +2494,8 @@ export function generateCmfItems(opts: CmfOpts): PressItem[] {
       });
     }
 
-    // Article 3 (optionnel) — contexte LPM/CDM spécifique
-    if (count >= 3) {
+    // Article 3 (optionnel) — contexte LPM/CDM/format, uniquement au PREMIER tirage
+    if (count >= 3 && opts.isFirstDraw) {
       const contextBody = isLPM
         ? `La LPM (Ligue Préliminaire Mondiale) est le tournoi qualificatif pour la Coupe du Monde. Les 24 premières équipes du classement final décrocheront leur billet. Les places 25 à 40 disputeront des barrages aller-retour. Pour les 16 dernières, c'est l'élimination directe.`
         : isCDM
@@ -2374,6 +2506,44 @@ export function generateCmfItems(opts: CmfOpts): PressItem[] {
         headline: isLPM ? 'Format LPM — tout ce qu\'il faut savoir' : isCDM ? 'Format de la Coupe du Monde — rappel' : `Format de la ${opts.competitionName}`,
         body: contextBody, createdAt: new Date().toISOString(),
         cmfSnapshot: { phase: opts.phase, moment: 'debut', favoriteTeams: [] },
+      });
+    }
+
+    // ── Barrages LPM — article spécial favori par paire ──────────────────────
+    if (opts.phase === 'lpm_playoff' && opts.playoffPairs && opts.playoffPairs.length > 0) {
+      const tpl = pick(CMF_DEBUT_BARRAGE_LPM, r);
+      items.push({
+        id: crypto.randomUUID(), round: opts.round, teamId: null, category: 'cmf',
+        headline: tpl.headline(opts.competitionName),
+        body: tpl.body(opts.competitionName),
+        createdAt: new Date().toISOString(),
+        cmfSnapshot: {
+          phase: opts.phase, moment: 'debut',
+          favoriteTeams: [],
+          playoffPairs: opts.playoffPairs.map((pair) => {
+            const homeSnap = opts.teamSnapshot[pair.homeTeamId];
+            const awaySnap = opts.teamSnapshot[pair.awayTeamId];
+            const homeStr = homeSnap?.globalStrength ?? 50;
+            const awayStr = awaySnap?.globalStrength ?? 50;
+            const total = homeStr + awayStr || 1;
+            const favTeamId = homeStr >= awayStr ? pair.homeTeamId : pair.awayTeamId;
+            const underdogId = homeStr >= awayStr ? pair.awayTeamId : pair.homeTeamId;
+            const favStr = Math.max(homeStr, awayStr);
+            const prob = favStr / total;
+            const cote = prob > 0 ? Math.max(1.01, Math.round((1 / prob) * 100) / 100) : 1.5;
+            return {
+              homeTeamId: pair.homeTeamId,
+              homeTeamName: homeSnap?.name ?? pair.homeTeamId,
+              awayTeamId: pair.awayTeamId,
+              awayTeamName: awaySnap?.name ?? pair.awayTeamId,
+              favoriteTeamId: favTeamId,
+              favoriteTeamName: opts.teamSnapshot[favTeamId]?.name ?? favTeamId,
+              underdogTeamId: underdogId,
+              underdogTeamName: opts.teamSnapshot[underdogId]?.name ?? underdogId,
+              cote,
+            };
+          }),
+        },
       });
     }
   }

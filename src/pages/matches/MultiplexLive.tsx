@@ -395,7 +395,7 @@ export default function MultiplexLive() {
           && tidRank > dangerThreshold;
 
         const isWorldCup = !!(current.name && /coupe du monde|world cup/i.test(current.name));
-        const { item: matchPress, dopingSuspension, teamDisqualified } = generateMatchPressItem({
+        const { item: matchPress, dopingSuspension, teamDisqualified, refereeCorruption } = generateMatchPressItem({
           seed: `${baseSeed}-${tid}`,
           round: current.currentRound,
           teamId: tid,
@@ -479,8 +479,24 @@ export default function MultiplexLive() {
           matchDopingOccurred = true;
           updatedPressItems = [...updatedPressItems, generateCmfCommunique({
             round: current.currentRound,
-            seed: `${baseSeed}-cmf-dopt-${tid}`,
-            type: 'doping_team',
+            seed: refereeCorruption ? `${baseSeed}-cmf-ref-${tid}` : `${baseSeed}-cmf-dopt-${tid}`,
+            type: refereeCorruption ? 'corruption' : 'doping_team',
+            matchId: slot.compMatchId,
+            matchSnapshot: slotMatchSnap,
+          })];
+        } else if (refereeCorruption?.kind === 'revealed') {
+          updatedPressItems = [...updatedPressItems, generateCmfCommunique({
+            round: current.currentRound,
+            seed: `${baseSeed}-cmf-ref-rev-${tid}`,
+            type: 'corruption',
+            matchId: slot.compMatchId,
+            matchSnapshot: slotMatchSnap,
+          })];
+        } else if (refereeCorruption?.kind === 'refused_reported' && refereeCorruption.penalty === 'points') {
+          updatedPressItems = [...updatedPressItems, generateCmfCommunique({
+            round: current.currentRound,
+            seed: `${baseSeed}-cmf-ref-pts-${tid}`,
+            type: 'corruption_points',
             matchId: slot.compMatchId,
             matchSnapshot: slotMatchSnap,
           })];
@@ -640,11 +656,18 @@ export default function MultiplexLive() {
     for (const ph of completedSlotPhases) {
       const phaseMatches = updatedMatches.filter((m) => m.phase === ph);
       if (phaseMatches.length > 0 && phaseMatches.every((m) => m.status === 'completed') && !allDone) {
-        updatedPressItems = [...updatedPressItems, ...generateCmfItems({ ...cmfBase, seed: `${current.id}-r${roundNum}-cmf-fin-${ph}`, phase: ph, moment: 'fin' })];
+        const stillInPhase = [...new Set(phaseMatches.flatMap((m) => [m.homeTeamId, m.awayTeamId]).filter((id): id is string => !!id))];
+        updatedPressItems = [...updatedPressItems, ...generateCmfItems({ ...cmfBase, seed: `${current.id}-r${roundNum}-cmf-fin-${ph}`, phase: ph, moment: 'fin', qualifiedTeamIds: stillInPhase.length > 0 ? stillInPhase : undefined })];
         // Début de la prochaine phase détectée
         const nextPhaseMatches = updatedMatches.filter((m) => m.phase !== ph && m.status === 'pending');
         const nextPh = nextPhaseMatches[0]?.phase;
-        if (nextPh) updatedPressItems = [...updatedPressItems, ...generateCmfItems({ ...cmfBase, seed: `${current.id}-r${roundNum}-cmf-debut2-${nextPh}`, phase: nextPh, moment: 'debut' })];
+        if (nextPh) {
+          const qualifiedForNext = [...new Set(nextPhaseMatches.flatMap((m) => [m.homeTeamId, m.awayTeamId]).filter((id): id is string => !!id))];
+          const playoffPairsForNext = nextPh === 'lpm_playoff'
+            ? updatedMatches.filter((m) => m.phase === 'lpm_playoff' && m.leg === 1 && m.homeTeamId && m.awayTeamId).map((m) => ({ homeTeamId: m.homeTeamId!, awayTeamId: m.awayTeamId! }))
+            : undefined;
+          updatedPressItems = [...updatedPressItems, ...generateCmfItems({ ...cmfBase, seed: `${current.id}-r${roundNum}-cmf-debut2-${nextPh}`, phase: nextPh, moment: 'debut', qualifiedTeamIds: qualifiedForNext.length > 0 ? qualifiedForNext : undefined, playoffPairs: playoffPairsForNext })];
+        }
       }
     }
 

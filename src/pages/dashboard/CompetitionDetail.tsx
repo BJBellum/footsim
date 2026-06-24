@@ -104,6 +104,7 @@ export default function CompetitionDetail() {
       teamSnapshot: current.teamSnapshot ?? {},
       standings: current.standings,
       playerStats: current.playerStats,
+      isFirstDraw: true,
     });
     if (cmfDebut.length === 0) return;
     const updated = {
@@ -1747,6 +1748,23 @@ function PressTab({
                                   </div>
                                 </div>
                               )}
+                            </div>
+                          )}
+                          {item.cmfSnapshot.playoffPairs && item.cmfSnapshot.playoffPairs.length > 0 && (
+                            <div className="space-y-1">
+                              <div className="text-[10px] text-muted uppercase tracking-wide">Pronostics barrages</div>
+                              <div className="space-y-1">
+                                {item.cmfSnapshot.playoffPairs.map((pair, i) => (
+                                  <div key={i} className="flex items-center gap-1.5 rounded border border-border bg-bg px-2 py-1 text-[10px]">
+                                    {teamMap[pair.homeTeamId]?.flag && <img src={teamMap[pair.homeTeamId].flag} alt="" className="h-3 w-3 object-cover rounded-sm shrink-0" />}
+                                    <span className={pair.favoriteTeamId === pair.homeTeamId ? 'font-bold text-accent' : 'text-muted'}>{pair.homeTeamName}</span>
+                                    <span className="text-muted mx-0.5">vs</span>
+                                    {teamMap[pair.awayTeamId]?.flag && <img src={teamMap[pair.awayTeamId].flag} alt="" className="h-3 w-3 object-cover rounded-sm shrink-0" />}
+                                    <span className={pair.favoriteTeamId === pair.awayTeamId ? 'font-bold text-accent' : 'text-muted'}>{pair.awayTeamName}</span>
+                                    <span className="ml-auto text-yellow-400 font-bold shrink-0">{pair.cote.toFixed(2)}</span>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           )}
                           {item.cmfSnapshot.winner && (

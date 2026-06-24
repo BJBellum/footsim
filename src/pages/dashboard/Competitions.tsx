@@ -32,6 +32,8 @@ export default function Competitions() {
   const [recoverOpen, setRecoverOpen] = useState(false);
   const [recoverId, setRecoverId] = useState('');
   const [recovering, setRecovering] = useState(false);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'setup' | 'ongoing' | 'completed'>('all');
 
   async function handleRecover() {
     if (!pat || !recoverId.trim()) return;
@@ -59,6 +61,62 @@ export default function Competitions() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pat]);
 
+  const filtered = summaries.filter((s) => {
+    const matchSearch = !search.trim() || s.name.toLowerCase().includes(search.trim().toLowerCase());
+    const matchStatus = statusFilter === 'all' || s.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
+
+  // Group by year (createdAt)
+  const byYear = filtered.reduce<Record<string, CompetitionSummary[]>>((acc, s) => {
+    const year = new Date(s.createdAt).getFullYear().toString();
+    (acc[year] = acc[year] ?? []).push(s);
+    return acc;
+  }, {});
+  const years = Object.keys(byYear).sort((a, b) => Number(b) - Number(a));
+
+  const filtersBar = (
+    <div className="flex flex-wrap gap-2 items-center">
+      <Input
+        className="h-8 w-48 text-xs"
+        placeholder="Rechercher une compétition…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
+      {(['all', 'ongoing', 'setup', 'completed'] as const).map((s) => (
+        <button
+          key={s}
+          onClick={() => setStatusFilter(s)}
+          className={`px-3 py-1 rounded-full text-xs border transition-colors ${statusFilter === s ? 'border-accent bg-accent/10 text-accent' : 'border-border text-muted hover:text-text'}`}
+        >
+          {s === 'all' ? 'Tous' : STATUS_LABEL[s]}
+        </button>
+      ))}
+    </div>
+  );
+
+  const groupedGrid = years.length === 0 ? (
+    <div className="rounded-lg border border-border bg-surface p-12 text-center text-muted">
+      Aucune compétition trouvée.
+    </div>
+  ) : (
+    <div className="space-y-6">
+      {years.map((year) => (
+        <div key={year}>
+          <div className="flex items-center gap-3 mb-3">
+            <span className="text-xs font-semibold text-muted uppercase tracking-widest">{year}</span>
+            <div className="flex-1 border-t border-border" />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {byYear[year].map((s) => (
+              <CompetitionCard key={s.id} summary={s} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
   if (!isAdmin) {
     return (
       <div className="space-y-8">
@@ -77,11 +135,10 @@ export default function Competitions() {
             Aucune compétition en cours.
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {summaries.map((s) => (
-              <CompetitionCard key={s.id} summary={s} />
-            ))}
-          </div>
+          <>
+            {filtersBar}
+            {groupedGrid}
+          </>
         )}
       </div>
     );
@@ -141,11 +198,10 @@ export default function Competitions() {
           <Link to="/dashboard/competitions/new" className="text-accent underline">Créer la première</Link>.
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {summaries.map((s) => (
-            <CompetitionCard key={s.id} summary={s} />
-          ))}
-        </div>
+        <>
+          {filtersBar}
+          {groupedGrid}
+        </>
       )}
     </div>
   );

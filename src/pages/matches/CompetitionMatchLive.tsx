@@ -471,7 +471,7 @@ export default function CompetitionMatchLive() {
           && tidRank > dangerThreshold;
 
         const isWorldCup = !!(snap?.name && /coupe du monde|world cup/i.test(snap.name));
-        const { item, dopingSuspension, teamDisqualified } = generateMatchPressItem({
+        const { item, dopingSuspension, teamDisqualified, refereeCorruption } = generateMatchPressItem({
           round,
           teamId: tid,
           teamName: tname,
@@ -528,7 +528,16 @@ export default function CompetitionMatchLive() {
           disqualifiedTeamIds = [...new Set([...disqualifiedTeamIds, tid])];
           dopingBannedTeamIds.push(tid);
           matchDopingOccurred = true;
-          newPressItems.push(generateCmfCommunique({ round, seed: `${seed}-cmf-dopt-${tid}`, type: 'doping_team', matchId: compMatch.id, matchSnapshot: { homeTeamId: compMatch.homeTeamId!, awayTeamId: compMatch.awayTeamId!, homeTeamName: nameFor(compMatch.homeTeamId!), awayTeamName: nameFor(compMatch.awayTeamId!), homeScore: matchState!.score.home, awayScore: matchState!.score.away } }));
+          if (refereeCorruption) {
+            newPressItems.push(generateCmfCommunique({ round, seed: `${seed}-cmf-ref-${tid}`, type: 'corruption', matchId: compMatch.id, matchSnapshot: { homeTeamId: compMatch.homeTeamId!, awayTeamId: compMatch.awayTeamId!, homeTeamName: nameFor(compMatch.homeTeamId!), awayTeamName: nameFor(compMatch.awayTeamId!), homeScore: matchState!.score.home, awayScore: matchState!.score.away } }));
+          } else {
+            newPressItems.push(generateCmfCommunique({ round, seed: `${seed}-cmf-dopt-${tid}`, type: 'doping_team', matchId: compMatch.id, matchSnapshot: { homeTeamId: compMatch.homeTeamId!, awayTeamId: compMatch.awayTeamId!, homeTeamName: nameFor(compMatch.homeTeamId!), awayTeamName: nameFor(compMatch.awayTeamId!), homeScore: matchState!.score.home, awayScore: matchState!.score.away } }));
+          }
+        } else if (refereeCorruption?.kind === 'revealed') {
+          // Arbitre révèle seul — communiqué CMF corruption sans disqualif
+          newPressItems.push(generateCmfCommunique({ round, seed: `${seed}-cmf-ref-rev-${tid}`, type: 'corruption', matchId: compMatch.id, matchSnapshot: { homeTeamId: compMatch.homeTeamId!, awayTeamId: compMatch.awayTeamId!, homeTeamName: nameFor(compMatch.homeTeamId!), awayTeamName: nameFor(compMatch.awayTeamId!), homeScore: matchState!.score.home, awayScore: matchState!.score.away } }));
+        } else if (refereeCorruption?.kind === 'refused_reported' && refereeCorruption.penalty === 'points') {
+          newPressItems.push(generateCmfCommunique({ round, seed: `${seed}-cmf-ref-pts-${tid}`, type: 'corruption_points', matchId: compMatch.id, matchSnapshot: { homeTeamId: compMatch.homeTeamId!, awayTeamId: compMatch.awayTeamId!, homeTeamName: nameFor(compMatch.homeTeamId!), awayTeamName: nameFor(compMatch.awayTeamId!), homeScore: matchState!.score.home, awayScore: matchState!.score.away } }));
         }
         const moraleItem = generateMoralePressItem({
           round,
@@ -701,13 +710,26 @@ export default function CompetitionMatchLive() {
           .flatMap((m) => [m.homeTeamId, m.awayTeamId])
           .filter((id): id is string => !!id),
       )];
+      // Teams still in prev phase (for fin favoris — exclude already-eliminated)
+      const stillInPrevPhase = [...new Set(
+        updatedMatches
+          .filter((m) => m.phase === prevPhase)
+          .flatMap((m) => [m.homeTeamId, m.awayTeamId])
+          .filter((id): id is string => !!id),
+      )];
+      // Playoff pairs for lpm_playoff debut article
+      const playoffPairsForDebut = newPhase === 'lpm_playoff'
+        ? updatedMatches
+            .filter((m) => m.phase === 'lpm_playoff' && m.leg === 1 && m.homeTeamId && m.awayTeamId)
+            .map((m) => ({ homeTeamId: m.homeTeamId!, awayTeamId: m.awayTeamId! }))
+        : undefined;
 
       // Fin de phase (groupe ou knockout complet) → articles bilan + nouveau début de phase
       if (prevPhaseDone && newPhase !== prevPhase) {
-        newPressItems.push(...generateCmfItems({ ...cmfBase, seed: cmfSeed + '-fin', phase: prevPhase, moment: 'fin' }));
-        newPressItems.push(...generateCmfItems({ ...cmfBase, seed: cmfSeed + '-debut2', phase: newPhase, moment: 'debut', qualifiedTeamIds: qualifiedForNewPhase.length > 0 ? qualifiedForNewPhase : undefined }));
+        newPressItems.push(...generateCmfItems({ ...cmfBase, seed: cmfSeed + '-fin', phase: prevPhase, moment: 'fin', qualifiedTeamIds: stillInPrevPhase.length > 0 ? stillInPrevPhase : undefined }));
+        newPressItems.push(...generateCmfItems({ ...cmfBase, seed: cmfSeed + '-debut2', phase: newPhase, moment: 'debut', qualifiedTeamIds: qualifiedForNewPhase.length > 0 ? qualifiedForNewPhase : undefined, playoffPairs: playoffPairsForDebut }));
       } else if (phaseMatchesDone && newPhase === prevPhase && !allDone) {
-        newPressItems.push(...generateCmfItems({ ...cmfBase, seed: cmfSeed + '-fin2', phase: newPhase, moment: 'fin' }));
+        newPressItems.push(...generateCmfItems({ ...cmfBase, seed: cmfSeed + '-fin2', phase: newPhase, moment: 'fin', qualifiedTeamIds: stillInPrevPhase.length > 0 ? stillInPrevPhase : undefined }));
       }
 
       // Fin de compétition — palmarès

@@ -5,7 +5,8 @@ import { toast } from '@/components/ui/Toast';
 import { useCredentials } from '@/stores/credentials';
 import { useBackendArgs } from '@/hooks/useBackendArgs';
 import { listTeams, loadTeam } from '@/lib/github/store';
-import { POSITION_LABEL, CULTURE_LABEL } from '@/lib/types';
+import { POSITION_LABEL, CULTURE_LABEL, CONTINENT_LABEL } from '@/lib/types';
+import type { Continent } from '@/lib/types';
 import { env } from '@/lib/env';
 import type { Team, Position, Player, Formation } from '@/lib/types';
 import type { CompHistoryEntry, CompetitionKind, CompetitionScope, CompetitionImportance } from '@/lib/competition/types';
@@ -104,6 +105,8 @@ export default function ClassementsCMF({ embedded }: { embedded?: boolean }) {
   const [playerEntries, setPlayerEntries] = useState<PlayerEntry[]>([]);
   const [viewingPlayer, setViewingPlayer] = useState<Player | null>(null);
 
+  // team filters
+  const [continentFilter, setContinentFilter] = useState<Continent | 'all'>('all');
   // player filters
   const [posFilter, setPosFilter] = useState<string>('all');
   const [playerLimit, setPlayerLimit] = useState(50);
@@ -228,7 +231,13 @@ export default function ClassementsCMF({ embedded }: { embedded?: boolean }) {
       </div>
 
       {tab === 'equipes' && (
-        <TeamRanking entries={teamEntries} token={token} onPlayerClick={setViewingPlayer} />
+        <TeamRanking
+          entries={teamEntries}
+          token={token}
+          onPlayerClick={setViewingPlayer}
+          continentFilter={continentFilter}
+          onContinentFilter={setContinentFilter}
+        />
       )}
 
       {tab === 'explications' && (
@@ -799,8 +808,29 @@ function ExpandedTeamDetail({ entry, onPlayerClick }: { entry: TeamRankEntry; on
 
 // ─── Team ranking sub-component ───────────────────────────────────────────────
 
-function TeamRanking({ entries, onPlayerClick }: { entries: TeamRankEntry[]; token: string | null; onPlayerClick: (p: Player) => void }) {
+function TeamRanking({ entries, onPlayerClick, continentFilter, onContinentFilter }: {
+  entries: TeamRankEntry[];
+  token: string | null;
+  onPlayerClick: (p: Player) => void;
+  continentFilter: Continent | 'all';
+  onContinentFilter: (c: Continent | 'all') => void;
+}) {
   const [expanded, setExpanded] = useState<string | null>(null);
+
+  // Collect continents present in data
+  const availableContinents = Array.from(new Set(
+    entries.flatMap((e) => e.team.continents ?? (e.team.continent ? [e.team.continent] : []))
+  )) as Continent[];
+
+  const filtered = continentFilter === 'all'
+    ? entries
+    : entries.filter((e) => {
+        const conts = e.team.continents ?? (e.team.continent ? [e.team.continent] : []);
+        return conts.includes(continentFilter);
+      });
+
+  // Re-rank after filter
+  const ranked = filtered.map((e, idx) => ({ ...e, rank: idx + 1 }));
 
   if (entries.length === 0) {
     return (
@@ -811,6 +841,27 @@ function TeamRanking({ entries, onPlayerClick }: { entries: TeamRankEntry[]; tok
   }
 
   return (
+    <div className="space-y-3">
+      {availableContinents.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-muted">Continent :</span>
+          <button
+            onClick={() => onContinentFilter('all')}
+            className={`px-3 py-1 rounded-full text-xs border transition-colors ${continentFilter === 'all' ? 'border-accent bg-accent/10 text-accent' : 'border-border text-muted hover:text-text'}`}
+          >
+            Tous
+          </button>
+          {availableContinents.map((c) => (
+            <button
+              key={c}
+              onClick={() => onContinentFilter(c)}
+              className={`px-3 py-1 rounded-full text-xs border transition-colors ${continentFilter === c ? 'border-accent bg-accent/10 text-accent' : 'border-border text-muted hover:text-text'}`}
+            >
+              {CONTINENT_LABEL[c]}
+            </button>
+          ))}
+        </div>
+      )}
     <div className="overflow-hidden rounded-lg border border-border bg-surface">
       <table className="w-full text-sm">
         <thead className="bg-bg text-left text-xs text-muted uppercase tracking-wide">
@@ -826,8 +877,8 @@ function TeamRanking({ entries, onPlayerClick }: { entries: TeamRankEntry[]; tok
           </tr>
         </thead>
         <tbody>
-          {entries.map((e, idx) => {
-            const rank = idx + 1;
+          {ranked.map((e) => {
+            const rank = e.rank;
             const rankColor =
               rank === 1 ? 'text-yellow-500 font-bold' :
               rank === 2 ? 'text-zinc-400 font-bold' :
@@ -879,6 +930,7 @@ function TeamRanking({ entries, onPlayerClick }: { entries: TeamRankEntry[]; tok
           })}
         </tbody>
       </table>
+    </div>
     </div>
   );
 }
