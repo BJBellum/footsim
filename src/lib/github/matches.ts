@@ -60,7 +60,7 @@ export function calcCmfMatchPoints(opts: {
   const oppFactor = Math.min(2.0, Math.max(0.5, Math.sqrt(opts.opponentStrength / 50)));
   const sizeMult = participantSizeMult(opts.participantCount);
   const penalty = goalDiffPenalty(opts.scoreFor, opts.scoreAgainst);
-  return Math.round((base * scope * kind * importance * oppFactor * sizeMult + penalty) * 10) / 10;
+  return Math.max(0, Math.round((base * scope * kind * importance * oppFactor * sizeMult + penalty) * 10) / 10);
 }
 
 export type StoredMatch = {

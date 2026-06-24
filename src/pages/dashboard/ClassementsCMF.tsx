@@ -20,14 +20,14 @@ import { TacticPitch } from '@/components/team/TeamTacticCard';
 
 const RESULT_BASE: Record<CompHistoryEntry['result'], number> = {
   winner: 100,
-  finalist: 60,
-  third: 40,
-  semi: 25,
-  quarter: 18,
-  round16: 13,
-  round32: 9,
-  round64: 6,
-  participant: 3,
+  finalist: 65,
+  third: 45,
+  semi: 30,
+  quarter: 22,
+  round16: 16,
+  round32: 11,
+  round64: 8,
+  participant: 8,
 };
 
 const SCOPE_MULT: Record<CompetitionScope, number> = {
@@ -547,14 +547,14 @@ function ExplicationsTab() {
           <tbody>
             {[
               ['Vainqueur', '100', '198'],
-              ['Finaliste', '60', '119'],
-              ['3e place', '40', '79'],
-              ['Demi-finale', '25', '50'],
-              ['Quart de finale', '18', '36'],
-              ['8e de finale', '13', '26'],
-              ['16e de finale', '9', '18'],
-              ['32e de finale', '6', '12'],
-              ['Participant', '3', '6'],
+              ['Finaliste', '65', '129'],
+              ['3e place', '45', '89'],
+              ['Demi-finale', '30', '59'],
+              ['Quart de finale', '22', '44'],
+              ['8e de finale', '16', '32'],
+              ['16e de finale', '11', '22'],
+              ['32e de finale', '8', '16'],
+              ['Participant', '8', '16'],
             ].map(([r, b, ex]) => (
               <tr key={r} className="border-t border-border">
                 <td className="px-4 py-2">{r}</td>
