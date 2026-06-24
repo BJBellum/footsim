@@ -656,13 +656,14 @@ export default function MultiplexLive() {
     for (const ph of completedSlotPhases) {
       const phaseMatches = updatedMatches.filter((m) => m.phase === ph);
       if (phaseMatches.length > 0 && phaseMatches.every((m) => m.status === 'completed') && !allDone) {
-        const stillInPhase = [...new Set(phaseMatches.flatMap((m) => [m.homeTeamId, m.awayTeamId]).filter((id): id is string => !!id))];
-        updatedPressItems = [...updatedPressItems, ...generateCmfItems({ ...cmfBase, seed: `${current.id}-r${roundNum}-cmf-fin-${ph}`, phase: ph, moment: 'fin', qualifiedTeamIds: stillInPhase.length > 0 ? stillInPhase : undefined })];
         // Début de la prochaine phase détectée
         const nextPhaseMatches = updatedMatches.filter((m) => m.phase !== ph && m.status === 'pending');
         const nextPh = nextPhaseMatches[0]?.phase;
+        const qualifiedForNext = nextPh ? [...new Set(nextPhaseMatches.flatMap((m) => [m.homeTeamId, m.awayTeamId]).filter((id): id is string => !!id))] : [];
+        // Pour "fin", favoris = qualifiés pour la suite (pas les éliminés de cette phase)
+        const finQualified = qualifiedForNext.length > 0 ? qualifiedForNext : [...new Set(phaseMatches.flatMap((m) => [m.homeTeamId, m.awayTeamId]).filter((id): id is string => !!id))];
+        updatedPressItems = [...updatedPressItems, ...generateCmfItems({ ...cmfBase, seed: `${current.id}-r${roundNum}-cmf-fin-${ph}`, phase: ph, moment: 'fin', qualifiedTeamIds: finQualified.length > 0 ? finQualified : undefined })];
         if (nextPh) {
-          const qualifiedForNext = [...new Set(nextPhaseMatches.flatMap((m) => [m.homeTeamId, m.awayTeamId]).filter((id): id is string => !!id))];
           const playoffPairsForNext = nextPh === 'lpm_playoff'
             ? updatedMatches.filter((m) => m.phase === 'lpm_playoff' && m.leg === 1 && m.homeTeamId && m.awayTeamId).map((m) => ({ homeTeamId: m.homeTeamId!, awayTeamId: m.awayTeamId! }))
             : undefined;

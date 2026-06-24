@@ -1459,7 +1459,15 @@ function PressTab({
   const [roundFilter, setRoundFilter] = useState<string>('all');
   const [activeMention, setActiveMention] = useState<PressMention | null>(null);
   const [matchPopup, setMatchPopup] = useState<PressItem['matchSnapshot'] | null>(null);
-  const sorted = [...pressItems].sort((a, b) => b.round - a.round || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const roundsWithDrame = new Set(pressItems.filter((p) => p.category === 'drame').map((p) => p.round));
+  const sorted = [...pressItems].sort((a, b) => {
+    if (a.round !== b.round) return b.round - a.round;
+    const hasDrame = roundsWithDrame.has(a.round);
+    const aWeight = hasDrame ? (a.category === 'drame' ? 0 : 1) : (a.category === 'cmf' ? 0 : 1);
+    const bWeight = hasDrame ? (b.category === 'drame' ? 0 : 1) : (b.category === 'cmf' ? 0 : 1);
+    if (aWeight !== bWeight) return aWeight - bWeight;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
   const allRounds = [...new Set(pressItems.map((p) => p.round))].sort((a, b) => b - a);
   const filtered = sorted
     .filter((p) => filter === 'all' || p.teamId === filter)

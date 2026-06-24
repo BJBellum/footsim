@@ -330,6 +330,19 @@ export default function CompetitionMatchLive() {
             m.result.away,
           );
         }
+        // Retrait de 3 points à l'équipe fautive (deal accepté = contact avec l'arbitre)
+        const cheatingId = matchState!.corruption!.side === 'home'
+          ? compMatch.homeTeamId!
+          : compMatch.awayTeamId!;
+        if (updatedStandings[cheatingId]) {
+          updatedStandings = {
+            ...updatedStandings,
+            [cheatingId]: {
+              ...updatedStandings[cheatingId],
+              points: Math.max(0, updatedStandings[cheatingId].points - 3),
+            },
+          };
+        }
       }
 
       // Only count matches that have both teams assigned (TBD slots don't block round advance)
@@ -730,10 +743,12 @@ export default function CompetitionMatchLive() {
 
       // Fin de phase (groupe ou knockout complet) → articles bilan + nouveau début de phase
       if (prevPhaseDone && newPhase !== prevPhase) {
-        newPressItems.push(...generateCmfItems({ ...cmfBase, seed: cmfSeed + '-fin', phase: prevPhase, moment: 'fin', qualifiedTeamIds: stillInPrevPhase.length > 0 ? stillInPrevPhase : undefined }));
+        // Pour l'article "fin", les favoris = équipes qualifiées pour la suite (pas les éliminés)
+        const finQualified = qualifiedForNewPhase.length > 0 ? qualifiedForNewPhase : (stillInPrevPhase.length > 0 ? stillInPrevPhase : undefined);
+        newPressItems.push(...generateCmfItems({ ...cmfBase, seed: cmfSeed + '-fin', phase: prevPhase, moment: 'fin', qualifiedTeamIds: finQualified }));
         newPressItems.push(...generateCmfItems({ ...cmfBase, seed: cmfSeed + '-debut2', phase: newPhase, moment: 'debut', qualifiedTeamIds: qualifiedForNewPhase.length > 0 ? qualifiedForNewPhase : undefined, playoffPairs: playoffPairsForDebut }));
       } else if (phaseMatchesDone && newPhase === prevPhase && !allDone) {
-        newPressItems.push(...generateCmfItems({ ...cmfBase, seed: cmfSeed + '-fin2', phase: newPhase, moment: 'fin', qualifiedTeamIds: stillInPrevPhase.length > 0 ? stillInPrevPhase : undefined }));
+        newPressItems.push(...generateCmfItems({ ...cmfBase, seed: cmfSeed + '-fin2', phase: newPhase, moment: 'fin', qualifiedTeamIds: qualifiedForNewPhase.length > 0 ? qualifiedForNewPhase : undefined }));
       }
 
       // Fin de compétition — palmarès
