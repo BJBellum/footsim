@@ -908,104 +908,145 @@ export default function MultiplexLive() {
   const isHalftime = !allFinished && halftimeSlots.length > 0;
   const isExtraHalftime = halftimeSlots.some((s) => s.state?.status === 'extraTimeHalfTime');
 
-  // Grid cols: adapt to slot count and fullscreen mode
-  function gridCols(n: number, fs: boolean): string {
-    if (fs) {
-      if (n === 1) return 'grid-cols-1';
-      if (n === 2) return 'grid-cols-2';
-      if (n <= 4) return 'grid-cols-2';
-      if (n <= 6) return 'grid-cols-3';
-      if (n <= 9) return 'grid-cols-3';
-      return 'grid-cols-4';
-    }
-    if (n <= 2) return 'md:grid-cols-2';
-    if (n <= 4) return 'md:grid-cols-2 lg:grid-cols-2';
-    return 'md:grid-cols-2 lg:grid-cols-3';
-  }
+  // Controls bar (shared)
+  const controlsBar = (
+    <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="flex rounded-md border border-border overflow-hidden text-sm">
+        {SPEEDS.map((s) => (
+          <button
+            key={s}
+            onClick={() => setGlobalSpeed(s)}
+            className={`px-3 py-1.5 transition-colors ${globalSpeed === s ? 'bg-accent text-white' : 'hover:bg-border/40'}`}
+          >
+            {SPEED_LABEL[s]}
+          </button>
+        ))}
+      </div>
+      <button
+        onClick={() => { paused ? resumeAll() : pauseAll(); setPaused(!paused); }}
+        className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-border/40 transition-colors"
+      >
+        {paused ? '▶' : '⏸'}
+      </button>
+      <button
+        onClick={() => setFullscreen((v) => !v)}
+        className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-border/40 transition-colors"
+        title={fullscreen ? 'Quitter le plein écran' : 'Plein écran'}
+      >
+        {fullscreen ? '⊠' : '⛶'}
+      </button>
+    </div>
+  );
 
-  return (
-    <main className={`${fullscreen ? 'fixed inset-0 z-40 bg-bg overflow-auto p-3' : 'mx-auto max-w-7xl px-6 py-8'} pb-20 space-y-3`}>
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        {!fullscreen && (
-          <div>
-            <Link to={`/dashboard/competitions/${competitionId}`} className="text-sm text-muted hover:text-text">
-              ← {current?.name ?? 'Compétition'}
-            </Link>
-            <h1 className="mt-1 font-display text-2xl">Multiplex — Journée {roundNum}</h1>
-          </div>
-        )}
-        {fullscreen && <div className="font-display text-lg">Multiplex — Journée {roundNum}</div>}
-        <div className="flex items-center gap-2 ml-auto">
-          <div className="flex rounded-md border border-border overflow-hidden text-sm">
-            {SPEEDS.map((s) => (
-              <button
-                key={s}
-                onClick={() => setGlobalSpeed(s)}
-                className={`px-3 py-1.5 transition-colors ${
-                  globalSpeed === s ? 'bg-accent text-white' : 'hover:bg-border/40'
-                }`}
-              >
-                {SPEED_LABEL[s]}
-              </button>
-            ))}
-          </div>
+  // Halftime tactic bar (fixed bottom)
+  const halftimeBar = isHalftime && (
+    <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-warning/40 bg-bg/95 backdrop-blur shadow-lg">
+      <div className="px-4 py-2 flex items-center justify-between gap-3">
+        <span className="text-xs font-medium">
+          ⏸ {isExtraHalftime ? 'Mi-temps prol.' : 'Mi-temps'} — {halftimeSlots.length} match(s)
+        </span>
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => { paused ? resumeAll() : pauseAll(); setPaused(!paused); }}
-            className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-border/40 transition-colors"
+            onClick={() => setHalftimeTacticOpen((v) => !v)}
+            className="text-xs text-muted hover:text-text border border-border rounded px-2 py-1 transition-colors"
           >
-            {paused ? '▶' : '⏸'}
+            {halftimeTacticOpen ? '▼ Tactiques' : '▶ Tactiques'}
           </button>
-          <button
-            onClick={() => setFullscreen((v) => !v)}
-            className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-border/40 transition-colors"
-            title={fullscreen ? 'Quitter le plein écran' : 'Plein écran'}
-          >
-            {fullscreen ? '⊠' : '⛶'}
-          </button>
+          <Button size="sm" onClick={() => { resumeAll(); setPaused(false); setHalftimeTacticOpen(false); }}>
+            ▶ Reprendre
+          </Button>
         </div>
       </div>
+      {halftimeTacticOpen && (
+        <div className="border-t border-border/40 px-4 py-2 grid gap-2 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 max-h-52 overflow-y-auto">
+          {halftimeSlots.map((slot) => (
+            <HalftimeTacticRow
+              key={slot.compMatchId}
+              slot={slot}
+              onTacticChange={(side, tactic) => updateSlotTactic(slot.compMatchId, side, {
+                formation: tactic.formation,
+                lineup: tactic.lineup,
+                bench: tactic.bench,
+                plannedSubs: tactic.plannedSubs,
+                tacticStyle: tactic.style as TacticStyle,
+                positionMap: tactic.positionMap,
+                tokenPositions: tactic.tokenPositions,
+              })}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
 
-      {/* Halftime bar */}
-      {isHalftime && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-warning/40 bg-bg/95 backdrop-blur shadow-lg">
-          <div className="px-6 py-3 flex items-center justify-between gap-3">
-            <span className="text-sm font-medium">
-              ⏸ {isExtraHalftime ? 'Mi-temps prolongations' : 'Mi-temps'} — {halftimeSlots.length} match(s) en pause
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setHalftimeTacticOpen((v) => !v)}
-                className="text-xs text-muted hover:text-text border border-border rounded px-2 py-1 transition-colors"
-              >
-                {halftimeTacticOpen ? '▼ Tactiques' : '▶ Tactiques'}
-              </button>
-              <Button size="sm" onClick={() => { resumeAll(); setPaused(false); setHalftimeTacticOpen(false); }}>
-                ▶ Reprendre la 2e {isExtraHalftime ? 'période de prolongations' : 'mi-temps'}
+  // Fullscreen: fixed inset, no scroll, grid fills remaining height
+  if (fullscreen) {
+    // cols = ceil(sqrt(n)), rows = ceil(n/cols) — square-ish layout
+    const n = slots.length;
+    const cols = n <= 1 ? 1 : n <= 2 ? 2 : n <= 4 ? 2 : n <= 6 ? 3 : n <= 9 ? 3 : 4;
+    const rows = Math.ceil(n / cols);
+    // density: tiny=9+, small=5-8, normal=1-4
+    const density: 'tiny' | 'small' | 'normal' = n >= 9 ? 'tiny' : n >= 5 ? 'small' : 'normal';
+
+    return (
+      <div className="fixed inset-0 z-40 bg-bg flex flex-col" style={{ overflow: 'hidden' }}>
+        {/* Header bar */}
+        <div className="flex items-center justify-between px-3 py-1.5 border-b border-border flex-shrink-0 gap-3">
+          <span className="font-display text-sm truncate">Multiplex — J{roundNum} {current?.name ? `· ${current.name}` : ''}</span>
+          {controlsBar}
+        </div>
+
+        {allFinished && (
+          <div className="px-3 py-1.5 border-b border-accent/30 bg-accent/5 flex items-center justify-between gap-2 flex-shrink-0 text-xs">
+            <span className="font-medium">Tous les matchs sont terminés.</span>
+            <div className="flex gap-2">
+              {pendingUpdate && (
+                <>
+                  <Button size="sm" onClick={handleSaveLocal}>Local</Button>
+                  <Button size="sm" variant="ghost" onClick={handleSaveGitHub} disabled={savingGh}>
+                    {savingGh ? <Spinner className="mr-1 h-3 w-3" /> : null}↑ GitHub
+                  </Button>
+                </>
+              )}
+              <Button size="sm" variant="ghost" onClick={() => { setFullscreen(false); navigate(`/dashboard/competitions/${competitionId}`); }}>
+                Retour
               </Button>
             </div>
           </div>
+        )}
 
-          {halftimeTacticOpen && (
-            <div className="border-t border-border/40 px-6 py-3 grid gap-3 md:grid-cols-2 lg:grid-cols-3 max-h-64 overflow-y-auto">
-              {halftimeSlots.map((slot) => (
-                <HalftimeTacticRow
-                  key={slot.compMatchId}
-                  slot={slot}
-                  onTacticChange={(side, tactic) => updateSlotTactic(slot.compMatchId, side, {
-                    formation: tactic.formation,
-                    lineup: tactic.lineup,
-                    bench: tactic.bench,
-                    plannedSubs: tactic.plannedSubs,
-                    tacticStyle: tactic.style as TacticStyle,
-                    positionMap: tactic.positionMap,
-                    tokenPositions: tactic.tokenPositions,
-                  })}
-                />
-              ))}
-            </div>
-          )}
+        {/* Grid fills all remaining space */}
+        <div
+          className="flex-1 min-h-0 grid gap-1 p-1"
+          style={{
+            gridTemplateColumns: `repeat(${cols}, 1fr)`,
+            gridTemplateRows: `repeat(${rows}, 1fr)`,
+          }}
+        >
+          {slots.map((slot) => (
+            <MatchCard key={slot.compMatchId} slot={slot} density={density} />
+          ))}
         </div>
-      )}
+
+        {halftimeBar}
+      </div>
+    );
+  }
+
+  // Normal mode
+  const normalCols = slots.length <= 2 ? 'md:grid-cols-2' : slots.length <= 4 ? 'md:grid-cols-2 lg:grid-cols-2' : 'md:grid-cols-2 lg:grid-cols-3';
+
+  return (
+    <main className="mx-auto max-w-7xl px-6 py-8 pb-20 space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <Link to={`/dashboard/competitions/${competitionId}`} className="text-sm text-muted hover:text-text">
+            ← {current?.name ?? 'Compétition'}
+          </Link>
+          <h1 className="mt-1 font-display text-2xl">Multiplex — Journée {roundNum}</h1>
+        </div>
+        {controlsBar}
+      </div>
 
       {allFinished && (
         <div className="rounded-lg border border-accent/30 bg-accent/5 p-4 flex items-center justify-between gap-3 flex-wrap">
@@ -1013,12 +1054,9 @@ export default function MultiplexLive() {
           <div className="flex gap-2 flex-wrap">
             {pendingUpdate && (
               <>
-                <Button size="sm" onClick={handleSaveLocal}>
-                  Enregistrer en local
-                </Button>
+                <Button size="sm" onClick={handleSaveLocal}>Enregistrer en local</Button>
                 <Button size="sm" variant="ghost" onClick={handleSaveGitHub} disabled={savingGh}>
-                  {savingGh ? <Spinner className="mr-1 h-3 w-3" /> : null}
-                  ↑ GitHub
+                  {savingGh ? <Spinner className="mr-1 h-3 w-3" /> : null}↑ GitHub
                 </Button>
               </>
             )}
@@ -1029,11 +1067,13 @@ export default function MultiplexLive() {
         </div>
       )}
 
-      <div className={`grid gap-3 ${gridCols(slots.length, fullscreen)}`}>
+      <div className={`grid gap-4 ${normalCols}`}>
         {slots.map((slot) => (
-          <MatchCard key={slot.compMatchId} slot={slot} compact={fullscreen} />
+          <MatchCard key={slot.compMatchId} slot={slot} density="normal" />
         ))}
       </div>
+
+      {halftimeBar}
     </main>
   );
 }
@@ -1100,7 +1140,7 @@ function HalftimeTacticRow({ slot, onTacticChange }: {
   );
 }
 
-function MatchCard({ slot, compact }: { slot: import('@/stores/multiplex').MultiplexSlot; compact?: boolean }) {
+function MatchCard({ slot, density = 'normal' }: { slot: import('@/stores/multiplex').MultiplexSlot; density?: 'normal' | 'small' | 'tiny' }) {
   const state = slot.state;
   const home = slot.home;
   const away = slot.away;
@@ -1109,10 +1149,11 @@ function MatchCard({ slot, compact }: { slot: import('@/stores/multiplex').Multi
   const [flash, setFlash] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scoreSize = compact ? 'text-2xl' : 'text-3xl';
-  const flagSize = compact ? 'h-6 w-6' : 'h-8 w-8';
-  const padding = compact ? 'p-2' : 'p-4';
-  const space = compact ? 'space-y-2' : 'space-y-3';
+  const scoreSize = density === 'normal' ? 'text-3xl' : density === 'small' ? 'text-2xl' : 'text-xl';
+  const flagSize = density === 'normal' ? 'h-8 w-8' : density === 'small' ? 'h-6 w-6' : 'h-5 w-5';
+  const padding = density === 'normal' ? 'p-4' : density === 'small' ? 'p-2' : 'p-1.5';
+  const space = density === 'normal' ? 'space-y-3' : 'space-y-1';
+  const textSm = density === 'tiny' ? 'text-[10px]' : 'text-xs';
 
   useEffect(() => {
     if (!state) return;
@@ -1144,87 +1185,75 @@ function MatchCard({ slot, compact }: { slot: import('@/stores/multiplex').Multi
 
   return (
     <motion.div
-      className={`rounded-lg border bg-surface ${padding} ${space} transition-colors ${
+      className={`rounded-lg border bg-surface ${padding} ${space} transition-colors overflow-hidden flex flex-col min-h-0 ${
         flash ? 'border-accent shadow-[0_0_20px_rgba(var(--accent-rgb),0.3)]' : 'border-border'
       } ${slot.finished ? 'opacity-80' : ''}`}
       animate={flash ? { scale: [1, 1.02, 1] } : {}}
       transition={{ duration: 0.3 }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between text-xs text-muted">
+      <div className={`flex items-center justify-between ${textSm} text-muted flex-shrink-0`}>
         <span className="uppercase tracking-wide">
-          {state?.status === 'fulltime' ? 'Terminé' : state?.status === 'halftime' ? 'Mi-temps' : 'En cours'}
+          {state?.status === 'fulltime' ? 'FT' : state?.status === 'halftime' ? 'MT' : 'EN COURS'}
         </span>
-        <span>{minuteLabel()}</span>
+        <span className="font-medium">{minuteLabel()}</span>
       </div>
 
       {/* Score */}
-      <div className="flex items-center gap-3">
-        <TeamMini team={home} flagSize={flagSize} />
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <TeamMini team={home} flagSize={flagSize} compact={density !== 'normal'} />
         <div className="flex-1 text-center">
           <div className={`font-display ${scoreSize} tabular-nums ${flash ? 'text-accent' : ''}`}>
             {state?.score.home ?? 0} – {state?.score.away ?? 0}
           </div>
-          {slot.leg1Score && (
+          {state?.penaltyScore && (
+            <div className={`${textSm} text-muted`}>tab {state.penaltyScore.home}–{state.penaltyScore.away}</div>
+          )}
+          {slot.leg1Score && density !== 'tiny' && (
             <div className="text-[10px] text-muted">
-              aller {slot.leg1Score.home}–{slot.leg1Score.away}
-              {state && (
-                <span className="ml-1 text-accent font-medium">
-                  · cumul {slot.leg1Score.home + state.score.home}–{slot.leg1Score.away + state.score.away}
-                </span>
-              )}
+              cumul {slot.leg1Score.home + (state?.score.home ?? 0)}–{slot.leg1Score.away + (state?.score.away ?? 0)}
             </div>
           )}
-          {state?.penaltyScore && (
-            <div className="text-xs text-muted">tab {state.penaltyScore.home}–{state.penaltyScore.away}</div>
-          )}
         </div>
-        <TeamMini team={away} right flagSize={flagSize} />
+        <TeamMini team={away} right flagSize={flagSize} compact={density !== 'normal'} />
       </div>
 
-      {/* Mini stats bar */}
-      {state && (state.shots.home + state.shots.away) > 0 && (
-        <div className="border-t border-border/50 pt-2 space-y-1">
-          {!showStats ? (
+      {/* Stats — hidden in tiny, collapsible in small, full in normal */}
+      {density !== 'tiny' && state && (state.shots.home + state.shots.away) > 0 && (
+        <div className="border-t border-border/50 pt-1 space-y-0.5 flex-shrink-0">
+          <StatBar label="Poss." home={state.possession.home} away={state.possession.away} percent />
+          <StatBar label="Tirs" home={state.shots.home} away={state.shots.away} />
+          {(showStats || density === 'normal') && (
+            <StatBar label="Cadrés" home={state.shotsOnTarget.home} away={state.shotsOnTarget.away} />
+          )}
+          {showStats && density === 'normal' && (
             <>
-              <StatBar label="Possession" home={state.possession.home} away={state.possession.away} percent />
-              <StatBar label="Tirs" home={state.shots.home} away={state.shots.away} />
-              <StatBar label="Cadrés" home={state.shotsOnTarget.home} away={state.shotsOnTarget.away} />
-            </>
-          ) : (
-            <>
-              <StatBar label="Possession" home={state.possession.home} away={state.possession.away} percent />
-              <StatBar label="Tirs" home={state.shots.home} away={state.shots.away} />
-              <StatBar label="Cadrés" home={state.shotsOnTarget.home} away={state.shotsOnTarget.away} />
               <StatBar label="Arrêts" home={state.saves?.home ?? 0} away={state.saves?.away ?? 0} />
-              <StatBar label="Passes" home={state.passes?.home ?? 0} away={state.passes?.away ?? 0} />
               <StatBar label="Fautes" home={state.fouls.home} away={state.fouls.away} />
               <StatBar label="Corners" home={state.corners?.home ?? 0} away={state.corners?.away ?? 0} />
-              <StatBar label="Hors-jeu" home={state.offsides?.home ?? 0} away={state.offsides?.away ?? 0} />
-              <StatBar label="Passes clés" home={state.keyPasses?.home ?? 0} away={state.keyPasses?.away ?? 0} />
-              <StatBar label="Dribbles" home={state.dribbles?.home ?? 0} away={state.dribbles?.away ?? 0} />
-              <StatBar label="Dégagements" home={state.clearances?.home ?? 0} away={state.clearances?.away ?? 0} />
               <div className="flex justify-between text-[10px] text-muted pt-0.5">
-                <span>🟨 {state.cards.home.yellow.length} / 🟥 {state.cards.home.red.length}</span>
+                <span>🟨{state.cards.home.yellow.length} 🟥{state.cards.home.red.length}</span>
                 <span>Cartons</span>
-                <span>🟨 {state.cards.away.yellow.length} / 🟥 {state.cards.away.red.length}</span>
+                <span>🟨{state.cards.away.yellow.length} 🟥{state.cards.away.red.length}</span>
               </div>
             </>
           )}
-          <button
-            onClick={() => setShowStats((v) => !v)}
-            className="w-full text-center text-[10px] text-muted/60 hover:text-muted pt-0.5 transition-colors"
-          >
-            {showStats ? '▲ Moins' : '▼ Toutes les stats'}
-          </button>
+          {density === 'normal' && (
+            <button
+              onClick={() => setShowStats((v) => !v)}
+              className="w-full text-center text-[10px] text-muted/60 hover:text-muted pt-0.5 transition-colors"
+            >
+              {showStats ? '▲ Moins' : '▼ Toutes les stats'}
+            </button>
+          )}
         </div>
       )}
 
-      {/* Recent events */}
+      {/* Recent events — last 2 in tiny, last 3 otherwise */}
       {notableEvents.length > 0 && (
-        <div className="space-y-1 border-t border-border/50 pt-2">
-          {notableEvents.map((ev) => (
-            <div key={ev.id} className="text-xs text-muted truncate">
+        <div className="space-y-0.5 border-t border-border/50 pt-1 flex-1 min-h-0 overflow-hidden">
+          {notableEvents.slice(density === 'tiny' ? -2 : -3).map((ev) => (
+            <div key={ev.id} className={`${textSm} text-muted truncate`}>
               {ev.text}
             </div>
           ))}
@@ -1232,21 +1261,21 @@ function MatchCard({ slot, compact }: { slot: import('@/stores/multiplex').Multi
       )}
 
       {!state && (
-        <div className="flex justify-center py-2"><Spinner className="h-4 w-4" /></div>
+        <div className="flex justify-center py-2 flex-shrink-0"><Spinner className="h-4 w-4" /></div>
       )}
     </motion.div>
   );
 }
 
-function TeamMini({ team, right, flagSize = 'h-8 w-8' }: { team: Team; right?: boolean; flagSize?: string }) {
+function TeamMini({ team, right, flagSize = 'h-8 w-8', compact }: { team: Team; right?: boolean; flagSize?: string; compact?: boolean }) {
   return (
-    <div className={`flex flex-col items-center gap-1 flex-1 ${right ? 'items-end' : 'items-start'}`}>
+    <div className={`flex flex-col items-center gap-0.5 flex-1 min-w-0 ${right ? 'items-end' : 'items-start'}`}>
       {team.flag ? (
-        <img src={team.flag} alt="" className={`${flagSize} object-cover rounded-sm`} />
+        <img src={team.flag} alt="" className={`${flagSize} object-cover rounded-sm flex-shrink-0`} />
       ) : (
-        <div className={`${flagSize} rounded-sm bg-border`} />
+        <div className={`${flagSize} rounded-sm bg-border flex-shrink-0`} />
       )}
-      <span className="text-xs text-muted truncate max-w-[80px]">{team.name}</span>
+      <span className={`${compact ? 'text-[10px]' : 'text-xs'} text-muted truncate w-full ${right ? 'text-right' : 'text-left'}`}>{team.name}</span>
     </div>
   );
 }
