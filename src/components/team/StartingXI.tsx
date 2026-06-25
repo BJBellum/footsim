@@ -3,6 +3,8 @@ import { pickXI } from '@/lib/sim/lineup';
 import { POSITION_LABEL } from '@/lib/types';
 import type { Formation, Player } from '@/lib/types';
 
+const FOOT: Record<string, string> = { right: 'D', left: 'G', both: 'D/G' };
+
 type Props = {
   players: Player[];
   formation: Formation;
@@ -12,13 +14,15 @@ type Props = {
   positionMap?: Record<string, import('@/lib/types').Position>;
   /** If provided, shows a button to save the current auto XI as the active tactic */
   onSaveAutoXI?: (lineupIds: string[]) => Promise<void>;
+  /** Click on a player row to view their stats */
+  onPlayerClick?: (player: Player) => void;
 };
 
-export function StartingXI({ players, formation, lineup, positionMap, onSaveAutoXI }: Props) {
+export function StartingXI({ players, formation, lineup, positionMap, onSaveAutoXI, onPlayerClick }: Props) {
   const [saving, setSaving] = useState(false);
   const hasCustom = !!(lineup && lineup.length === 11);
 
-  const { starters, bench, isAuto } = useMemo(() => {
+  const { starters, bench, rest, isAuto } = useMemo(() => {
     const byId = new Map(players.map((p) => [p.id, p]));
     let starters: Player[];
     let isAuto = false;
@@ -45,19 +49,17 @@ export function StartingXI({ players, formation, lineup, positionMap, onSaveAuto
     const starterMid = starters.filter((p) => ['DM', 'CM', 'AM', 'LM', 'RM'].includes(p.position)).length;
     const starterAtt = starters.filter((p) => ['LW', 'RW', 'ST'].includes(p.position)).length;
 
-    // Target: reflect the formation balance, 1 backup per family minimum
-    // Bench slots: 1 GK + ~3-4 DEF + ~3-4 MID + ~2-3 ATT (total 12)
+    // Bench: max 12 slots
     const total = Math.min(12, nonStarters.length);
     const gkSlots = 1;
     const outfieldSlots = total - gkSlots;
-    // Proportional to formation balance
     const familyTotal = starterDef + starterMid + starterAtt || 10;
     const defSlots = Math.max(1, Math.round((starterDef / familyTotal) * outfieldSlots));
     const midSlots = Math.max(1, Math.round((starterMid / familyTotal) * outfieldSlots));
     const attSlots = Math.max(1, outfieldSlots - defSlots - midSlots);
 
     function bestN(pool: Player[], n: number) {
-      return pool.sort((a, b) => b.overall - a.overall).slice(0, n);
+      return [...pool].sort((a, b) => b.overall - a.overall).slice(0, n);
     }
 
     const gkPool = nonStarters.filter((p) => p.position === 'GK');
@@ -74,7 +76,6 @@ export function StartingXI({ players, formation, lineup, positionMap, onSaveAuto
       ...benchGk, ...benchDef, ...benchMid, ...benchAtt,
     ].map((p) => p.id));
 
-    // Fill remaining slots with best overall from unpicked non-starters
     const remaining = nonStarters
       .filter((p) => !pickedIds.has(p.id))
       .sort((a, b) => b.overall - a.overall)
@@ -82,8 +83,16 @@ export function StartingXI({ players, formation, lineup, positionMap, onSaveAuto
 
     const bench = [...benchGk, ...benchDef, ...benchMid, ...benchAtt, ...remaining];
 
-    return { starters, bench, isAuto };
+    const benchIds = new Set(bench.map((p) => p.id));
+    const rest = nonStarters
+      .filter((p) => !benchIds.has(p.id))
+      .sort((a, b) => b.overall - a.overall);
+
+    return { starters, bench, rest, isAuto };
   }, [players, formation, lineup]);
+
+  const colHead = 'px-3 py-2 font-medium text-right';
+  const colCell = 'px-3 py-2 text-right tabular-nums text-muted';
 
   return (
     <div className="space-y-4">
@@ -114,9 +123,19 @@ export function StartingXI({ players, formation, lineup, positionMap, onSaveAuto
           <span className="text-accent font-mono">{starters.length}/11</span>
         </div>
         <table className="w-full text-sm">
+          <thead className="bg-bg text-left text-muted text-xs border-t border-border">
+            <tr>
+              <th className="w-8 px-3 py-1.5"></th>
+              <th className="px-3 py-1.5 font-medium">Poste</th>
+              <th className="px-3 py-1.5 font-medium">Nom</th>
+              <th className={colHead}>Âge</th>
+              <th className={colHead}>Pied</th>
+              <th className={colHead}>Ovr</th>
+            </tr>
+          </thead>
           <tbody>
             {starters.map((p, i) => (
-              <tr key={p.id} className="border-t border-border hover:bg-border/10 transition-colors">
+              <tr key={p.id} className="border-t border-border hover:bg-accent/10 hover:text-accent transition-colors cursor-pointer" onClick={() => onPlayerClick?.(p)}>
                 <td className="w-8 px-3 py-2 text-center text-xs text-muted tabular-nums">{i + 1}</td>
                 <td className="px-3 py-2">
                   <span className="rounded bg-border/40 px-1.5 py-0.5 font-mono text-xs">
@@ -124,6 +143,8 @@ export function StartingXI({ players, formation, lineup, positionMap, onSaveAuto
                   </span>
                 </td>
                 <td className="px-3 py-2 font-medium">{p.firstName} {p.lastName}</td>
+                <td className={colCell}>{p.age}</td>
+                <td className={colCell}>{FOOT[p.preferredFoot] ?? 'D'}</td>
                 <td className="px-3 py-2 text-right tabular-nums font-bold text-accent">{p.overall}</td>
               </tr>
             ))}
@@ -138,16 +159,62 @@ export function StartingXI({ players, formation, lineup, positionMap, onSaveAuto
             Banc ({bench.length})
           </div>
           <table className="w-full text-sm">
+            <thead className="bg-bg text-left text-muted text-xs border-t border-border">
+              <tr>
+                <th className="px-3 py-1.5 font-medium">Poste</th>
+                <th className="px-3 py-1.5 font-medium">Nom</th>
+                <th className={colHead}>Âge</th>
+                <th className={colHead}>Pied</th>
+                <th className={colHead}>Ovr</th>
+              </tr>
+            </thead>
             <tbody>
               {bench.map((p) => (
-                <tr key={p.id} className="border-t border-border hover:bg-border/10 transition-colors">
+                <tr key={p.id} className="border-t border-border hover:bg-accent/10 hover:text-accent transition-colors cursor-pointer" onClick={() => onPlayerClick?.(p)}>
                   <td className="px-3 py-2">
                     <span className="rounded bg-border/40 px-1.5 py-0.5 font-mono text-xs">
                       {POSITION_LABEL[p.position]}
                     </span>
                   </td>
                   <td className="px-3 py-2 text-text/80">{p.firstName} {p.lastName}</td>
+                  <td className={colCell}>{p.age}</td>
+                  <td className={colCell}>{FOOT[p.preferredFoot] ?? 'D'}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-muted">{p.overall}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Reste de l'effectif */}
+      {rest.length > 0 && (
+        <div className="overflow-hidden rounded-lg border border-border/50 bg-surface/50">
+          <div className="bg-bg px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted/70">
+            Reste de l'effectif ({rest.length})
+          </div>
+          <table className="w-full text-sm">
+            <thead className="bg-bg text-left text-muted text-xs border-t border-border">
+              <tr>
+                <th className="px-3 py-1.5 font-medium">Poste</th>
+                <th className="px-3 py-1.5 font-medium">Nom</th>
+                <th className={colHead}>Âge</th>
+                <th className={colHead}>Pied</th>
+                <th className={colHead}>Ovr</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rest.map((p) => (
+                <tr key={p.id} className="border-t border-border/50 hover:bg-accent/10 hover:text-accent transition-colors opacity-70 cursor-pointer" onClick={() => onPlayerClick?.(p)}>
+                  <td className="px-3 py-1.5">
+                    <span className="rounded bg-border/30 px-1.5 py-0.5 font-mono text-xs text-muted">
+                      {POSITION_LABEL[p.position]}
+                    </span>
+                  </td>
+                  <td className="px-3 py-1.5 text-text/60">{p.firstName} {p.lastName}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums text-muted/60 text-xs">{p.age}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums text-muted/60 text-xs">{FOOT[p.preferredFoot] ?? 'D'}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums text-muted/60 text-xs">{p.overall}</td>
                 </tr>
               ))}
             </tbody>

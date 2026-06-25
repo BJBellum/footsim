@@ -32,20 +32,20 @@ const FORMATION_LAYOUT: Record<Formation, SlotDef[]> = {
   '3-5-2': [
     { pos: 'GK', x: 50, y: 88 },
     { pos: 'CB', x: 24, y: 72 }, { pos: 'CB', x: 50, y: 73 }, { pos: 'CB', x: 76, y: 72 },
-    { pos: 'LM', x: 8, y: 52 }, { pos: 'DM', x: 30, y: 53 }, { pos: 'CM', x: 50, y: 49 }, { pos: 'CM', x: 70, y: 53 }, { pos: 'RM', x: 92, y: 52 },
+    { pos: 'LM', x: 8, y: 50 }, { pos: 'DM', x: 30, y: 60 }, { pos: 'CM', x: 50, y: 46 }, { pos: 'CM', x: 70, y: 50 }, { pos: 'RM', x: 92, y: 50 },
     { pos: 'ST', x: 34, y: 20 }, { pos: 'ST', x: 66, y: 20 },
   ],
   '4-2-3-1': [
     { pos: 'GK', x: 50, y: 88 },
     { pos: 'LB', x: 12, y: 70 }, { pos: 'CB', x: 34, y: 72 }, { pos: 'CB', x: 66, y: 72 }, { pos: 'RB', x: 88, y: 70 },
     { pos: 'DM', x: 34, y: 58 }, { pos: 'DM', x: 66, y: 58 },
-    { pos: 'LW', x: 12, y: 40 }, { pos: 'AM', x: 50, y: 38 }, { pos: 'RW', x: 88, y: 40 },
+    { pos: 'LW', x: 12, y: 35 }, { pos: 'AM', x: 50, y: 34 }, { pos: 'RW', x: 88, y: 35 },
     { pos: 'ST', x: 50, y: 18 },
   ],
   '5-3-2': [
     { pos: 'GK', x: 50, y: 88 },
     { pos: 'LB', x: 6, y: 70 }, { pos: 'CB', x: 24, y: 72 }, { pos: 'CB', x: 50, y: 73 }, { pos: 'CB', x: 76, y: 72 }, { pos: 'RB', x: 94, y: 70 },
-    { pos: 'CM', x: 24, y: 50 }, { pos: 'DM', x: 50, y: 50 }, { pos: 'CM', x: 76, y: 50 },
+    { pos: 'CM', x: 24, y: 47 }, { pos: 'DM', x: 50, y: 60 }, { pos: 'CM', x: 76, y: 47 },
     { pos: 'ST', x: 34, y: 20 }, { pos: 'ST', x: 66, y: 20 },
   ],
   '4-1-4-1': [
@@ -65,13 +65,13 @@ const FORMATION_LAYOUT: Record<Formation, SlotDef[]> = {
     { pos: 'GK', x: 50, y: 88 },
     { pos: 'LB', x: 12, y: 70 }, { pos: 'CB', x: 34, y: 72 }, { pos: 'CB', x: 66, y: 72 }, { pos: 'RB', x: 88, y: 70 },
     { pos: 'CM', x: 22, y: 57 }, { pos: 'CM', x: 50, y: 55 }, { pos: 'CM', x: 78, y: 57 },
-    { pos: 'AM', x: 34, y: 38 }, { pos: 'AM', x: 66, y: 38 },
+    { pos: 'AM', x: 34, y: 34 }, { pos: 'AM', x: 66, y: 34 },
     { pos: 'ST', x: 50, y: 18 },
   ],
   '4-5-1': [
     { pos: 'GK', x: 50, y: 88 },
     { pos: 'LB', x: 12, y: 70 }, { pos: 'CB', x: 34, y: 72 }, { pos: 'CB', x: 66, y: 72 }, { pos: 'RB', x: 88, y: 70 },
-    { pos: 'LM', x: 8, y: 48 }, { pos: 'CM', x: 28, y: 46 }, { pos: 'DM', x: 50, y: 50 }, { pos: 'CM', x: 72, y: 46 }, { pos: 'RM', x: 92, y: 48 },
+    { pos: 'LM', x: 8, y: 46 }, { pos: 'CM', x: 28, y: 44 }, { pos: 'DM', x: 50, y: 60 }, { pos: 'CM', x: 72, y: 44 }, { pos: 'RM', x: 92, y: 46 },
     { pos: 'ST', x: 50, y: 18 },
   ],
   '4-4-1-1': [
@@ -97,7 +97,7 @@ const FORMATION_LAYOUT: Record<Formation, SlotDef[]> = {
   '3-6-1': [
     { pos: 'GK', x: 50, y: 88 },
     { pos: 'CB', x: 24, y: 72 }, { pos: 'CB', x: 50, y: 73 }, { pos: 'CB', x: 76, y: 72 },
-    { pos: 'LM', x: 6, y: 50 }, { pos: 'DM', x: 24, y: 52 }, { pos: 'CM', x: 38, y: 47 }, { pos: 'CM', x: 62, y: 47 }, { pos: 'DM', x: 76, y: 52 }, { pos: 'RM', x: 94, y: 50 },
+    { pos: 'LM', x: 6, y: 47 }, { pos: 'DM', x: 24, y: 60 }, { pos: 'CM', x: 38, y: 44 }, { pos: 'CM', x: 62, y: 44 }, { pos: 'DM', x: 76, y: 60 }, { pos: 'RM', x: 94, y: 47 },
     { pos: 'ST', x: 50, y: 18 },
   ],
 };
