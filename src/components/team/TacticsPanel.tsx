@@ -432,7 +432,7 @@ export function TacticsPanel({ team, players, onSave }: Props) {
                     title={filled ? `${player.firstName} ${player.lastName}` : slot.pos}
                   >
                     <div className={`flex h-9 w-9 items-center justify-center rounded-full border-2 text-[10px] font-bold transition-all ${filled ? 'border-white bg-white/20 text-white shadow-md' : 'border-white/40 bg-black/20 text-white/60 group-hover:border-white group-hover:bg-black/40'}`}>
-                      {filled ? `${player.firstName[0]}${player.lastName[0]}` : '+'}
+                      {filled ? (POSITION_LABEL[displayPos] ?? displayPos) : '+'}
                     </div>
                     <span className="max-w-[56px] truncate rounded bg-black/40 px-0.5 text-center text-[9px] leading-tight text-white/90">
                       {filled ? player.lastName : POSITION_LABEL[displayPos] ?? slot.pos}
@@ -521,7 +521,12 @@ export function TacticsPanel({ team, players, onSave }: Props) {
 
       {pickingSlot !== null && (
         <PlayerPicker
-          slotDef={layout[pickingSlot]}
+          slotDef={(() => {
+            const base = layout[pickingSlot];
+            const currentPlayerId = lineup[pickingSlot];
+            const overridePos = currentPlayerId && positionMap ? positionMap[currentPlayerId] : undefined;
+            return overridePos ? { ...base, pos: overridePos } : base;
+          })()}
           players={players}
           currentId={lineup[pickingSlot]}
           takenIds={lineup.filter(Boolean) as string[]}
