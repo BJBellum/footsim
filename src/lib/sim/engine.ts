@@ -287,7 +287,7 @@ function executeSub(state: MatchState, ctx: EngineCtx, side: 'home' | 'away', ou
   const benchList = benchIds;
   const bIdx = benchList.indexOf(inId);
   if (bIdx !== -1) benchList.splice(bIdx, 1);
-  pushEvent(state, ctx, { type: 'substitution', side, playerId: inId, ballPos: ZONE.centre },
+  pushEvent(state, ctx, { type: 'substitution', side, playerId: inId, replacedId: outId, ballPos: ZONE.centre },
     teamName, `${inP.firstName} ${inP.lastName} ↔ ${outP.firstName} ${outP.lastName}`);
   return true;
 }
@@ -402,7 +402,7 @@ export function performManualSub(
     state.awayAvailableBench = state.awayAvailableBench.filter((id) => id !== inId);
   }
 
-  pushEvent(state, ctx, { type: 'substitution', side, playerId: inId, ballPos: ZONE.centre },
+  pushEvent(state, ctx, { type: 'substitution', side, playerId: inId, replacedId: outId, ballPos: ZONE.centre },
     teamName, `${inPlayer.firstName} ${inPlayer.lastName} ↔ ${outPlayer.firstName} ${outPlayer.lastName}`);
   return true;
 }

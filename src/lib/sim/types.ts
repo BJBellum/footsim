@@ -61,6 +61,8 @@ export type MatchEvent = {
   side: 'home' | 'away' | null;
   playerId?: string;
   assistId?: string;
+  /** For substitution events: the player who came off */
+  replacedId?: string;
   text: string;
   ballPos?: { x: number; y: number };
 };

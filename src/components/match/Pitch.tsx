@@ -131,15 +131,35 @@ const BALL_R = 0.55;
 const BALL_TRANSITION = { type: 'tween', duration: 0.4, ease: 'easeOut' } as const;
 const PLAYER_TRANSITION = { type: 'tween', duration: 0.6, ease: 'easeOut' } as const;
 
+// Build enriched tokenPositions: substitutes inherit the position of the replaced player.
+function enrichTokenPositions(
+  base: Record<string, { x: number; y: number }>,
+  events: import('@/lib/sim/types').MatchEvent[],
+): Record<string, { x: number; y: number }> {
+  const enriched = { ...base };
+  for (const ev of events) {
+    if (ev.type === 'substitution' && ev.replacedId && ev.playerId) {
+      const outPos = enriched[ev.replacedId];
+      if (outPos && !enriched[ev.playerId]) {
+        enriched[ev.playerId] = outPos;
+      }
+    }
+  }
+  return enriched;
+}
+
 export function Pitch({ state, homeFormation, awayFormation, homeColor = '#F4F0E6', awayColor = '#C73E3E', homeTokenPositions, awayTokenPositions }: Props) {
   const flipped = SECOND_HALF_STATUSES.has(state.status);
 
+  const enrichedHome = homeTokenPositions ? enrichTokenPositions(homeTokenPositions, state.events) : undefined;
+  const enrichedAway = awayTokenPositions ? enrichTokenPositions(awayTokenPositions, state.events) : undefined;
+
   // Use free-editor token positions when available, else fall back to preset formation layout
-  const rawHome = homeTokenPositions
-    ? buildPositionsFromTokens(state.homeOnPitch, homeTokenPositions, FORMATION_POSITIONS[homeFormation])
+  const rawHome = enrichedHome
+    ? buildPositionsFromTokens(state.homeOnPitch, enrichedHome, FORMATION_POSITIONS[homeFormation])
     : FORMATION_POSITIONS[homeFormation];
-  const rawAway = awayTokenPositions
-    ? buildPositionsFromTokens(state.awayOnPitch, awayTokenPositions, FORMATION_POSITIONS[awayFormation])
+  const rawAway = enrichedAway
+    ? buildPositionsFromTokens(state.awayOnPitch, enrichedAway, FORMATION_POSITIONS[awayFormation])
     : FORMATION_POSITIONS[awayFormation];
 
   // In 1st half: home attacks right (rawHome as-is), away attacks left (mirrored)
