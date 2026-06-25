@@ -1015,11 +1015,11 @@ export default function MultiplexLive() {
           </div>
         )}
 
-        {halftimeBar && <div className="px-1 flex-shrink-0">{halftimeBar}</div>}
+        {halftimeBar && <div className="px-3 flex-shrink-0">{halftimeBar}</div>}
 
         {/* Grid fills all remaining space */}
         <div
-          className="flex-1 min-h-0 grid gap-1 p-1"
+          className="flex-1 min-h-0 grid gap-2 px-3 pb-2"
           style={{
             gridTemplateColumns: `repeat(${cols}, 1fr)`,
             gridTemplateRows: `repeat(${rows}, 1fr)`,

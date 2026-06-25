@@ -501,9 +501,8 @@ export default function CompetitionDetail() {
   }
 
   if (knockoutDraw) {
-    const allQualifiedTeams = teams.filter((t) =>
-      Object.values(knockoutDraw.groups).flat().includes(t.id)
-    );
+    const qualifiedIds = new Set(Object.values(knockoutDraw.groups).flat());
+    const allQualifiedTeams = Object.values(teamMap).filter((t) => qualifiedIds.has(t.id));
     return (
       <div className="space-y-6">
         <div>
