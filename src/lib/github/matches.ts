@@ -28,7 +28,8 @@ const IMPORTANCE_MATCH_MULT: Record<CompetitionImportance, number> = {
 };
 
 export function participantSizeMult(count: number | undefined): number {
-  if (!count || count <= 2) return 0.20;
+  if (!count) return 1.00;
+  if (count <= 2) return 0.20;
   if (count <= 4) return 0.40;
   if (count <= 8) return 0.80;
   if (count <= 16) return 1.20;
