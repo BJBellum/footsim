@@ -404,16 +404,15 @@ export default function CompetitionDetail() {
     setPreMatchModal({ matchId, home, away });
   }
 
-  function launchMatch(matchId: string, corruption: CorruptionDeal | null, tactics?: { home?: import('@/lib/types').TacticStyle; away?: import('@/lib/types').TacticStyle }) {
+  function launchMatch(matchId: string, corruption: CorruptionDeal | null, tactics?: { homeId?: string; awayId?: string }) {
     if (!current) return;
     if (corruption) {
       sessionStorage.setItem(`footsim.corruption.${matchId}`, JSON.stringify(corruption));
     } else {
       sessionStorage.removeItem(`footsim.corruption.${matchId}`);
     }
-    const filteredTactics = { home: tactics?.home || undefined, away: tactics?.away || undefined };
-    if (filteredTactics.home || filteredTactics.away) {
-      sessionStorage.setItem(`footsim.tactics.${matchId}`, JSON.stringify(filteredTactics));
+    if (tactics?.homeId || tactics?.awayId) {
+      sessionStorage.setItem(`footsim.tactics.${matchId}`, JSON.stringify({ homeId: tactics.homeId, awayId: tactics.awayId }));
     } else {
       sessionStorage.removeItem(`footsim.tactics.${matchId}`);
     }

@@ -125,11 +125,19 @@ export default function CompetitionMatchLive() {
         sessionStorage.removeItem(`footsim.corruption.${matchId}`);
 
         const storedTactics = sessionStorage.getItem(`footsim.tactics.${matchId}`);
-        const tacticOverride: { home?: string; away?: string } = storedTactics ? JSON.parse(storedTactics) : {};
+        const tacticOverride: { homeId?: string; awayId?: string } = storedTactics ? JSON.parse(storedTactics) : {};
         sessionStorage.removeItem(`footsim.tactics.${matchId}`);
 
-        const homeTactics = resolveActiveTactic(homeData.team);
-        const awayTactics = resolveActiveTactic(awayData.team);
+        // Resolve pre-match tactic override (selected in PreMatchModal)
+        const homeLocalTactics = loadLocalSavedTactics(homeData.team.id);
+        const awayLocalTactics = loadLocalSavedTactics(awayData.team.id);
+        const allHomeTactics = homeLocalTactics.savedTactics.length > 0 ? homeLocalTactics.savedTactics : (homeData.team.savedTactics ?? []);
+        const allAwayTactics = awayLocalTactics.savedTactics.length > 0 ? awayLocalTactics.savedTactics : (awayData.team.savedTactics ?? []);
+        const selectedHomeTactic = tacticOverride.homeId ? allHomeTactics.find((t) => t.id === tacticOverride.homeId) : undefined;
+        const selectedAwayTactic = tacticOverride.awayId ? allAwayTactics.find((t) => t.id === tacticOverride.awayId) : undefined;
+
+        const homeTactics = selectedHomeTactic ?? resolveActiveTactic(homeData.team);
+        const awayTactics = selectedAwayTactic ?? resolveActiveTactic(awayData.team);
 
         const moraleMap = comp.morale ?? initMorale(comp.teamIds);
         const compInjuries = comp.injuries ?? [];
@@ -171,7 +179,7 @@ export default function CompetitionMatchLive() {
             lineup: homeTactics?.lineup,
             bench: homeTactics?.bench,
             plannedSubs: homeTactics?.plannedSubs,
-            tacticStyle: (tacticOverride.home as import('@/lib/types').TacticStyle | undefined) || homeTactics?.style,
+            tacticStyle: homeTactics?.style,
             morale: moraleMap[compMatch.homeTeamId!] ?? MORALE_DEFAULT,
             unavailablePlayerIds: [...homeUnavail].filter((id) => id !== 'coach'),
             positionMap: homeTactics?.positionMap,
@@ -186,7 +194,7 @@ export default function CompetitionMatchLive() {
             lineup: awayTactics?.lineup,
             bench: awayTactics?.bench,
             plannedSubs: awayTactics?.plannedSubs,
-            tacticStyle: (tacticOverride.away as import('@/lib/types').TacticStyle | undefined) || awayTactics?.style,
+            tacticStyle: awayTactics?.style,
             morale: moraleMap[compMatch.awayTeamId!] ?? MORALE_DEFAULT,
             unavailablePlayerIds: [...awayUnavail].filter((id) => id !== 'coach'),
             positionMap: awayTactics?.positionMap,

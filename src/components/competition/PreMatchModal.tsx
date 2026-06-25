@@ -1,22 +1,31 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { CorruptionPanel } from '@/components/match/CorruptionPanel';
 import type { CorruptionDeal } from '@/lib/sim/types';
-import type { Team, TacticStyle } from '@/lib/types';
-import { TACTIC_STYLE_LABEL } from '@/lib/types';
+import type { SavedTactic, Team } from '@/lib/types';
+import { loadLocalSavedTactics } from '@/lib/localTactics';
 
 type Props = {
   home: Team;
   away: Team;
-  onConfirm: (corruption: CorruptionDeal | null, tactics?: { home?: TacticStyle; away?: TacticStyle }) => void;
+  onConfirm: (corruption: CorruptionDeal | null, tactics?: { homeId?: string; awayId?: string }) => void;
   onCancel: () => void;
 };
 
 export function PreMatchModal({ home, away, onConfirm, onCancel }: Props) {
   const [corruption, setCorruption] = useState<CorruptionDeal | null>(null);
-  const [homeStyle, setHomeStyle] = useState<TacticStyle | ''>('');
-  const [awayStyle, setAwayStyle] = useState<TacticStyle | ''>('');
+  const [homeTactics, setHomeTactics] = useState<SavedTactic[]>([]);
+  const [awayTactics, setAwayTactics] = useState<SavedTactic[]>([]);
+  const [homeTacticId, setHomeTacticId] = useState<string>('');
+  const [awayTacticId, setAwayTacticId] = useState<string>('');
+
+  useEffect(() => {
+    const h = loadLocalSavedTactics(home.id);
+    setHomeTactics(h.savedTactics.length > 0 ? h.savedTactics : (home.savedTactics ?? []));
+    const a = loadLocalSavedTactics(away.id);
+    setAwayTactics(a.savedTactics.length > 0 ? a.savedTactics : (away.savedTactics ?? []));
+  }, [home.id, away.id]);
 
   return (
     <AnimatePresence>
@@ -32,25 +41,34 @@ export function PreMatchModal({ home, away, onConfirm, onCancel }: Props) {
             <h2 className="font-display text-2xl">{home.name} <span className="text-muted">vs</span> {away.name}</h2>
           </div>
 
-          {/* Tactic style selectors */}
+          {/* Tactic selectors */}
           <div className="grid grid-cols-2 gap-3">
-            {([['home', home, homeStyle, setHomeStyle], ['away', away, awayStyle, setAwayStyle]] as const).map(
-              ([side, team, style, setStyle]) => (
-                <div key={side} className="space-y-1">
-                  <div className="text-[10px] uppercase tracking-widest text-muted">{team.name}</div>
+            {([
+              ['home', home, homeTactics, homeTacticId, setHomeTacticId],
+              ['away', away, awayTactics, awayTacticId, setAwayTacticId],
+            ] as const).map(([side, team, tactics, tacticId, setTacticId]) => (
+              <div key={side} className="space-y-1">
+                <div className="text-[10px] uppercase tracking-widest text-muted">{team.name}</div>
+                {tactics.length > 0 ? (
                   <select
-                    value={style}
-                    onChange={(e) => setStyle(e.target.value as TacticStyle | '')}
+                    value={tacticId}
+                    onChange={(e) => setTacticId(e.target.value)}
                     className="w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-text"
                   >
-                    <option value="">Style par défaut</option>
-                    {(Object.keys(TACTIC_STYLE_LABEL) as TacticStyle[]).map((s) => (
-                      <option key={s} value={s}>{TACTIC_STYLE_LABEL[s]}</option>
+                    <option value="">— Tactique active —</option>
+                    {tactics.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} · {t.formationLabel ?? t.formation}
+                      </option>
                     ))}
                   </select>
-                </div>
-              )
-            )}
+                ) : (
+                  <div className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-muted">
+                    Tactique active
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
 
           <CorruptionPanel
@@ -64,8 +82,8 @@ export function PreMatchModal({ home, away, onConfirm, onCancel }: Props) {
             <Button
               size="sm"
               onClick={() => onConfirm(corruption, {
-                home: homeStyle || undefined,
-                away: awayStyle || undefined,
+                homeId: homeTacticId || undefined,
+                awayId: awayTacticId || undefined,
               })}
             >
               Lancer le match

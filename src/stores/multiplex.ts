@@ -13,6 +13,8 @@ export type MultiplexSlot = {
   state: MatchState | null;
   finished: boolean;
   worker: Worker | null;
+  /** Full MatchInput kept so tactic updates can be re-sent to worker */
+  input: MatchInput;
 };
 
 type State = {
@@ -24,6 +26,7 @@ type State = {
   pauseAll: () => void;
   resumeAll: () => void;
   stop: () => void;
+  updateSlotTactic: (compMatchId: string, side: 'home' | 'away', patch: Partial<MatchInput['home']>) => void;
 };
 
 export const useMultiplex = create<State>((set, get) => ({
@@ -48,6 +51,7 @@ export const useMultiplex = create<State>((set, get) => ({
         state: null,
         finished: false,
         worker,
+        input,
       };
 
       worker.onmessage = (ev) => {
@@ -92,5 +96,15 @@ export const useMultiplex = create<State>((set, get) => ({
   stop() {
     get().slots.forEach((s) => s.worker?.terminate());
     set({ slots: [], allFinished: false });
+  },
+
+  updateSlotTactic(compMatchId, side, patch) {
+    const slot = get().slots.find((s) => s.compMatchId === compMatchId);
+    if (!slot) return;
+    const nextInput: MatchInput = { ...slot.input, [side]: { ...slot.input[side], ...patch } };
+    set((prev) => ({
+      slots: prev.slots.map((s) => s.compMatchId === compMatchId ? { ...s, input: nextInput } : s),
+    }));
+    slot.worker?.postMessage({ type: 'updatetactic', side, input: nextInput });
   },
 }));

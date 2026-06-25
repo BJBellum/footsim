@@ -15,13 +15,13 @@ import type { MatchSummary } from '@/lib/competition/types';
 import { accumulateMatchStats, computeAwards, computeMotm } from '@/lib/competition/statsAccumulator';
 import { CorruptionPanel } from '@/components/match/CorruptionPanel';
 import { isRevealed } from '@/lib/sim/corruption';
-import { resolveActiveTactic } from '@/lib/localTactics';
+import { resolveActiveTactic, loadLocalSavedTactics } from '@/lib/localTactics';
 import { updateMorale, initMorale, MORALE_DEFAULT } from '@/lib/competition/morale';
 import { generateMatchPressItem, generateMoralePressItem, generatePresidencyReboundItem, generateDrameItem, generateDrameHommageItem, generateCmfItems, generateCmfCommunique, generateFormePressItem, generateCoachScandalItem } from '@/lib/competition/press';
 import { createMatchInjury, createSuspension, decrementInjuries, decrementSuspensions, unavailableIds } from '@/lib/competition/injuries';
 import { PenaltyShootout } from '@/components/match/PenaltyShootout';
 import type { MatchInput, MatchState, Speed, CorruptionDeal } from '@/lib/sim/types';
-import type { Team } from '@/lib/types';
+import type { SavedTactic, TacticStyle, Team } from '@/lib/types';
 
 export default function MultiplexLive() {
   const { competitionId, round } = useParams<{ competitionId: string; round: string }>();
@@ -46,6 +46,7 @@ export default function MultiplexLive() {
   const pauseAll = useMultiplex((s) => s.pauseAll);
   const resumeAll = useMultiplex((s) => s.resumeAll);
   const stopAll = useMultiplex((s) => s.stop);
+  const updateSlotTactic = useMultiplex((s) => s.updateSlotTactic);
 
   const autoSimulate = sessionStorage.getItem('footsim.autoSimulate') === '1';
 
@@ -53,6 +54,8 @@ export default function MultiplexLive() {
   const [paused, setPaused] = useState(false);
   const [savingGh, setSavingGh] = useState(false);
   const [pendingUpdate, setPendingUpdate] = useState<Parameters<typeof save>[0] | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [halftimeTacticOpen, setHalftimeTacticOpen] = useState(false);
 
   // Pre-launch corruption state
   type PendingSlot = {
@@ -901,16 +904,38 @@ export default function MultiplexLive() {
     );
   }
 
+  const halftimeSlots = slots.filter((s) => s.state?.status === 'halftime' || s.state?.status === 'extraTimeHalfTime');
+  const isHalftime = !allFinished && halftimeSlots.length > 0;
+  const isExtraHalftime = halftimeSlots.some((s) => s.state?.status === 'extraTimeHalfTime');
+
+  // Grid cols: adapt to slot count and fullscreen mode
+  function gridCols(n: number, fs: boolean): string {
+    if (fs) {
+      if (n === 1) return 'grid-cols-1';
+      if (n === 2) return 'grid-cols-2';
+      if (n <= 4) return 'grid-cols-2';
+      if (n <= 6) return 'grid-cols-3';
+      if (n <= 9) return 'grid-cols-3';
+      return 'grid-cols-4';
+    }
+    if (n <= 2) return 'md:grid-cols-2';
+    if (n <= 4) return 'md:grid-cols-2 lg:grid-cols-2';
+    return 'md:grid-cols-2 lg:grid-cols-3';
+  }
+
   return (
-    <main className="mx-auto max-w-7xl px-6 py-8 pb-20 space-y-6">
+    <main className={`${fullscreen ? 'fixed inset-0 z-40 bg-bg overflow-auto p-3' : 'mx-auto max-w-7xl px-6 py-8'} pb-20 space-y-3`}>
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <Link to={`/dashboard/competitions/${competitionId}`} className="text-sm text-muted hover:text-text">
-            ← {current?.name ?? 'Compétition'}
-          </Link>
-          <h1 className="mt-1 font-display text-2xl">Multiplex — Journée {roundNum}</h1>
-        </div>
-        <div className="flex items-center gap-2">
+        {!fullscreen && (
+          <div>
+            <Link to={`/dashboard/competitions/${competitionId}`} className="text-sm text-muted hover:text-text">
+              ← {current?.name ?? 'Compétition'}
+            </Link>
+            <h1 className="mt-1 font-display text-2xl">Multiplex — Journée {roundNum}</h1>
+          </div>
+        )}
+        {fullscreen && <div className="font-display text-lg">Multiplex — Journée {roundNum}</div>}
+        <div className="flex items-center gap-2 ml-auto">
           <div className="flex rounded-md border border-border overflow-hidden text-sm">
             {SPEEDS.map((s) => (
               <button
@@ -930,23 +955,55 @@ export default function MultiplexLive() {
           >
             {paused ? '▶' : '⏸'}
           </button>
+          <button
+            onClick={() => setFullscreen((v) => !v)}
+            className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-border/40 transition-colors"
+            title={fullscreen ? 'Quitter le plein écran' : 'Plein écran'}
+          >
+            {fullscreen ? '⊠' : '⛶'}
+          </button>
         </div>
       </div>
 
-      {!allFinished && slots.some((s) => s.state?.status === 'halftime') && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-warning/40 bg-bg/95 backdrop-blur px-6 py-3 flex items-center justify-between gap-3 shadow-lg">
-          <span className="text-sm font-medium">⏸ Mi-temps — {slots.filter((s) => s.state?.status === 'halftime').length} match(s) en pause</span>
-          <Button size="sm" onClick={() => { resumeAll(); setPaused(false); }}>
-            ▶ Reprendre la 2e mi-temps
-          </Button>
-        </div>
-      )}
-      {!allFinished && slots.some((s) => s.state?.status === 'extraTimeHalfTime') && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-accent/40 bg-bg/95 backdrop-blur px-6 py-3 flex items-center justify-between gap-3 shadow-lg">
-          <span className="text-sm font-medium">⏸ Mi-temps prolongations — {slots.filter((s) => s.state?.status === 'extraTimeHalfTime').length} match(s) en pause</span>
-          <Button size="sm" onClick={() => { resumeAll(); setPaused(false); }}>
-            ▶ Reprendre la 2e période de prolongations
-          </Button>
+      {/* Halftime bar */}
+      {isHalftime && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-warning/40 bg-bg/95 backdrop-blur shadow-lg">
+          <div className="px-6 py-3 flex items-center justify-between gap-3">
+            <span className="text-sm font-medium">
+              ⏸ {isExtraHalftime ? 'Mi-temps prolongations' : 'Mi-temps'} — {halftimeSlots.length} match(s) en pause
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setHalftimeTacticOpen((v) => !v)}
+                className="text-xs text-muted hover:text-text border border-border rounded px-2 py-1 transition-colors"
+              >
+                {halftimeTacticOpen ? '▼ Tactiques' : '▶ Tactiques'}
+              </button>
+              <Button size="sm" onClick={() => { resumeAll(); setPaused(false); setHalftimeTacticOpen(false); }}>
+                ▶ Reprendre la 2e {isExtraHalftime ? 'période de prolongations' : 'mi-temps'}
+              </Button>
+            </div>
+          </div>
+
+          {halftimeTacticOpen && (
+            <div className="border-t border-border/40 px-6 py-3 grid gap-3 md:grid-cols-2 lg:grid-cols-3 max-h-64 overflow-y-auto">
+              {halftimeSlots.map((slot) => (
+                <HalftimeTacticRow
+                  key={slot.compMatchId}
+                  slot={slot}
+                  onTacticChange={(side, tactic) => updateSlotTactic(slot.compMatchId, side, {
+                    formation: tactic.formation,
+                    lineup: tactic.lineup,
+                    bench: tactic.bench,
+                    plannedSubs: tactic.plannedSubs,
+                    tacticStyle: tactic.style as TacticStyle,
+                    positionMap: tactic.positionMap,
+                    tokenPositions: tactic.tokenPositions,
+                  })}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -972,16 +1029,78 @@ export default function MultiplexLive() {
         </div>
       )}
 
-      <div className={`grid gap-4 ${slots.length <= 2 ? 'md:grid-cols-2' : slots.length <= 4 ? 'md:grid-cols-2 lg:grid-cols-2' : 'md:grid-cols-2 lg:grid-cols-3'}`}>
+      <div className={`grid gap-3 ${gridCols(slots.length, fullscreen)}`}>
         {slots.map((slot) => (
-          <MatchCard key={slot.compMatchId} slot={slot} />
+          <MatchCard key={slot.compMatchId} slot={slot} compact={fullscreen} />
         ))}
       </div>
     </main>
   );
 }
 
-function MatchCard({ slot }: { slot: import('@/stores/multiplex').MultiplexSlot }) {
+function HalftimeTacticRow({ slot, onTacticChange }: {
+  slot: import('@/stores/multiplex').MultiplexSlot;
+  onTacticChange: (side: 'home' | 'away', tactic: SavedTactic) => void;
+}) {
+  const [homeTactics] = useState<SavedTactic[]>(() => {
+    const local = loadLocalSavedTactics(slot.home.id);
+    return local.savedTactics.length > 0 ? local.savedTactics : (slot.home.savedTactics ?? []);
+  });
+  const [awayTactics] = useState<SavedTactic[]>(() => {
+    const local = loadLocalSavedTactics(slot.away.id);
+    return local.savedTactics.length > 0 ? local.savedTactics : (slot.away.savedTactics ?? []);
+  });
+  const [homeTacticId, setHomeTacticId] = useState('');
+  const [awayTacticId, setAwayTacticId] = useState('');
+
+  function handleChange(side: 'home' | 'away', id: string) {
+    const tactics = side === 'home' ? homeTactics : awayTactics;
+    const tactic = tactics.find((t) => t.id === id);
+    if (!tactic) return;
+    if (side === 'home') setHomeTacticId(id);
+    else setAwayTacticId(id);
+    onTacticChange(side, tactic);
+  }
+
+  if (homeTactics.length === 0 && awayTactics.length === 0) return null;
+
+  return (
+    <div className="rounded-md border border-border bg-surface p-2 space-y-2">
+      <div className="flex items-center gap-2 text-xs font-medium text-muted">
+        {slot.home.flag && <img src={slot.home.flag} alt="" className="h-4 w-4 rounded-sm object-cover" />}
+        <span className="truncate">{slot.home.name}</span>
+        <span className="text-muted/40">vs</span>
+        <span className="truncate">{slot.away.name}</span>
+        {slot.away.flag && <img src={slot.away.flag} alt="" className="h-4 w-4 rounded-sm object-cover" />}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {(['home', 'away'] as const).map((side) => {
+          const tactics = side === 'home' ? homeTactics : awayTactics;
+          const val = side === 'home' ? homeTacticId : awayTacticId;
+          const teamName = side === 'home' ? slot.home.name : slot.away.name;
+          if (tactics.length === 0) return <div key={side} />;
+          return (
+            <div key={side}>
+              <div className="text-[9px] uppercase tracking-widest text-muted mb-0.5 truncate">{teamName}</div>
+              <select
+                value={val}
+                onChange={(e) => handleChange(side, e.target.value)}
+                className="w-full rounded border border-border bg-bg px-1.5 py-1 text-xs text-text"
+              >
+                <option value="">— Inchangée —</option>
+                {tactics.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name} · {t.formationLabel ?? t.formation}</option>
+                ))}
+              </select>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function MatchCard({ slot, compact }: { slot: import('@/stores/multiplex').MultiplexSlot; compact?: boolean }) {
   const state = slot.state;
   const home = slot.home;
   const away = slot.away;
@@ -990,6 +1109,10 @@ function MatchCard({ slot }: { slot: import('@/stores/multiplex').MultiplexSlot 
   const [flash, setFlash] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scoreSize = compact ? 'text-2xl' : 'text-3xl';
+  const flagSize = compact ? 'h-6 w-6' : 'h-8 w-8';
+  const padding = compact ? 'p-2' : 'p-4';
+  const space = compact ? 'space-y-2' : 'space-y-3';
 
   useEffect(() => {
     if (!state) return;
@@ -1021,7 +1144,7 @@ function MatchCard({ slot }: { slot: import('@/stores/multiplex').MultiplexSlot 
 
   return (
     <motion.div
-      className={`rounded-lg border bg-surface p-4 space-y-3 transition-colors ${
+      className={`rounded-lg border bg-surface ${padding} ${space} transition-colors ${
         flash ? 'border-accent shadow-[0_0_20px_rgba(var(--accent-rgb),0.3)]' : 'border-border'
       } ${slot.finished ? 'opacity-80' : ''}`}
       animate={flash ? { scale: [1, 1.02, 1] } : {}}
@@ -1037,9 +1160,9 @@ function MatchCard({ slot }: { slot: import('@/stores/multiplex').MultiplexSlot 
 
       {/* Score */}
       <div className="flex items-center gap-3">
-        <TeamMini team={home} />
+        <TeamMini team={home} flagSize={flagSize} />
         <div className="flex-1 text-center">
-          <div className={`font-display text-3xl tabular-nums ${flash ? 'text-accent' : ''}`}>
+          <div className={`font-display ${scoreSize} tabular-nums ${flash ? 'text-accent' : ''}`}>
             {state?.score.home ?? 0} – {state?.score.away ?? 0}
           </div>
           {slot.leg1Score && (
@@ -1056,7 +1179,7 @@ function MatchCard({ slot }: { slot: import('@/stores/multiplex').MultiplexSlot 
             <div className="text-xs text-muted">tab {state.penaltyScore.home}–{state.penaltyScore.away}</div>
           )}
         </div>
-        <TeamMini team={away} right />
+        <TeamMini team={away} right flagSize={flagSize} />
       </div>
 
       {/* Mini stats bar */}
@@ -1115,13 +1238,13 @@ function MatchCard({ slot }: { slot: import('@/stores/multiplex').MultiplexSlot 
   );
 }
 
-function TeamMini({ team, right }: { team: Team; right?: boolean }) {
+function TeamMini({ team, right, flagSize = 'h-8 w-8' }: { team: Team; right?: boolean; flagSize?: string }) {
   return (
     <div className={`flex flex-col items-center gap-1 flex-1 ${right ? 'items-end' : 'items-start'}`}>
       {team.flag ? (
-        <img src={team.flag} alt="" className="h-8 w-8 object-cover rounded-sm" />
+        <img src={team.flag} alt="" className={`${flagSize} object-cover rounded-sm`} />
       ) : (
-        <div className="h-8 w-8 rounded-sm bg-border" />
+        <div className={`${flagSize} rounded-sm bg-border`} />
       )}
       <span className="text-xs text-muted truncate max-w-[80px]">{team.name}</span>
     </div>
