@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { COACH_TRAIT_LABEL, COACH_TRAIT_DESCRIPTION, POSITIVE_TRAITS, NEGATIVE_TRAITS } from '@/lib/gen/coach';
+import { POSITIONS, POSITION_LABEL, POSITION_FULL } from '@/lib/types';
 
-type Tab = 'moteur' | 'entraineurs' | 'moral' | 'notes' | 'presse';
+type Tab = 'moteur' | 'entraineurs' | 'moral' | 'notes' | 'presse' | 'postes';
 
 const TAB_LABEL: Record<Tab, string> = {
   moteur: 'Moteur de jeu',
@@ -9,6 +10,7 @@ const TAB_LABEL: Record<Tab, string> = {
   moral: 'Moral',
   notes: 'Notes joueurs',
   presse: 'Presse',
+  postes: 'Postes',
 };
 
 export default function Simulation() {
@@ -22,7 +24,7 @@ export default function Simulation() {
       </div>
 
       <div className="flex flex-wrap gap-1 border-b border-border">
-        {(['moteur', 'entraineurs', 'moral', 'notes', 'presse'] as Tab[]).map((t) => (
+        {(['moteur', 'entraineurs', 'moral', 'notes', 'presse', 'postes'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -38,6 +40,7 @@ export default function Simulation() {
       {tab === 'moral' && <MoralTab />}
       {tab === 'notes' && <NotesTab />}
       {tab === 'presse' && <PresseTab />}
+      {tab === 'postes' && <PostesTab />}
     </div>
   );
 }
@@ -652,6 +655,36 @@ function Table({ headers, rows }: { headers: string[]; rows: string[][] }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+
+function PostesTab() {
+  return (
+    <div className="space-y-4 max-w-sm">
+      <div className="overflow-hidden rounded-lg border border-border bg-surface">
+        <table className="w-full text-sm">
+          <thead className="bg-bg text-left text-muted">
+            <tr>
+              <th className="px-4 py-2 font-medium">Abrév.</th>
+              <th className="px-4 py-2 font-medium">Poste</th>
+            </tr>
+          </thead>
+          <tbody>
+            {POSITIONS.map((p) => (
+              <tr key={p} className="border-t border-border">
+                <td className="px-4 py-2">
+                  <span className="rounded bg-border/40 px-2 py-0.5 font-mono text-xs font-medium">
+                    {POSITION_LABEL[p]}
+                  </span>
+                </td>
+                <td className="px-4 py-2 text-text/80">{POSITION_FULL[p]}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

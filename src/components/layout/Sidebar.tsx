@@ -10,9 +10,6 @@ const items: NavItem[] = [
   { to: '/match', label: 'Matchs' },
   { to: '/dashboard/classements-cmf', label: 'Classements CMF' },
   { to: '/dashboard/simulation', label: 'Simulation' },
-  { to: '/dashboard/notes-joueurs', label: 'Notes joueurs' },
-  { to: '/dashboard/postes', label: 'Postes' },
-  { to: '/dashboard/settings', label: 'Réglages' },
 ];
 
 
