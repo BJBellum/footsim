@@ -168,7 +168,12 @@ export default function ClassementsCMF({ embedded }: { embedded?: boolean }) {
           }),
         );
 
-        rankEntries.sort((a, b) => b.points - a.points || b.wins - a.wins || b.finals - a.finals);
+        rankEntries.sort((a, b) =>
+          b.points - a.points ||
+          (b.participations > 0 ? 1 : 0) - (a.participations > 0 ? 1 : 0) ||
+          b.wins - a.wins ||
+          b.finals - a.finals
+        );
         players.sort((a, b) => b.player.overall - a.player.overall);
 
         setTeamEntries(rankEntries);
@@ -762,7 +767,7 @@ function ExpandedTeamDetail({ entry, onPlayerClick }: { entry: TeamRankEntry; on
                     <span className={`rounded border px-1.5 py-0.5 font-medium shrink-0 ${badge.cls}`}>{badgeLabel}</span>
                     <span className="truncate text-muted flex-1">{e.compName}</span>
                     <span className="text-[10px] text-muted shrink-0">{SCOPE_SHORT[e.scope ?? 'autre'] ?? e.scope}</span>
-                    <span className="tabular-nums font-bold text-accent shrink-0">+{pts}</span>
+                    <span className="tabular-nums font-bold text-accent shrink-0">{pts > 0 ? '+' : ''}{pts}</span>
                   </div>
                 );
               })}
@@ -773,7 +778,7 @@ function ExpandedTeamDetail({ entry, onPlayerClick }: { entry: TeamRankEntry; on
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs uppercase tracking-widest text-muted">10 derniers matchs</span>
-            <span className="text-xs tabular-nums text-accent font-bold">+{Math.round(matchTotal * 10) / 10} pts match</span>
+            <span className="text-xs tabular-nums text-accent font-bold">{matchTotal >= 0 ? '+' : ''}{Math.round(matchTotal * 10) / 10} pts match</span>
           </div>
           {recent.length === 0 ? (
             <p className="text-xs text-muted py-2">Aucun match de compétition enregistré.</p>
