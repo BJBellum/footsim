@@ -9,7 +9,8 @@ type Inbound =
   | { type: 'resume' }
   | { type: 'speed'; speed: Speed }
   | { type: 'instant' }
-  | { type: 'manualsub'; side: 'home' | 'away'; outId: string; inId: string };
+  | { type: 'manualsub'; side: 'home' | 'away'; outId: string; inId: string }
+  | { type: 'updatetactic'; side: 'home' | 'away'; input: MatchInput };
 
 type Outbound =
   | { type: 'state'; state: MatchState }
@@ -124,6 +125,15 @@ self.onmessage = (ev: MessageEvent<Inbound>) => {
       if (state && ctx) {
         performManualSub(state, ctx, msg.side, msg.outId, msg.inId);
         send({ type: 'state', state });
+      }
+    } else if (msg.type === 'updatetactic') {
+      if (ctx) {
+        const newCtx = buildCtx(msg.input);
+        if (msg.side === 'home') {
+          ctx = { ...ctx, home: newCtx.home };
+        } else {
+          ctx = { ...ctx, away: newCtx.away };
+        }
       }
     }
   } catch (err) {

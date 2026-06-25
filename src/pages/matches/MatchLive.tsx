@@ -16,7 +16,8 @@ import { SubstitutionPanel } from '@/components/match/SubstitutionPanel';
 
 import { computeMotm } from '@/lib/competition/statsAccumulator';
 import { isRevealed } from '@/lib/sim/corruption';
-import type { Team } from '@/lib/types';
+import type { SavedTactic, TacticStyle, Team } from '@/lib/types';
+import { loadLocalSavedTactics } from '@/lib/localTactics';
 
 export default function MatchLive() {
   const state = useMatch((s) => s.state);
@@ -28,7 +29,10 @@ export default function MatchLive() {
   const resume = useMatch((s) => s.resume);
   const resetMatch = useMatch((s) => s.reset);
   const manualSub = useMatch((s) => s.manualSub);
+  const updateSideTactic = useMatch((s) => s.updateSideTactic);
   const [showSubPanel, setShowSubPanel] = useState(false);
+  const [homeSavedTactics, setHomeSavedTactics] = useState<SavedTactic[]>([]);
+  const [awaySavedTactics, setAwaySavedTactics] = useState<SavedTactic[]>([]);
   const navigate = useNavigate();
   const savedRef = useRef(false);
   const [corruptionRevealed, setCorruptionRevealed] = useState(false);
@@ -84,6 +88,15 @@ export default function MatchLive() {
     setPenaltiesDone(true);
     if (state?.corruption?.accepted && isRevealed()) setCorruptionRevealed(true);
   }
+
+  // Load saved tactics for halftime tactic switcher
+  useEffect(() => {
+    if (!input) return;
+    const hLocal = loadLocalSavedTactics(input.home.team.id);
+    setHomeSavedTactics(hLocal.savedTactics.length > 0 ? hLocal.savedTactics : (input.home.team.savedTactics ?? []));
+    const aLocal = loadLocalSavedTactics(input.away.team.id);
+    setAwaySavedTactics(aLocal.savedTactics.length > 0 ? aLocal.savedTactics : (input.away.team.savedTactics ?? []));
+  }, [input?.home.team.id, input?.away.team.id]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -180,6 +193,19 @@ export default function MatchLive() {
           state={state}
           home={input.home.team}
           away={input.away.team}
+          homeSavedTactics={homeSavedTactics}
+          awaySavedTactics={awaySavedTactics}
+          onTacticChange={(side, tactic) => {
+            updateSideTactic(side, {
+              formation: tactic.formation,
+              lineup: tactic.lineup,
+              bench: tactic.bench,
+              plannedSubs: tactic.plannedSubs,
+              tacticStyle: tactic.style as TacticStyle,
+              positionMap: tactic.positionMap,
+              tokenPositions: tactic.tokenPositions,
+            });
+          }}
           onResume={resume}
         />
       ) : null}

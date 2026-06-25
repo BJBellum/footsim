@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { toast } from '@/components/ui/Toast';
-import type { Formation, Team, TeamTactics, TacticStyle } from '@/lib/types';
+import type { Formation, SavedTactic, Team, TeamTactics, TacticStyle } from '@/lib/types';
 import { TACTIC_STYLE_LABEL } from '@/lib/types';
 import { COACH_TRAIT_LABEL, computeCoachBonuses } from '@/lib/gen/coach';
 import type { CorruptionDeal, MatchRules, Speed } from '@/lib/sim/types';
@@ -13,7 +13,7 @@ import { useTeams } from '@/stores/teams';
 import { useCredentials } from '@/stores/credentials';
 import { useMatch } from '@/stores/match';
 import { useBackendArgs } from '@/hooks/useBackendArgs';
-import { resolveActiveTactic } from '@/lib/localTactics';
+import { resolveActiveTactic, loadLocalSavedTactics } from '@/lib/localTactics';
 
 const FORMATIONS: Formation[] = ['4-3-3', '4-4-2', '3-5-2', '4-2-3-1', '5-3-2', '4-1-4-1', '3-4-3', '4-3-2-1', '4-5-1', '4-4-1-1', '3-4-1-2', '5-4-1', '3-6-1'];
 
@@ -32,6 +32,8 @@ export default function MatchSetup() {
   const [awayFormation, setAwayFormation] = useState<Formation>('4-3-3');
   const [homeTactics, setHomeTactics] = useState<TeamTactics | null>(null);
   const [awayTactics, setAwayTactics] = useState<TeamTactics | null>(null);
+  const [homeSavedTactics, setHomeSavedTactics] = useState<SavedTactic[]>([]);
+  const [awaySavedTactics, setAwaySavedTactics] = useState<SavedTactic[]>([]);
   const [speed, setSpeed] = useState<Speed>('1');
   const [rules, setRules] = useState<MatchRules>(DEFAULT_RULES);
   const [corruption, setCorruption] = useState<CorruptionDeal | null>(null);
@@ -47,6 +49,8 @@ export default function MatchSetup() {
     const tactics = t ? (resolveActiveTactic(t) ?? null) : null;
     setHomeTactics(tactics);
     if (tactics) setHomeFormation(tactics.formation);
+    const local = t ? loadLocalSavedTactics(t.id) : { savedTactics: [] };
+    setHomeSavedTactics(local.savedTactics.length > 0 ? local.savedTactics : (t?.savedTactics ?? []));
   }
 
   function handleAwaySlug(slug: string) {
@@ -55,6 +59,8 @@ export default function MatchSetup() {
     const tactics = t ? (resolveActiveTactic(t) ?? null) : null;
     setAwayTactics(tactics);
     if (tactics) setAwayFormation(tactics.formation);
+    const local = t ? loadLocalSavedTactics(t.id) : { savedTactics: [] };
+    setAwaySavedTactics(local.savedTactics.length > 0 ? local.savedTactics : (t?.savedTactics ?? []));
   }
 
   async function launch() {
@@ -136,6 +142,8 @@ export default function MatchSetup() {
           formation={homeFormation}
           onFormation={setHomeFormation}
           savedTactics={homeTactics}
+          allTactics={homeSavedTactics}
+          onTactics={(t) => { setHomeTactics(t); if (t) setHomeFormation(t.formation); }}
         />
         <SidePicker
           title="Extérieur"
@@ -145,6 +153,8 @@ export default function MatchSetup() {
           formation={awayFormation}
           onFormation={setAwayFormation}
           savedTactics={awayTactics}
+          allTactics={awaySavedTactics}
+          onTactics={(t) => { setAwayTactics(t); if (t) setAwayFormation(t.formation); }}
         />
       </div>
 
@@ -232,7 +242,7 @@ export default function MatchSetup() {
 }
 
 function SidePicker({
-  title, teams, slug, onSlug, formation, onFormation, savedTactics,
+  title, teams, slug, onSlug, formation, onFormation, savedTactics, allTactics, onTactics,
 }: {
   title: string;
   teams: Team[];
@@ -241,6 +251,8 @@ function SidePicker({
   formation: Formation;
   onFormation: (f: Formation) => void;
   savedTactics: TeamTactics | null;
+  allTactics: SavedTactic[];
+  onTactics: (t: SavedTactic | null) => void;
 }) {
   const team = teams.find((t) => t.slug === slug);
   return (
@@ -265,9 +277,27 @@ function SidePicker({
           </div>
         </div>
       ) : null}
+      {allTactics.length > 0 && (
+        <label className="block text-sm">
+          <span className="mb-1 block text-muted">Tactique</span>
+          <select
+            className="h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
+            value={(savedTactics as SavedTactic | null)?.id ?? ''}
+            onChange={(e) => {
+              const t = allTactics.find((x) => x.id === e.target.value) ?? null;
+              onTactics(t);
+            }}
+          >
+            <option value="">— Aucune (auto) —</option>
+            {allTactics.map((t) => (
+              <option key={t.id} value={t.id}>{t.name} · {t.formationLabel ?? t.formation}</option>
+            ))}
+          </select>
+        </label>
+      )}
       {savedTactics && (
         <div className="rounded border border-accent/30 bg-accent/5 px-3 py-2 text-xs text-accent">
-          ✓ Compo sauvegardée · {savedTactics.formationLabel ?? savedTactics.formation} · {(() => {
+          ✓ {(savedTactics as SavedTactic).name ?? 'Compo'} · {savedTactics.formationLabel ?? savedTactics.formation} · {(() => {
             if (savedTactics.activeCustomStyleId) {
               const cs = savedTactics.customStyles?.find((s) => s.id === savedTactics.activeCustomStyleId);
               if (cs) return `🎨 ${cs.name}`;

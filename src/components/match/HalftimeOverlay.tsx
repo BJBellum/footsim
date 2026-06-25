@@ -1,12 +1,33 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import type { MatchState } from '@/lib/sim/types';
-import type { Team } from '@/lib/types';
+import type { SavedTactic, Team } from '@/lib/types';
 
-type Props = { state: MatchState; home: Team; away: Team; onResume: () => void };
+type Props = {
+  state: MatchState;
+  home: Team;
+  away: Team;
+  homeSavedTactics?: SavedTactic[];
+  awaySavedTactics?: SavedTactic[];
+  onTacticChange?: (side: 'home' | 'away', tactic: SavedTactic) => void;
+  onResume: () => void;
+};
 
-export function HalftimeOverlay({ state, home, away, onResume }: Props) {
+export function HalftimeOverlay({ state, home, away, homeSavedTactics = [], awaySavedTactics = [], onTacticChange, onResume }: Props) {
   const isET = state.status === 'extraTimeHalfTime';
+  const [homeTacticId, setHomeTacticId] = useState<string>('');
+  const [awayTacticId, setAwayTacticId] = useState<string>('');
+
+  function handleTacticChange(side: 'home' | 'away', id: string) {
+    const tactics = side === 'home' ? homeSavedTactics : awaySavedTactics;
+    const tactic = tactics.find((t) => t.id === id);
+    if (!tactic) return;
+    if (side === 'home') setHomeTacticId(id);
+    else setAwayTacticId(id);
+    onTacticChange?.(side, tactic);
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -16,7 +37,7 @@ export function HalftimeOverlay({ state, home, away, onResume }: Props) {
       <motion.div
         initial={{ y: 16, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="w-[min(92vw,520px)] space-y-6 rounded-lg border border-border bg-surface p-8 shadow-subtle-md"
+        className="w-[min(92vw,560px)] space-y-6 rounded-lg border border-border bg-surface p-8 shadow-subtle-md"
       >
         <div className="text-center">
           <div className="text-xs uppercase tracking-widest text-muted">
@@ -40,6 +61,42 @@ export function HalftimeOverlay({ state, home, away, onResume }: Props) {
           <span>{home.name}</span>
           <span>{away.name}</span>
         </div>
+
+        {/* Tactic selectors */}
+        {(homeSavedTactics.length > 0 || awaySavedTactics.length > 0) && (
+          <div className="grid grid-cols-2 gap-3">
+            {homeSavedTactics.length > 0 && (
+              <div>
+                <div className="mb-1 text-xs text-muted">{home.name} — Tactique</div>
+                <select
+                  className="h-9 w-full rounded-md border border-border bg-bg px-2 text-xs"
+                  value={homeTacticId}
+                  onChange={(e) => handleTacticChange('home', e.target.value)}
+                >
+                  <option value="">— Inchangée —</option>
+                  {homeSavedTactics.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name} · {t.formationLabel ?? t.formation}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {awaySavedTactics.length > 0 && (
+              <div>
+                <div className="mb-1 text-xs text-muted">{away.name} — Tactique</div>
+                <select
+                  className="h-9 w-full rounded-md border border-border bg-bg px-2 text-xs"
+                  value={awayTacticId}
+                  onChange={(e) => handleTacticChange('away', e.target.value)}
+                >
+                  <option value="">— Inchangée —</option>
+                  {awaySavedTactics.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name} · {t.formationLabel ?? t.formation}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
 
         <Button onClick={onResume} size="lg" className="w-full">
           {isET ? 'Reprendre la 2ᵉ prolongation' : 'Reprendre la 2ᵉ mi-temps'}

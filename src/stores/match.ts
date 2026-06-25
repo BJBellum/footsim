@@ -14,6 +14,9 @@ type State = {
   stop: () => void;
   reset: () => void;
   manualSub: (side: 'home' | 'away', outId: string, inId: string) => void;
+  /** Update tactic for a side at halftime — worker re-precomputes before resuming */
+  updateSideTactic: (side: 'home' | 'away', patch: Partial<MatchInput['home']>) => void;
+
 };
 
 export const useMatch = create<State>((set, get) => ({
@@ -61,5 +64,12 @@ export const useMatch = create<State>((set, get) => ({
   },
   manualSub(side, outId, inId) {
     get().worker?.postMessage({ type: 'manualsub', side, outId, inId });
+  },
+  updateSideTactic(side, patch) {
+    const cur = get().input;
+    if (!cur) return;
+    const next: MatchInput = { ...cur, [side]: { ...cur[side], ...patch } };
+    set({ input: next });
+    get().worker?.postMessage({ type: 'updatetactic', side, input: next });
   },
 }));

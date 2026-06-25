@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { toast } from '@/components/ui/Toast';
@@ -10,6 +11,7 @@ import { StatsPanel } from '@/components/match/StatsPanel';
 import { SpeedControls } from '@/components/match/SpeedControls';
 import { HalftimeOverlay } from '@/components/match/HalftimeOverlay';
 import { GoalCelebration } from '@/components/match/GoalCelebration';
+import { PenaltyShootout } from '@/components/match/PenaltyShootout';
 import { useMatch } from '@/stores/match';
 import { useCompetition } from '@/stores/competition';
 import { useTeams } from '@/stores/teams';
@@ -21,12 +23,12 @@ import { batchUpdateTeamMedical } from '@/lib/github/store';
 import { advanceBracket, applyResultToStandings, applyCorruptionDisqualification, applyPointsPenalty } from '@/lib/competition/scheduler';
 import { rulesForPhase } from '@/lib/competition/types';
 import type { MatchSummary } from '@/lib/competition/types';
-import { resolveActiveTactic } from '@/lib/localTactics';
+import { resolveActiveTactic, loadLocalSavedTactics } from '@/lib/localTactics';
 import { updateMorale, initMorale, MORALE_DEFAULT } from '@/lib/competition/morale';
 import { generateMatchPressItem, generateMoralePressItem, generatePresidencyReboundItem, generateDrameItem, generateDrameHommageItem, generateCmfItems, generateCmfCommunique, generateFormePressItem, generateCoachScandalItem } from '@/lib/competition/press';
 import { createMatchInjury, createSuspension, decrementInjuries, decrementSuspensions, unavailableIds } from '@/lib/competition/injuries';
 
-import type { Team } from '@/lib/types';
+import type { SavedTactic, TacticStyle, Team } from '@/lib/types';
 import type { MatchInput } from '@/lib/sim/types';
 import { accumulateMatchStats, computeAwards, computeMotm, type MotmResult } from '@/lib/competition/statsAccumulator';
 import { isRevealed } from '@/lib/sim/corruption';
@@ -53,6 +55,7 @@ export default function CompetitionMatchLive() {
   const resume = useMatch((s) => s.resume);
   const resetMatch = useMatch((s) => s.reset);
   const startMatch = useMatch((s) => s.start);
+  const updateSideTactic = useMatch((s) => s.updateSideTactic);
 
   const dirty = useCompetition((s) => s.dirty);
   const currentRef = useRef<typeof current>(null);
@@ -61,6 +64,13 @@ export default function CompetitionMatchLive() {
   const [saving, setSaving] = useState(false);
   const [motm, setMotm] = useState<MotmResult | null>(null);
   const [corruptionRevealed, setCorruptionRevealed] = useState(false);
+  const [winnerTeamId, setWinnerTeamId] = useState<string | null>(null);
+  const [isFinal, setIsFinal] = useState(false);
+  const [_compMatchPhase, setCompMatchPhase] = useState<string | null>(null);
+  const [showPenalties, setShowPenalties] = useState(false);
+  const [penaltiesDone, setPenaltiesDone] = useState(false);
+  const [homeSavedTactics, setHomeSavedTactics] = useState<SavedTactic[]>([]);
+  const [awaySavedTactics, setAwaySavedTactics] = useState<SavedTactic[]>([]);
   const savedRef = useRef(false);
   const prevScoreRef = useRef({ home: 0, away: 0 });
   const [celebration, setCelebration] = useState<{ team: Team; score: { home: number; away: number } } | null>(null);
@@ -216,6 +226,22 @@ export default function CompetitionMatchLive() {
     celebTimerRef.current = setTimeout(() => setCelebration(null), 3000);
   }
 
+  // Load saved tactics for halftime tactic switcher
+  useEffect(() => {
+    if (!matchInput) return;
+    const hLocal = loadLocalSavedTactics(matchInput.home.team.id);
+    setHomeSavedTactics(hLocal.savedTactics.length > 0 ? hLocal.savedTactics : (matchInput.home.team.savedTactics ?? []));
+    const aLocal = loadLocalSavedTactics(matchInput.away.team.id);
+    setAwaySavedTactics(aLocal.savedTactics.length > 0 ? aLocal.savedTactics : (matchInput.away.team.savedTactics ?? []));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchInput?.home.team.id, matchInput?.away.team.id]);
+
+  // Trigger penalty animation on finish
+  useEffect(() => {
+    if (!finished || !matchState) return;
+    if (matchState.penaltyScore) setShowPenalties(true);
+  }, [finished, matchState]);
+
   // Save result to competition on finish
   useEffect(() => {
     const snap = currentRef.current ?? current;
@@ -225,6 +251,11 @@ export default function CompetitionMatchLive() {
     async function persist() {
       const compMatch = snap!.matches.find((m) => m.id === matchId);
       if (!compMatch) return;
+
+      // Capture phase for render
+      setCompMatchPhase(compMatch.phase ?? null);
+      const isFinalMatch = compMatch.phase === 'F';
+      setIsFinal(isFinalMatch);
 
       // Check corruption revelation before applying result
       const corruptionActive = (matchState!.corruption?.accepted ?? false) && matchState!.corruption?.side !== 'both';
@@ -279,6 +310,21 @@ export default function CompetitionMatchLive() {
             }
           : m,
       );
+
+      // Determine winner of this specific match
+      {
+        const hs = matchState!.score.home;
+        const as_ = matchState!.score.away;
+        let matchWinner: string | null = null;
+        if (hs > as_) matchWinner = compMatch.homeTeamId ?? null;
+        else if (as_ > hs) matchWinner = compMatch.awayTeamId ?? null;
+        else if (matchState!.penaltyScore) {
+          matchWinner = matchState!.penaltyScore.home > matchState!.penaltyScore.away
+            ? compMatch.homeTeamId ?? null
+            : compMatch.awayTeamId ?? null;
+        }
+        setWinnerTeamId(matchWinner);
+      }
 
       let disqualifiedTeamIds = snap!.disqualifiedTeamIds ?? [];
 
@@ -885,6 +931,19 @@ export default function CompetitionMatchLive() {
           state={matchState}
           home={matchInput.home.team}
           away={matchInput.away.team}
+          homeSavedTactics={homeSavedTactics}
+          awaySavedTactics={awaySavedTactics}
+          onTacticChange={(side, tactic) => {
+            updateSideTactic(side, {
+              formation: tactic.formation,
+              lineup: tactic.lineup,
+              bench: tactic.bench,
+              plannedSubs: tactic.plannedSubs,
+              tacticStyle: tactic.style as TacticStyle,
+              positionMap: tactic.positionMap,
+              tokenPositions: tactic.tokenPositions,
+            });
+          }}
           onResume={resume}
         />
       )}
@@ -894,6 +953,74 @@ export default function CompetitionMatchLive() {
           ⏱ Prolongations en cours
         </div>
       )}
+
+      {showPenalties && matchState && (
+        <PenaltyShootout
+          state={matchState}
+          home={matchInput.home.team}
+          away={matchInput.away.team}
+          onDone={() => { setShowPenalties(false); setPenaltiesDone(true); }}
+        />
+      )}
+
+      <AnimatePresence>
+        {finished && (!matchState.penaltyScore || penaltiesDone) && isFinal && winnerTeamId && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+            onClick={() => setWinnerTeamId(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.6, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', bounce: 0.4, duration: 0.8 }}
+              className="text-center space-y-4 px-8"
+            >
+              <motion.div
+                animate={{ rotate: [0, -8, 8, -5, 5, 0] }}
+                transition={{ delay: 0.6, duration: 1.2 }}
+                className="text-8xl"
+              >
+                🏆
+              </motion.div>
+              <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.4 }}
+                className="text-xs uppercase tracking-widest text-muted"
+              >
+                {current?.name ?? 'Finale'}
+              </motion.div>
+              <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.6 }}
+                className="font-display text-4xl text-white"
+              >
+                {winnerTeamId === matchInput.home.team.id ? matchInput.home.team.name : matchInput.away.team.name}
+              </motion.div>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1 }}
+                className="text-sm text-muted"
+              >
+                Champion{current?.name ? ` · ${current.name}` : ''}
+              </motion.div>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1.6 }}
+                className="text-xs text-muted/60 mt-4"
+              >
+                Cliquer pour continuer
+              </motion.div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {finished && (
         <div className="rounded-lg border border-accent/30 bg-accent/5 p-5 text-center space-y-4">
