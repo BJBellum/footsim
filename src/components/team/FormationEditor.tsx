@@ -75,13 +75,16 @@ function deriveFormation(tokens: TokenState[]): string {
   const am  = positions.filter((p) => p === 'AM').length;
   const att = positions.filter((p) => ['LW', 'ST', 'RW'].includes(p)).length;
 
-  // Build layers: only include non-zero groups
-  const layers = [
-    ...(dm  > 0 ? [dm]  : []),
-    ...(mid > 0 ? [mid] : []),
-    ...(am  > 0 ? [am]  : []),
-  ];
-  // If all mid-tier is zero, fall back to single mid count
+  // DM always separate. AM separate only when DM also present (e.g. 4-2-3-1).
+  // When no DM, AM folds into mid count (e.g. 4-4-1-1 → 4-5-1).
+  const layers = dm > 0
+    ? [
+        dm,
+        ...(mid + am > 0 ? [mid + am] : []),
+      ]
+    : [
+        ...(mid + am > 0 ? [mid + am] : []),
+      ];
   if (layers.length === 0) return `${def}-0-${att}`;
   return `${def}-${layers.join('-')}-${att}`;
 }
