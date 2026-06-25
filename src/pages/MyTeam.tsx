@@ -217,6 +217,11 @@ export default function MyTeam() {
             lineup: Array.isArray(t.lineup) ? t.lineup.map((p: { id: string } | string) => typeof p === 'string' ? p : p.id) : [],
             bench: Array.isArray(t.bench) ? t.bench : undefined,
             plannedSubs: Array.isArray(t.plannedSubs) ? t.plannedSubs : undefined,
+            formationLabel: t.formationLabel,
+            positionMap: t.positionMap,
+            tokenPositions: t.tokenPositions,
+            customStyles: t.customStyles ?? [],
+            activeCustomStyleId: t.activeCustomStyleId,
           }));
           // merge: add imported if id not already present
           const existing = new Set(savedTactics.map((t) => t.id));
@@ -232,8 +237,11 @@ export default function MyTeam() {
             lineup: Array.isArray(json.lineup) ? json.lineup.map((p: { id: string } | string) => typeof p === 'string' ? p : p.id) : [],
             bench: Array.isArray(json.bench) ? json.bench : undefined,
             formationLabel: json.formationLabel,
+            positionMap: json.positionMap,
+            tokenPositions: json.tokenPositions,
             customStyles: json.customStyles ?? [],
             activeCustomStyleId: json.activeCustomStyleId,
+            plannedSubs: Array.isArray(json.plannedSubs) ? json.plannedSubs : undefined,
           };
           const newT: SavedTactic = { ...tactics, id: crypto.randomUUID(), name: json.tacticName ?? `Importée ${savedTactics.length + 1}` };
           const next = [...savedTactics, newT];
