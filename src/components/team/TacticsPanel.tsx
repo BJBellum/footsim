@@ -151,10 +151,50 @@ export function TacticsPanel({ team, players, onSave }: Props) {
   }
 
   function fillBestXI() {
+    // If free-editor formation exists, preserve token positions — only swap players
+    if (tokenPositions && positionMap && lineup.some(Boolean)) {
+      const available = [...players].sort((a, b) => b.overall - a.overall);
+      const picked = new Set<string>();
+      const nextLineup: (string | null)[] = lineup.map((id) => {
+        if (!id) return null;
+        const slotPos = positionMap[id];
+        if (!slotPos) return null;
+        // Find best available player for this position (exact match first, then same family)
+        const isGK = slotPos === 'GK';
+        const families: Record<string, string[]> = {
+          GK: ['GK'],
+          CB: ['CB', 'LB', 'RB'], LB: ['LB', 'CB', 'RB'], RB: ['RB', 'CB', 'LB'],
+          DM: ['DM', 'CM'], CM: ['CM', 'DM', 'AM'], AM: ['AM', 'CM', 'DM'],
+          LM: ['LM', 'CM', 'LW'], RM: ['RM', 'CM', 'RW'],
+          LW: ['LW', 'LM', 'ST'], RW: ['RW', 'RM', 'ST'], ST: ['ST', 'LW', 'RW'],
+        };
+        const family = families[slotPos] ?? [slotPos];
+        let best = available.find((p) => !picked.has(p.id) && p.position === slotPos);
+        if (!best) best = available.find((p) => !picked.has(p.id) && family.includes(p.position));
+        if (!best) best = available.find((p) => !picked.has(p.id) && (isGK ? p.position === 'GK' : p.position !== 'GK'));
+        if (!best) return id; // keep original if no candidate
+        picked.add(best.id);
+        return best.id;
+      });
+      // Remap tokenPositions and positionMap to new player IDs
+      const nextTokenPositions: Record<string, { x: number; y: number }> = {};
+      const nextPositionMap: Record<string, Position> = {};
+      lineup.forEach((oldId, i) => {
+        const newId = nextLineup[i];
+        if (!oldId || !newId) return;
+        if (tokenPositions[oldId]) nextTokenPositions[newId] = tokenPositions[oldId];
+        if (positionMap[oldId]) nextPositionMap[newId] = positionMap[oldId];
+      });
+      setLineup(nextLineup);
+      setTokenPositions(nextTokenPositions);
+      setPositionMap(nextPositionMap);
+      return;
+    }
+    // Standard formation: let pickXI decide, clear custom positions
     const { lineup: auto } = pickXI(players, formation);
     setLineup(auto.map((p) => p.id));
     setTokenPositions(undefined);
-    setPositionMap(undefined); // slot.pos from FORMATION_LAYOUT is used directly (displayPos fallback)
+    setPositionMap(undefined);
   }
 
   function assignPlayer(slotIdx: number, playerId: string) {
