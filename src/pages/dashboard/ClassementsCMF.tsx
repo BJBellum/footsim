@@ -515,10 +515,10 @@ function ExplicationsTab() {
                 {[
                   ['2 équipes', '1v1 / duel direct', '×0.20'],
                   ['3–4 équipes', 'Mini-tournoi', '×0.40'],
-                  ['5–8 équipes', 'Petit groupe', '×0.65'],
-                  ['9–16 équipes', 'Championnat standard', '×1.00'],
-                  ['17–32 équipes', 'Grand tournoi', '×1.15'],
-                  ['33+ équipes', 'Compétition mondiale', '×1.50'],
+                  ['5–8 équipes', 'Petit groupe', '×0.80'],
+                  ['9–16 équipes', 'Championnat standard', '×1.20'],
+                  ['17–32 équipes', 'Grand tournoi', '×1.50'],
+                  ['33+ équipes', 'Compétition mondiale', '×2.00'],
                 ].map(([n, ex, m]) => (
                   <tr key={n} className="border-t border-border">
                     <td className="px-4 py-2 font-medium">{n}</td>
@@ -550,20 +550,20 @@ function ExplicationsTab() {
             <tr>
               <th className="px-4 py-2 text-left">Résultat final</th>
               <th className="px-4 py-2 text-right">Base</th>
-              <th className="px-4 py-2 text-right">Exemple (Intl · Officielle · Prestige)</th>
+              <th className="px-4 py-2 text-right">Exemple (Intl · Off · Prestige · 16 éq.)</th>
             </tr>
           </thead>
           <tbody>
             {[
-              ['Vainqueur', '100', '165'],
-              ['Finaliste', '65', '107'],
-              ['3e place', '45', '74'],
-              ['Demi-finale', '30', '50'],
-              ['Quart de finale', '22', '36'],
-              ['8e de finale', '16', '26'],
-              ['16e de finale', '11', '18'],
-              ['32e de finale', '8', '13'],
-              ['Participant', '8', '13'],
+              ['Vainqueur', '100', '198'],
+              ['Finaliste', '65', '129'],
+              ['3e place', '45', '89'],
+              ['Demi-finale', '30', '59'],
+              ['Quart de finale', '22', '44'],
+              ['8e de finale', '16', '32'],
+              ['16e de finale', '11', '22'],
+              ['32e de finale', '8', '16'],
+              ['Participant', '8', '16'],
             ].map(([r, b, ex]) => (
               <tr key={r} className="border-t border-border">
                 <td className="px-4 py-2">{r}</td>
@@ -574,7 +574,7 @@ function ExplicationsTab() {
           </tbody>
         </table>
         <p className="text-xs text-muted">
-          Les mêmes multiplicateurs portée × statut s'appliquent. Intl · Officielle · Prestige = ×1.5 × 1.0 × 1.1 = ×1.65.
+          Les mêmes multiplicateurs portée × statut × importance × participants s'appliquent. Intl · Off · Prestige · 16 éq. = ×1.5 × 1.0 × 1.1 × 1.2 = ×1.98.
         </p>
       </section>
 

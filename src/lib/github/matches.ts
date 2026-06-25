@@ -30,10 +30,10 @@ const IMPORTANCE_MATCH_MULT: Record<CompetitionImportance, number> = {
 export function participantSizeMult(count: number | undefined): number {
   if (!count || count <= 2) return 0.20;
   if (count <= 4) return 0.40;
-  if (count <= 8) return 0.65;
-  if (count <= 16) return 1.00;
-  if (count <= 32) return 1.15;
-  return 1.50;
+  if (count <= 8) return 0.80;
+  if (count <= 16) return 1.20;
+  if (count <= 32) return 1.50;
+  return 2.00;
 }
 
 function goalDiffBonus(scoreFor: number, scoreAgainst: number): number {
