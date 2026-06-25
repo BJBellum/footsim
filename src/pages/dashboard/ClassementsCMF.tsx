@@ -10,7 +10,7 @@ import type { Continent } from '@/lib/types';
 import { env } from '@/lib/env';
 import type { Team, Position, Player, Formation } from '@/lib/types';
 import type { CompHistoryEntry, CompetitionKind, CompetitionScope, CompetitionImportance } from '@/lib/competition/types';
-import { calcCmfMatchPoints } from '@/lib/github/matches';
+import { calcCmfMatchPoints, participantSizeMult } from '@/lib/github/matches';
 import type { RecentMatchSummary } from '@/lib/github/matches';
 import { pickXI } from '@/lib/sim/lineup';
 import { PlayerView } from '@/components/team/PlayerView';
@@ -56,7 +56,8 @@ function entryPoints(entry: CompHistoryEntry): number {
   const scope = SCOPE_MULT[entry.scope ?? 'autre'];
   const kind = KIND_MULT[entry.kind ?? 'amicale'];
   const importance = IMPORTANCE_MULT[entry.importance ?? 'tournoi'];
-  return Math.round(base * scope * kind * importance);
+  const size = participantSizeMult(entry.participantCount);
+  return Math.round(base * scope * kind * importance * size);
 }
 
 function matchPoints(m: RecentMatchSummary): number {

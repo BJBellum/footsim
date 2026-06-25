@@ -182,6 +182,8 @@ export type CompHistoryEntry = {
   result: 'winner' | 'finalist' | 'third' | 'semi' | 'quarter' | 'round16' | 'round32' | 'round64' | 'participant';
   /** Phase reached (e.g. 'F', 'SF', 'QF', 'R16', 'group') */
   phase?: string;
+  /** Number of teams in the competition (for size multiplier) */
+  participantCount?: number;
 };
 
 export type Competition = {

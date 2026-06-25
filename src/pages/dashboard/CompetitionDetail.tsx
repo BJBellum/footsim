@@ -204,6 +204,7 @@ export default function CompetitionDetail() {
             importance: current.importance,
             result: deriveTeamResult(tid, current),
             phase: deriveTeamPhase(tid, current),
+            participantCount: current.teamIds.length,
           };
           const next = existingIdx >= 0
             ? prev.map((e, i) => i === existingIdx ? entry : e)

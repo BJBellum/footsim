@@ -115,10 +115,11 @@ function editorToSvg(t: { x: number; y: number }): { x: number; y: number } {
 function buildPositionsFromTokens(
   onPitchIds: string[],
   tokenPositions: Record<string, { x: number; y: number }>,
+  fallback: Array<{ x: number; y: number }>,
 ): Array<{ x: number; y: number }> {
-  return onPitchIds.map((id) => {
+  return onPitchIds.map((id, i) => {
     const t = tokenPositions[id];
-    if (!t) return { x: 25, y: 25 };
+    if (!t) return fallback[i] ?? { x: 25, y: 25 };
     return editorToSvg(t);
   });
 }
@@ -135,10 +136,10 @@ export function Pitch({ state, homeFormation, awayFormation, homeColor = '#F4F0E
 
   // Use free-editor token positions when available, else fall back to preset formation layout
   const rawHome = homeTokenPositions
-    ? buildPositionsFromTokens(state.homeOnPitch, homeTokenPositions)
+    ? buildPositionsFromTokens(state.homeOnPitch, homeTokenPositions, FORMATION_POSITIONS[homeFormation])
     : FORMATION_POSITIONS[homeFormation];
   const rawAway = awayTokenPositions
-    ? buildPositionsFromTokens(state.awayOnPitch, awayTokenPositions)
+    ? buildPositionsFromTokens(state.awayOnPitch, awayTokenPositions, FORMATION_POSITIONS[awayFormation])
     : FORMATION_POSITIONS[awayFormation];
 
   // In 1st half: home attacks right (rawHome as-is), away attacks left (mirrored)

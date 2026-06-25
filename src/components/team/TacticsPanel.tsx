@@ -151,6 +151,8 @@ export function TacticsPanel({ team, players, onSave }: Props) {
   function fillBestXI() {
     const { lineup: auto } = pickXI(players, formation);
     setLineup(auto.map((p) => p.id));
+    setTokenPositions(undefined);
+    setPositionMap(undefined);
   }
 
   function assignPlayer(slotIdx: number, playerId: string) {
