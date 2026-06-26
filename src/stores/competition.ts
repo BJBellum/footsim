@@ -127,11 +127,7 @@ export const useCompetition = create<State>((set, get) => ({
   },
 
   saveLocal(competition) {
-    const storeCurrent = get().current;
-    const existingRound = storeCurrent?.id === competition.id ? storeCurrent.currentRound : (lsRead(competition.id)?.currentRound ?? 0);
-    if (existingRound <= competition.currentRound) {
-      lsWrite(competition);
-      set({ current: competition, dirty: true });
-    }
+    lsWrite(competition);
+    set({ current: competition, dirty: true });
   },
 }));
