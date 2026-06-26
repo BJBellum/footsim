@@ -111,6 +111,7 @@ export type RecentMatchSummary = {
   compKind?: import('@/lib/competition/types').CompetitionKind;
   compScope?: import('@/lib/competition/types').CompetitionScope;
   compImportance?: import('@/lib/competition/types').CompetitionImportance;
+  participantCount?: number;
   /** Goal scorers for this team in this match */
   scorers?: import('@/lib/competition/types').GoalEvent[];
   /** Cards (yellow/red) for this team in this match */
@@ -195,6 +196,7 @@ export async function saveMatch(
       compKind: meta?.compKind,
       compScope: meta?.compScope,
       compImportance: meta?.compImportance,
+      participantCount: meta?.participantCount,
       scorers: homeEvents.goals.length ? homeEvents.goals : undefined,
       cards: homeEvents.cards.length ? homeEvents.cards : undefined,
     }, token),
@@ -213,6 +215,7 @@ export async function saveMatch(
       compKind: meta?.compKind,
       compScope: meta?.compScope,
       compImportance: meta?.compImportance,
+      participantCount: meta?.participantCount,
       scorers: awayEvents.goals.length ? awayEvents.goals : undefined,
       cards: awayEvents.cards.length ? awayEvents.cards : undefined,
     }, token),
@@ -369,21 +372,22 @@ export async function resyncCompetitionMatchHistory(
     const scoreHome = m.result!.home;
     const scoreAway = m.result!.away;
 
+    const participantCount = comp.teamIds?.length;
     const homeSummary: RecentMatchSummary = {
       matchId: m.id, playedAt,
       opponentSlug: awaySlug, opponentName: awayName,
       homeTeamId: homeId, awayTeamId: awayId,
       homeAway: 'home', scoreFor: scoreHome, scoreAgainst: scoreAway,
-      opponentStrength: awayStrength, compKind, compScope, compImportance,
-      cmfPoints: calcCmfMatchPoints({ scoreFor: scoreHome, scoreAgainst: scoreAway, opponentStrength: awayStrength, compKind, compScope, compImportance, participantCount: comp.teamIds?.length }),
+      opponentStrength: awayStrength, compKind, compScope, compImportance, participantCount,
+      cmfPoints: calcCmfMatchPoints({ scoreFor: scoreHome, scoreAgainst: scoreAway, opponentStrength: awayStrength, compKind, compScope, compImportance, participantCount }),
     };
     const awaySummary: RecentMatchSummary = {
       matchId: m.id, playedAt,
       opponentSlug: homeSlug, opponentName: homeName,
       homeTeamId: homeId, awayTeamId: awayId,
       homeAway: 'away', scoreFor: scoreAway, scoreAgainst: scoreHome,
-      opponentStrength: homeStrength, compKind, compScope, compImportance,
-      cmfPoints: calcCmfMatchPoints({ scoreFor: scoreAway, scoreAgainst: scoreHome, opponentStrength: homeStrength, compKind, compScope, compImportance, participantCount: comp.teamIds?.length }),
+      opponentStrength: homeStrength, compKind, compScope, compImportance, participantCount,
+      cmfPoints: calcCmfMatchPoints({ scoreFor: scoreAway, scoreAgainst: scoreHome, opponentStrength: homeStrength, compKind, compScope, compImportance, participantCount }),
     };
 
     const hl = bySlug.get(homeSlug) ?? []; hl.push(homeSummary); bySlug.set(homeSlug, hl);

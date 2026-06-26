@@ -69,6 +69,7 @@ function matchPoints(m: RecentMatchSummary): number {
     compKind: m.compKind,
     compScope: m.compScope,
     compImportance: m.compImportance,
+    participantCount: m.participantCount,
   });
 }
 
