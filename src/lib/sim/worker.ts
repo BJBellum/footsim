@@ -1,6 +1,7 @@
 import type { Player } from '@/lib/types';
 import type { MatchInput, MatchState, Speed } from './types';
 import { precomputeSide } from './precompute';
+import { computeMatchupAdjustment } from './matchup';
 import { initialState, tick, performManualSub, type EngineCtx } from './engine';
 
 type Inbound =
@@ -44,15 +45,38 @@ function matchSeedFromId(matchId: string): number {
 
 function buildCtx(input: MatchInput): EngineCtx {
   const seed = matchSeedFromId(input.matchId);
+  const homeRatings = precomputeSide(input.home.players, input.home.formation, input.home.lineup, input.home.tacticStyle, input.home.team.coach, seed, input.home.team.coachSuspended, input.home.customTacticStyle, input.home.morale, input.home.unavailablePlayerIds ? new Set(input.home.unavailablePlayerIds) : undefined, input.home.bench, input.home.plannedSubs, input.home.positionMap);
+  const awayRatings = precomputeSide(input.away.players, input.away.formation, input.away.lineup, input.away.tacticStyle, input.away.team.coach, seed + 1, input.away.team.coachSuspended, input.away.customTacticStyle, input.away.morale, input.away.unavailablePlayerIds ? new Set(input.away.unavailablePlayerIds) : undefined, input.away.bench, input.away.plannedSubs, input.away.positionMap);
+
+  // Cross-side matchup adjustments: formation vs formation + style vs style
+  const homeAdj = computeMatchupAdjustment(
+    input.home.formation, input.away.formation,
+    input.home.tacticStyle, input.home.customTacticStyle,
+    input.away.tacticStyle, input.away.customTacticStyle,
+  );
+  const awayAdj = computeMatchupAdjustment(
+    input.away.formation, input.home.formation,
+    input.away.tacticStyle, input.away.customTacticStyle,
+    input.home.tacticStyle, input.home.customTacticStyle,
+  );
+
+  homeRatings.attack   *= homeAdj.attackMult;
+  homeRatings.defense  *= homeAdj.defenseMult;
+  homeRatings.midfield *= homeAdj.midfieldMult;
+
+  awayRatings.attack   *= awayAdj.attackMult;
+  awayRatings.defense  *= awayAdj.defenseMult;
+  awayRatings.midfield *= awayAdj.midfieldMult;
+
   const home = {
     team: input.home.team,
     players: new Map(input.home.players.map((p: Player) => [p.id, p])),
-    ratings: precomputeSide(input.home.players, input.home.formation, input.home.lineup, input.home.tacticStyle, input.home.team.coach, seed, input.home.team.coachSuspended, input.home.customTacticStyle, input.home.morale, input.home.unavailablePlayerIds ? new Set(input.home.unavailablePlayerIds) : undefined, input.home.bench, input.home.plannedSubs, input.home.positionMap),
+    ratings: homeRatings,
   };
   const away = {
     team: input.away.team,
     players: new Map(input.away.players.map((p: Player) => [p.id, p])),
-    ratings: precomputeSide(input.away.players, input.away.formation, input.away.lineup, input.away.tacticStyle, input.away.team.coach, seed + 1, input.away.team.coachSuspended, input.away.customTacticStyle, input.away.morale, input.away.unavailablePlayerIds ? new Set(input.away.unavailablePlayerIds) : undefined, input.away.bench, input.away.plannedSubs, input.away.positionMap),
+    ratings: awayRatings,
   };
   return { home, away, eventCounter: { v: 0 } };
 }
