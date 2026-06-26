@@ -370,6 +370,11 @@ export async function resyncCompetitionMatchHistory(
     const scoreHome = m.result!.home;
     const scoreAway = m.result!.away;
 
+    // Load stored match file to extract scorers/cards
+    const stored = await readJson<StoredMatch>(MATCH_PATH(m.id), token);
+    const homeEvents = stored ? extractGoalsAndCards(stored.data.events, 'home', []) : { goals: [], cards: [] };
+    const awayEvents = stored ? extractGoalsAndCards(stored.data.events, 'away', []) : { goals: [], cards: [] };
+
     const participantCount = comp.teamIds?.length;
     const homeSummary: RecentMatchSummary = {
       matchId: m.id, playedAt,
@@ -378,6 +383,8 @@ export async function resyncCompetitionMatchHistory(
       homeAway: 'home', scoreFor: scoreHome, scoreAgainst: scoreAway,
       opponentStrength: awayStrength, compKind, compScope, compImportance, participantCount,
       cmfPoints: calcCmfMatchPoints({ scoreFor: scoreHome, scoreAgainst: scoreAway, opponentStrength: awayStrength, compKind, compScope, compImportance, participantCount }),
+      scorers: homeEvents.goals.length ? homeEvents.goals : undefined,
+      cards: homeEvents.cards.length ? homeEvents.cards : undefined,
     };
     const awaySummary: RecentMatchSummary = {
       matchId: m.id, playedAt,
@@ -386,6 +393,8 @@ export async function resyncCompetitionMatchHistory(
       homeAway: 'away', scoreFor: scoreAway, scoreAgainst: scoreHome,
       opponentStrength: homeStrength, compKind, compScope, compImportance, participantCount,
       cmfPoints: calcCmfMatchPoints({ scoreFor: scoreAway, scoreAgainst: scoreHome, opponentStrength: homeStrength, compKind, compScope, compImportance, participantCount }),
+      scorers: awayEvents.goals.length ? awayEvents.goals : undefined,
+      cards: awayEvents.cards.length ? awayEvents.cards : undefined,
     };
 
     const hl = bySlug.get(homeSlug) ?? []; hl.push(homeSummary); bySlug.set(homeSlug, hl);
