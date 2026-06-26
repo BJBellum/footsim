@@ -76,7 +76,12 @@ export const useCompetition = create<State>((set, get) => ({
   async save(competition, token) {
     await saveCompetition(competition, token);
     lsWrite(competition);
-    set({ current: competition, dirty: false });
+    // Only update current if it's still the same version or newer — prevents a stale async save
+    // from overwriting a more recent local state (e.g. round N save completing after round N+1 starts)
+    const storeCurrent = get().current;
+    if (!storeCurrent || storeCurrent.id !== competition.id || storeCurrent.currentRound <= competition.currentRound) {
+      set({ current: competition, dirty: false });
+    }
     const summary: CompetitionSummary = {
       id: competition.id,
       name: competition.name,
