@@ -60,6 +60,8 @@ export default function MultiplexLive() {
   const [pendingUpdate, setPendingUpdate] = useState<Parameters<typeof save>[0] | null>(null);
   const pendingUpdateRef = useRef(pendingUpdate);
   useEffect(() => { pendingUpdateRef.current = pendingUpdate; }, [pendingUpdate]);
+  // Once we've computed results for this round, block any re-fire of the allFinished effect
+  const resultsComputedRef = useRef(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [halftimeTacticOpen, setHalftimeTacticOpen] = useState(false);
 
@@ -222,8 +224,8 @@ export default function MultiplexLive() {
   useEffect(() => {
     const current = currentRef.current;
     const slots = slotsRef.current;
-    console.log('[MultiplexLive allFinished effect]', { allFinished, hasCurrent: !!current, slotsLen: slots.length, hasPendingUpdate: !!pendingUpdateRef.current, currentRound: current?.currentRound, slotsStatus: slots.map(s => s.state?.status) });
-    if (!allFinished || !current || slots.length === 0 || pendingUpdateRef.current) return;
+    console.log('[MultiplexLive allFinished effect]', { allFinished, hasCurrent: !!current, slotsLen: slots.length, hasPendingUpdate: !!pendingUpdateRef.current, resultsComputed: resultsComputedRef.current, currentRound: current?.currentRound, slotsStatus: slots.map(s => s.state?.status) });
+    if (!allFinished || !current || slots.length === 0 || pendingUpdateRef.current || resultsComputedRef.current) return;
 
     let updatedMatches = current.matches;
     let updatedStandings = current.standings;
@@ -820,6 +822,7 @@ export default function MultiplexLive() {
     // Auto-persist to localStorage immediately — ensures currentRound advances
     // even if the user navigates away before clicking "Enregistrer localement"
     console.log('[MultiplexLive] saving nextState', { currentRound: nextState.currentRound, matchStatuses: nextState.matches.map(m => ({ round: m.round, status: m.status })) });
+    resultsComputedRef.current = true;
     saveLocal(nextState);
     setPendingUpdate(nextState);
   // eslint-disable-next-line react-hooks/exhaustive-deps

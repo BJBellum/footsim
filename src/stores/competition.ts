@@ -65,7 +65,12 @@ export const useCompetition = create<State>((set, get) => ({
     const local = lsRead(id);
     console.log('[competition.load]', { id, localRound: local?.currentRound ?? null, storeRound: get().current?.currentRound ?? null });
     if (local) {
-      set({ current: local, dirty: true });
+      // Never regress store to an older round (race: saveLocal may have already advanced it)
+      const storeCurrent = get().current;
+      const storeRound = storeCurrent?.id === id ? storeCurrent.currentRound : 0;
+      if (storeRound <= local.currentRound) {
+        set({ current: local, dirty: true });
+      }
       return local;
     }
     const comp = await loadCompetition(id, token);
