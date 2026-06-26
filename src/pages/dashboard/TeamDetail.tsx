@@ -568,7 +568,7 @@ async function applyNewStrength(strength: number) {
             onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium transition-colors ${tab === t ? 'border-b-2 border-accent text-accent' : 'text-muted hover:text-text'}`}
           >
-            {t === 'roster' ? 'Roster' : t === 'tactique' ? 'Tactique' : t === 'entraineur' ? 'Entraîneur' : t === 'palmares' ? 'Palmarès' : t === 'historique' ? 'Historique' : 'Stats individuelles'}
+            {t === 'roster' ? 'Roster' : t === 'tactique' ? 'Tactique' : t === 'entraineur' ? 'Entraîneur' : t === 'palmares' ? 'Palmarès' : t === 'historique' ? 'Historique' : 'Statistiques individuelles'}
           </button>
         ))}
         <div className="ml-auto">

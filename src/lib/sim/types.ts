@@ -84,8 +84,8 @@ export type CorruptionDeal = {
 
 export type MatchInput = {
   matchId: string;
-  home: { team: Team; players: Player[]; formation: Formation; formationLabel?: string; lineup?: string[]; bench?: string[]; plannedSubs?: import('@/lib/types').PlannedSub[]; tacticStyle?: TacticStyle; customTacticStyle?: import('@/lib/types').CustomTacticStyle; morale?: number; unavailablePlayerIds?: string[]; positionMap?: Record<string, import('@/lib/types').Position>; tokenPositions?: Record<string, { x: number; y: number }> };
-  away: { team: Team; players: Player[]; formation: Formation; formationLabel?: string; lineup?: string[]; bench?: string[]; plannedSubs?: import('@/lib/types').PlannedSub[]; tacticStyle?: TacticStyle; customTacticStyle?: import('@/lib/types').CustomTacticStyle; morale?: number; unavailablePlayerIds?: string[]; positionMap?: Record<string, import('@/lib/types').Position>; tokenPositions?: Record<string, { x: number; y: number }> };
+  home: { team: Team; players: Player[]; formation: Formation; formationLabel?: string; lineup?: string[]; bench?: string[]; plannedSubs?: import('@/lib/types').PlannedSub[]; tacticStyle?: TacticStyle; customTacticStyle?: import('@/lib/types').CustomTacticStyle; morale?: number; unavailablePlayerIds?: string[]; positionMap?: Record<string, import('@/lib/types').Position>; tokenPositions?: Record<string, { x: number; y: number }>; hasTactic?: boolean };
+  away: { team: Team; players: Player[]; formation: Formation; formationLabel?: string; lineup?: string[]; bench?: string[]; plannedSubs?: import('@/lib/types').PlannedSub[]; tacticStyle?: TacticStyle; customTacticStyle?: import('@/lib/types').CustomTacticStyle; morale?: number; unavailablePlayerIds?: string[]; positionMap?: Record<string, import('@/lib/types').Position>; tokenPositions?: Record<string, { x: number; y: number }>; hasTactic?: boolean };
   speed: Speed;
   rules: MatchRules;
   corruption?: CorruptionDeal;

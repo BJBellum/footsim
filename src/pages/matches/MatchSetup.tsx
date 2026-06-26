@@ -95,6 +95,7 @@ export default function MatchSetup() {
           customTacticStyle: homeCustomStyle,
           positionMap: homeTactics?.positionMap,
           tokenPositions: homeTactics?.tokenPositions,
+          hasTactic: !!homeTactics,
         },
         away: {
           team: away.team,
@@ -108,6 +109,7 @@ export default function MatchSetup() {
           customTacticStyle: awayCustomStyle,
           positionMap: awayTactics?.positionMap,
           tokenPositions: awayTactics?.tokenPositions,
+          hasTactic: !!awayTactics,
         },
         speed,
         rules,

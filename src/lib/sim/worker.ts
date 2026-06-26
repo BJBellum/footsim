@@ -48,6 +48,18 @@ function buildCtx(input: MatchInput): EngineCtx {
   const homeRatings = precomputeSide(input.home.players, input.home.formation, input.home.lineup, input.home.tacticStyle, input.home.team.coach, seed, input.home.team.coachSuspended, input.home.customTacticStyle, input.home.morale, input.home.unavailablePlayerIds ? new Set(input.home.unavailablePlayerIds) : undefined, input.home.bench, input.home.plannedSubs, input.home.positionMap);
   const awayRatings = precomputeSide(input.away.players, input.away.formation, input.away.lineup, input.away.tacticStyle, input.away.team.coach, seed + 1, input.away.team.coachSuspended, input.away.customTacticStyle, input.away.morale, input.away.unavailablePlayerIds ? new Set(input.away.unavailablePlayerIds) : undefined, input.away.bench, input.away.plannedSubs, input.away.positionMap);
 
+  // No-tactic penalty: team with no saved tactic selected plays disorganised (-20% across all ratings)
+  if (!input.home.hasTactic) {
+    homeRatings.attack   *= 0.80;
+    homeRatings.midfield *= 0.80;
+    homeRatings.defense  *= 0.80;
+  }
+  if (!input.away.hasTactic) {
+    awayRatings.attack   *= 0.80;
+    awayRatings.midfield *= 0.80;
+    awayRatings.defense  *= 0.80;
+  }
+
   // Cross-side matchup adjustments: formation vs formation + style vs style
   const homeAdj = computeMatchupAdjustment(
     input.home.formation, input.away.formation,

@@ -336,10 +336,9 @@ export default function MyTeam() {
               : t === 'noms' ? 'Noms'
               : t === 'postes' ? 'Postes'
               : t === 'competitions' ? 'Compétitions'
-              : t === 'stats' ? 'Stats individuelles'
+              : t === 'stats' ? 'Statistiques individuelles'
               : t === 'palmares' ? 'Palmarès'
               : t === 'historique' ? 'Historique matchs'
-              : t === 'stats' ? 'Statistiques individuelles'
               : 'Entraîneur'}
           </button>
         ))}
