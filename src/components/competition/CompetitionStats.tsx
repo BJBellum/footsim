@@ -185,7 +185,7 @@ export function CompetitionStats({ playerStats, teams, injuries, suspensions }: 
   const all = Object.values(playerStats);
 
   if (all.length === 0) {
-    return <p className="text-muted text-sm">Aucune statistique — simulez des matchs pour les voir apparaître.</p>;
+    return <p className="text-muted text-sm">Aucune statistique individuelle. Les données apparaissent après les matchs de compétition.</p>;
   }
 
   const topRated = [...all]

@@ -30,7 +30,7 @@ import { PRESS_CATEGORY_COLOR, PRESS_CATEGORY_LABEL, generateCmfItems } from '@/
 import { COACH_TRAIT_LABEL, COACH_TRAIT_DESCRIPTION } from '@/lib/gen/coach';
 import { batchUpdateTeamCompHistory, batchUpdateTeamMedical, batchRemoveTeamRecentMatches } from '@/lib/github/store';
 import { commitFiles, readJson as ghReadJson } from '@/lib/github/api';
-import { resyncCompetitionMatchHistory } from '@/lib/github/matches';
+import { resyncCompetitionMatchHistory, deleteCompetitionMatchFiles } from '@/lib/github/matches';
 import type { Injury, Suspension } from '@/lib/competition/injuries';
 import { SEVERITY_COLOR, CAUSE_LABEL } from '@/lib/competition/injuries';
 
@@ -301,6 +301,13 @@ export default function CompetitionDetail() {
     await ensureTeams();
     setDeleting(true);
     try {
+      // Delete stored match files sequentially (each requires a SHA read first)
+      const matchFileIds = current.matches
+        .filter((m) => m.matchFileId)
+        .map((m) => m.matchFileId as string);
+      if (matchFileIds.length > 0) {
+        await deleteCompetitionMatchFiles(matchFileIds, pat);
+      }
       await remove(current.id, pat);
       const snapshot = current.teamSnapshot ?? {};
       const participatingSlugs = current.teamIds.map((tid) => snapshot[tid]?.slug).filter((s): s is string => !!s);

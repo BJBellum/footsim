@@ -1,7 +1,7 @@
 import type { MatchState, MatchInput } from '@/lib/sim/types';
 import type { Team, Player } from '@/lib/types';
 import type { CompetitionKind, CompetitionScope, CompetitionImportance, GoalEvent, CardEvent } from '@/lib/competition/types';
-import { readJson, writeJson } from './api';
+import { readJson, writeJson, deleteFile } from './api';
 
 // ─── CMF match point formula ─────────────────────────────────────────────────
 // Base: W=3, D=1, L=0  ×  scope multiplier  ×  kind multiplier  ×  importance multiplier  ×  opp factor  ×  size multiplier
@@ -423,4 +423,24 @@ export async function resyncCompetitionMatchHistory(
   }
 
   return { synced, skipped: 0 };
+}
+
+/**
+ * Delete stored match files for a competition sequentially (each needs its SHA fetched first).
+ * Skips matches with no matchFileId or files that don't exist (404).
+ */
+export async function deleteCompetitionMatchFiles(
+  matchFileIds: string[],
+  token: string,
+): Promise<{ deleted: number; skipped: number }> {
+  let deleted = 0;
+  let skipped = 0;
+  for (const fileId of matchFileIds) {
+    const path = MATCH_PATH(fileId);
+    const existing = await readJson<StoredMatch>(path, token);
+    if (!existing) { skipped++; continue; }
+    await deleteFile(path, existing.sha, token, `chore(matches): delete ${fileId}`);
+    deleted++;
+  }
+  return { deleted, skipped };
 }
