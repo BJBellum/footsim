@@ -63,6 +63,7 @@ export const useCompetition = create<State>((set, get) => ({
   async load(id, token) {
     // localStorage wins — it holds unsaved match results
     const local = lsRead(id);
+    console.log('[competition.load]', { id, localRound: local?.currentRound ?? null, storeRound: get().current?.currentRound ?? null });
     if (local) {
       set({ current: local, dirty: true });
       return local;
@@ -114,6 +115,7 @@ export const useCompetition = create<State>((set, get) => ({
     if (c) {
       const storeCurrent = get().current;
       const existingRound = storeCurrent?.id === c.id ? storeCurrent.currentRound : (lsRead(c.id)?.currentRound ?? 0);
+      console.log('[competition.setCurrent]', { newRound: c.currentRound, existingRound, willWrite: existingRound <= c.currentRound });
       if (existingRound <= c.currentRound) {
         lsWrite(c);
         set({ current: c, dirty: true });
