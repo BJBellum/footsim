@@ -20,6 +20,19 @@ function getTacticMods(style?: TacticStyle): TacticMods {
   }
 }
 
+const MOD_CAP = 1.5;
+
+function clampTacticMods(mods: import('./types').TacticMods): import('./types').TacticMods {
+  const clamp = (v: number) => Math.max(0.1, Math.min(MOD_CAP, Number(v) || 1));
+  return {
+    shotFreqMult:  clamp(mods.shotFreqMult),
+    foulRateMult:  clamp(mods.foulRateMult),
+    midfieldMult:  clamp(mods.midfieldMult),
+    attackMult:    clamp(mods.attackMult),
+    defenseMult:   clamp(mods.defenseMult),
+  };
+}
+
 export function precomputeSide(
   roster: Player[],
   formation: Formation,
@@ -45,11 +58,16 @@ export function precomputeSide(
 
   const playerMap = new Map(available.map((p) => [p.id, p]));
 
-  if (customLineup && customLineup.length === 11) {
-    const starters = customLineup.map((id) => playerMap.get(id)).filter(Boolean) as Player[];
+  // Hard-cap: only accept exactly 11 unique IDs — reject any tampered lineup
+  const safeLineup = customLineup
+    ? [...new Set(customLineup)].slice(0, 11)
+    : undefined;
+
+  if (safeLineup && safeLineup.length === 11) {
+    const starters = safeLineup.map((id) => playerMap.get(id)).filter(Boolean) as Player[];
     if (starters.length === 11) {
       lineup = starters;
-      const lineupSet = new Set(customLineup);
+      const lineupSet = new Set(safeLineup);
       if (customBench?.length) {
         // Use custom bench order; fill remaining slots from auto-sort
         const customBenchPlayers = customBench.map((id) => playerMap.get(id)).filter((p): p is Player => !!p && !lineupSet.has(p.id));
@@ -90,7 +108,8 @@ export function precomputeSide(
   const meanAtt = top3Att.length ? avg(top3Att.map((p) => p.overall)) : 10;
   const meanAm = am.length ? avg(am.map((p) => p.overall)) : meanAtt;
 
-  const tacticMods = customTacticStyle ? customTacticStyle.mods : getTacticMods(tacticStyle);
+  const rawMods = customTacticStyle ? customTacticStyle.mods : getTacticMods(tacticStyle);
+  const tacticMods = clampTacticMods(rawMods);
   const coachB = (coach && !coachSuspended) ? computeCoachBonuses(coach, matchSeed) : null;
   const mm = moraleMult(morale ?? 50);
 
