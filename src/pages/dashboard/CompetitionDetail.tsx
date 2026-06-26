@@ -58,7 +58,7 @@ export default function CompetitionDetail() {
   const [syncing, setSyncing] = useState(false);
   const [resyncing, setResyncing] = useState(false);
   const [syncingMedical, setSyncingMedical] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'bracket' | 'rounds' | 'stats' | 'presse' | 'medical' | 'suspensions'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'bracket' | 'rounds' | 'stats' | 'presse' | 'morale' | 'medical' | 'suspensions'>('overview');
   const [knockoutDraw, setKnockoutDraw] = useState<DrawResult | null>(null);
   const [lpmDraw, setLpmDraw] = useState<LPMPair[] | null>(null);
   const [roundDraw, setRoundDraw] = useState<{ round: number; pairs: LPMPair[]; isScheduleDraw?: boolean } | null>(null);
@@ -686,7 +686,7 @@ export default function CompetitionDetail() {
       )}
 
       <div className="flex gap-1 border-b border-border overflow-x-auto">
-        {(['overview', 'bracket', 'rounds', 'stats', 'presse', 'medical', 'suspensions'] as const).map((tab) => (
+        {(['overview', 'bracket', 'rounds', 'stats', 'presse', 'morale', 'medical', 'suspensions'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -701,6 +701,7 @@ export default function CompetitionDetail() {
               : tab === 'rounds' ? 'Journées'
               : tab === 'stats' ? 'Statistiques individuelles'
               : tab === 'presse' ? 'Presse'
+              : tab === 'morale' ? 'Moral'
               : tab === 'medical' ? 'Médical'
               : 'Suspensions'}
             {tab === 'presse' && (current.pressItems?.length ?? 0) > 0 && (
@@ -804,12 +805,19 @@ export default function CompetitionDetail() {
           {activeTab === 'presse' && (
             <PressTab
               pressItems={current.pressItems ?? []}
-              morale={current.morale ?? {}}
               teamMap={teamMap}
               teamIds={current.teamIds}
               playerStats={current.playerStats ?? {}}
               injuries={current.injuries ?? []}
               suspensions={current.suspensions ?? []}
+            />
+          )}
+
+          {activeTab === 'morale' && (
+            <MoraleTab
+              morale={current.morale ?? {}}
+              teamMap={teamMap}
+              teamIds={current.teamIds}
             />
           )}
 
@@ -1675,9 +1683,52 @@ function renderBodyWithMentions(body: string, mentions: PressMention[] | undefin
   );
 }
 
+function MoraleTab({
+  morale,
+  teamMap,
+  teamIds,
+}: {
+  morale: Record<string, number>;
+  teamMap: Record<string, Team>;
+  teamIds: string[];
+}) {
+  const sorted = [...teamIds].sort((a, b) => (morale[b] ?? MORALE_DEFAULT) - (morale[a] ?? MORALE_DEFAULT));
+  return (
+    <div className="space-y-3">
+      <h3 className="text-xs uppercase tracking-widest text-muted">Moral des équipes</h3>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {sorted.map((tid) => {
+          const team = teamMap[tid];
+          const m = morale[tid] ?? MORALE_DEFAULT;
+          const { text, color } = moraleLabel(m);
+          return (
+            <div key={tid} className="flex items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2">
+              {team?.flag && <img src={team.flag} alt="" className="h-7 w-7 object-cover rounded-sm shrink-0" />}
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium">{team?.name ?? tid}</div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <div className="h-1.5 flex-1 rounded-full bg-border overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${m}%`,
+                        background: m >= 70 ? '#4ade80' : m >= 40 ? '#facc15' : '#ef4444',
+                      }}
+                    />
+                  </div>
+                  <span className={`text-[10px] font-medium shrink-0 ${color}`}>{text} ({m})</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function PressTab({
   pressItems,
-  morale,
   teamMap,
   teamIds,
   playerStats,
@@ -1685,7 +1736,6 @@ function PressTab({
   suspensions,
 }: {
   pressItems: PressItem[];
-  morale: Record<string, number>;
   teamMap: Record<string, Team>;
   teamIds: string[];
   playerStats: Record<string, import('@/lib/competition/types').PlayerCompStats>;
@@ -1783,38 +1833,6 @@ function PressTab({
           </div>
         </div>
       )}
-      {/* Moral board */}
-      <div className="space-y-3">
-        <h3 className="text-xs uppercase tracking-widest text-muted">Moral des équipes</h3>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {teamIds.map((tid) => {
-            const team = teamMap[tid];
-            const m = morale[tid] ?? MORALE_DEFAULT;
-            const { text, color } = moraleLabel(m);
-            return (
-              <div key={tid} className="flex items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2">
-                {team?.flag && <img src={team.flag} alt="" className="h-7 w-7 object-cover rounded-sm shrink-0" />}
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">{team?.name ?? tid}</div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <div className="h-1.5 flex-1 rounded-full bg-border overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{
-                          width: `${m}%`,
-                          background: m >= 70 ? '#4ade80' : m >= 40 ? '#facc15' : '#ef4444',
-                        }}
-                      />
-                    </div>
-                    <span className={`text-[10px] font-medium shrink-0 ${color}`}>{text} ({m})</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
       {/* Press articles */}
       <div className="space-y-3">
         <div className="flex items-center gap-2 flex-wrap">

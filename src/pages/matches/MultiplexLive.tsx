@@ -17,7 +17,7 @@ import { CorruptionPanel } from '@/components/match/CorruptionPanel';
 import { isRevealed } from '@/lib/sim/corruption';
 import { resolveActiveTactic, loadLocalSavedTactics } from '@/lib/localTactics';
 import { updateMorale, initMorale, MORALE_DEFAULT } from '@/lib/competition/morale';
-import { generateMatchPressItem, generateMoralePressItem, generatePresidencyReboundItem, generateDrameItem, generateDrameHommageItem, generateCmfItems, generateCmfCommunique, generateFormePressItem, generateCoachScandalItem } from '@/lib/competition/press';
+import { generateMatchPressItem, generateMoralePressItem, generatePresidencyReboundItem, generateDrameItem, generateDrameHommageItem, generateCmfItems, generateCmfCommunique, generateCmfEnqueteItem, generateCmfJugementItem, generateFormePressItem, generateCoachScandalItem } from '@/lib/competition/press';
 import { createMatchInjury, createSuspension, decrementInjuries, decrementSuspensions, unavailableIds } from '@/lib/competition/injuries';
 import { PenaltyShootout } from '@/components/match/PenaltyShootout';
 import type { MatchInput, MatchState, Speed, CorruptionDeal } from '@/lib/sim/types';
@@ -220,33 +220,22 @@ export default function MultiplexLive() {
     let updatedStandings = current.standings;
     let updatedPlayerStats = current.playerStats ?? {};
     let updatedDisqualifiedTeamIds: string[] = current.disqualifiedTeamIds ?? [];
-    let updatedPendingRefusalWalkover: Record<string, number> = { ...(current.pendingRefusalWalkover ?? {}) };
 
     for (const slot of slots) {
       if (!slot.state || slot.state.status !== 'fulltime') continue;
       const compMatch = current.matches.find((m) => m.id === slot.compMatchId);
       if (!compMatch) continue;
 
-      // Check pending walkover from ref refusal enquête (50%)
       const homeId2 = compMatch.homeTeamId;
       const awayId2 = compMatch.awayTeamId;
-      const pendingRefusal = updatedPendingRefusalWalkover;
-      const refusalCheater = (() => {
-        for (const [tid, r] of Object.entries(pendingRefusal)) {
-          if (r === compMatch.round && (homeId2 === tid || awayId2 === tid)) return tid;
-        }
-        return null;
-      })();
-      const refusalWalkover = refusalCheater !== null && Math.random() < 0.5;
-      if (refusalCheater) {
-        const { [refusalCheater]: _, ...rest } = updatedPendingRefusalWalkover;
-        updatedPendingRefusalWalkover = rest;
-      }
 
       const slotCorruption = slot.state.corruption;
       const slotCorruptionActive = (slotCorruption?.accepted ?? false) && slotCorruption?.side !== 'both' && !slotCorruption?.refusedByRef;
       const slotRevealed = slotCorruptionActive && isRevealed();
-      const isSlotWalkover = slotRevealed || refusalWalkover;
+      // refusedByRef: walkover applies to THIS match (50%)
+      const refRefusedActive = (slotCorruption?.refusedByRef ?? false) && slotCorruption?.side !== 'both';
+      const refRefusedWalkover = refRefusedActive && Math.random() < 0.5;
+      const isSlotWalkover = slotRevealed || refRefusedWalkover;
 
       const slotMotm = isSlotWalkover ? null : computeMotm(
         slot.state,
@@ -281,10 +270,12 @@ export default function MultiplexLive() {
         },
       };
 
-      // Determine walkover cheater (from revelation or refusal enquête)
+      // Determine walkover cheater (from revelation or ref refusal)
       const walkoversWinner = (() => {
-        if (refusalWalkover && refusalCheater && homeId2 && awayId2) return refusalCheater;
-        if (slotRevealed && slotCorruption && homeId2 && awayId2) {
+        if (isSlotWalkover && slotCorruption && homeId2 && awayId2) {
+          return slotCorruption.side === 'home' ? homeId2 : awayId2;
+        }
+        if (refRefusedWalkover && slotCorruption && homeId2 && awayId2) {
           return slotCorruption.side === 'home' ? homeId2 : awayId2;
         }
         return null;
@@ -320,16 +311,7 @@ export default function MultiplexLive() {
         );
       }
 
-      // Schedule pending walkover for ref refusal reported this match
-      if (slotCorruption?.refusedByRef && slotCorruption.side !== 'both' && homeId2 && awayId2) {
-        const briberTeamId = slotCorruption.side === 'home' ? homeId2 : awayId2;
-        const nextMatch = current.matches
-          .filter((m) => m.status === 'pending' && (m.homeTeamId === briberTeamId || m.awayTeamId === briberTeamId) && m.round > compMatch.round)
-          .sort((a, b) => a.round - b.round)[0];
-        if (nextMatch) {
-          updatedPendingRefusalWalkover = { ...updatedPendingRefusalWalkover, [briberTeamId]: nextMatch.round };
-        }
-      }
+      // refusedByRef: walkover already applied above (same match). No scheduling needed.
 
       if (!walkoversWinner) {
         if ((compMatch.phase === 'group' || compMatch.phase === 'league') && homeId2 && awayId2) {
@@ -389,7 +371,25 @@ export default function MultiplexLive() {
     // Shared across all slots — prevents double-ban within same round
     const dopingBannedTeamIds = [...(current.disqualifiedTeamIds ?? [])];
     let updatedPendingRebound: Record<string, number> = { ...(current.pendingPresidencyRebound ?? {}) };
+    let updatedPendingCmfEnquete: Record<string, { round: number; matchId?: string; walkoverApplied: boolean }> = { ...(current.pendingCmfEnquete ?? {}) };
     const roundNum2 = current.currentRound;
+
+    // Fire pending CMF judgment articles due this round
+    for (const [enqueteTeamId, enqueteData] of Object.entries(updatedPendingCmfEnquete)) {
+      if (enqueteData.round <= roundNum2) {
+        const enqueteTeamName = current.teamSnapshot?.[enqueteTeamId]?.name ?? enqueteTeamId;
+        updatedPressItems = [...updatedPressItems, generateCmfJugementItem({
+          round: roundNum2,
+          seed: `${current.id}-r${roundNum2}-cmfjugement-${enqueteTeamId}`,
+          teamId: enqueteTeamId,
+          teamName: enqueteTeamName,
+          walkoverApplied: enqueteData.walkoverApplied,
+          matchId: enqueteData.matchId,
+        })];
+        const { [enqueteTeamId]: _consumed, ...restEnquete } = updatedPendingCmfEnquete;
+        updatedPendingCmfEnquete = restEnquete;
+      }
+    }
 
     // Fire pending rebound articles due this round (before processing new matches)
     for (const [reboundTeamId, reboundRound] of Object.entries(updatedPendingRebound)) {
@@ -641,6 +641,39 @@ export default function MultiplexLive() {
           if (coachScandal) updatedPressItems = [...updatedPressItems, coachScandal];
         }
       }
+
+      // CMF enquête — ref dénonce avant le match (refusedByRef)
+      // Generate enquête article now + schedule judgment for next round
+      const slotCorruption3 = slot.state.corruption;
+      if (slotCorruption3?.refusedByRef && slotCorruption3.side !== 'both' && compMatch?.homeTeamId && compMatch?.awayTeamId) {
+        const briberTeamId3 = slotCorruption3.side === 'home' ? compMatch.homeTeamId : compMatch.awayTeamId;
+        const briberName3 = current.teamSnapshot?.[briberTeamId3]?.name ?? briberTeamId3;
+        // Only once per slot — check not already generated this round
+        if (!updatedPendingCmfEnquete[briberTeamId3]) {
+          // refRefusedWalkover was computed in the first loop (slot result loop)
+          // We need the same value — use deterministic check by looking at disqualifiedTeamIds for this match
+          const walkoApplied = updatedDisqualifiedTeamIds.includes(briberTeamId3);
+          const matchSnap3 = {
+            homeTeamId: compMatch.homeTeamId,
+            awayTeamId: compMatch.awayTeamId,
+            homeTeamName: current.teamSnapshot?.[compMatch.homeTeamId]?.name ?? compMatch.homeTeamId,
+            awayTeamName: current.teamSnapshot?.[compMatch.awayTeamId]?.name ?? compMatch.awayTeamId,
+            homeScore: slot.state.score.home,
+            awayScore: slot.state.score.away,
+          };
+          updatedPressItems = [...updatedPressItems, generateCmfEnqueteItem({
+            round: current.currentRound,
+            seed: `${baseSeed}-cmf-enquete-${briberTeamId3}`,
+            teamId: briberTeamId3,
+            teamName: briberName3,
+            matchId: slot.compMatchId,
+            matchSnapshot: matchSnap3,
+          })];
+          // Schedule judgment for next round
+          const nextJudgmentRound = current.currentRound + 1;
+          updatedPendingCmfEnquete = { ...updatedPendingCmfEnquete, [briberTeamId3]: { round: nextJudgmentRound, matchId: slot.compMatchId, walkoverApplied: walkoApplied } };
+        }
+      }
     }
 
     // Injuries + suspensions accumulation
@@ -772,8 +805,8 @@ export default function MultiplexLive() {
       injuries: updatedInjuries,
       suspensions: updatedSuspensions,
       pendingPresidencyRebound: Object.keys(updatedPendingRebound).length > 0 ? updatedPendingRebound : undefined,
-      pendingRefusalWalkover: Object.keys(updatedPendingRefusalWalkover).length > 0 ? updatedPendingRefusalWalkover : undefined,
       pendingDrameHommage: Object.keys(updatedPendingDrameHommage).length > 0 ? updatedPendingDrameHommage : undefined,
+      pendingCmfEnquete: Object.keys(updatedPendingCmfEnquete).length > 0 ? updatedPendingCmfEnquete : undefined,
     };
     // Auto-persist to localStorage immediately — ensures currentRound advances
     // even if the user navigates away before clicking "Enregistrer localement"

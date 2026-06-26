@@ -1152,6 +1152,54 @@ const REFEREE_REPORTED_WALKOVER_PAIRS: [string, string][] = [
   ],
 ];
 
+// ── Templates CMF — enquête ouverte (ref dénonce, avant jugement) ─────────────
+const CMF_ENQUETE_PAIRS: [string, string][] = [
+  [
+    'CMF — Enquête ouverte : {team} visé après dénonciation arbitrale',
+    'L\'arbitre de la rencontre impliquant {team} a transmis à la CMF une déclaration officielle faisant état d\'une tentative de corruption avant le coup d\'envoi. Une enquête disciplinaire est désormais ouverte. Le verdict est attendu lors de la prochaine journée.',
+  ],
+  [
+    'CHOC : l\'arbitre dénonce {team} — la CMF saisie en urgence',
+    'Coup de théâtre : l\'arbitre central a refusé un pot-de-vin proposé par des représentants de {team} et a immédiatement saisi la commission disciplinaire de la CMF. Une enquête express est lancée. La sanction pourrait tomber dès le prochain match.',
+  ],
+  [
+    '{team} sous enquête CMF après approche d\'arbitre avortée',
+    'Des informations troublantes circulent : l\'arbitre désigné pour le match de {team} aurait été approché et aurait tout refusé avant de dénoncer les faits. La CMF a confirmé l\'ouverture d\'une procédure d\'enquête accélérée. Le spectre du tapis vert plane.',
+  ],
+];
+
+// ── Templates CMF — jugement rendu, walkover appliqué ────────────────────────
+const CMF_JUGEMENT_WALKOVER_PAIRS: [string, string][] = [
+  [
+    'CMF — Jugement rendu : {team} perd le match sur tapis vert',
+    'L\'enquête ouverte suite à la dénonciation de l\'arbitre s\'est conclue rapidement. La CMF a statué : la tentative de corruption est avérée. Le match de {team} est annulé, son adversaire déclaré vainqueur 3-0. Une sanction historique qui marque durablement cette compétition.',
+  ],
+  [
+    'OFFICIEL : {team} disqualifié du match pour corruption après enquête CMF',
+    'La commission disciplinaire a rendu son verdict : {team} perd le bénéfice du résultat obtenu sur le terrain. La tentative de corruption de l\'arbitre, dénoncée en amont, est considérée comme prouvée. Tapis vert 3-0 pour l\'adversaire. {team} peut faire appel, sans effet suspensif.',
+  ],
+  [
+    '{team} sanctionné : tapis vert après jugement CMF express',
+    'En moins de 48h, la CMF a bouclé son enquête sur la tentative de corruption visant l\'arbitre de la rencontre précédente de {team}. Verdict sans appel : le résultat du terrain est annulé, le match attribué 3-0 à l\'adversaire. L\'intégrité de la compétition est sauve.',
+  ],
+];
+
+// ── Templates CMF — jugement rendu, classé sans suite ────────────────────────
+const CMF_JUGEMENT_ACQUITTE_PAIRS: [string, string][] = [
+  [
+    'CMF — Enquête classée : {team} blanchi malgré les soupçons',
+    'La commission disciplinaire a conclu son enquête sans retenir de charges suffisantes contre {team}. Les preuves transmises par l\'arbitre n\'ont pas permis d\'établir formellement la culpabilité du club. L\'affaire est classée sans suite, mais le doute subsiste.',
+  ],
+  [
+    'Rebondissement : {team} échappe à la sanction CMF — enquête classée',
+    'Contre toute attente, la CMF a décidé de classer l\'enquête visant {team}. Les éléments factuels recueillis n\'étaient pas suffisants pour prononcer une sanction sportive. {team} retrouve sa sérénité, mais son image reste ternie. La compétition continue.',
+  ],
+  [
+    'CMF — Jugement : {team} acquitté, résultat maintenu',
+    'L\'enquête disciplinaire ouverte après la dénonciation de l\'arbitre s\'est soldée par un non-lieu. La commission n\'a pas pu établir avec certitude la responsabilité de {team}. Le résultat du terrain est donc maintenu. Une décision qui fera débat.',
+  ],
+];
+
 export type RefereeCorruptionOutcome =
   | { kind: 'revealed' }       // arbitre révèle — CMF communiqué corruption (ancien comportement)
   | { kind: 'refused_reported'; penalty: 'points' | 'disqualified' | 'walkover' };
@@ -2263,6 +2311,58 @@ export function generateCmfCommunique(opts: {
     matchId: opts.matchId,
     matchSnapshot: opts.matchSnapshot,
     mentions: mentions.length > 0 ? mentions : undefined,
+  };
+}
+
+/** Press article: CMF opens enquête (ref denounces bribery attempt before match). */
+export function generateCmfEnqueteItem(opts: {
+  round: number;
+  seed: string;
+  teamId: string;
+  teamName: string;
+  matchId?: string;
+  matchSnapshot?: NonNullable<PressItem['matchSnapshot']>;
+}): PressItem {
+  const r = rng(opts.seed + 'enquete');
+  const [headline, body] = pick(CMF_ENQUETE_PAIRS, r);
+  const sub = (s: string) => s.replace(/{team}/g, opts.teamName);
+  return {
+    id: crypto.randomUUID(),
+    round: opts.round,
+    teamId: opts.teamId,
+    category: 'cmf',
+    headline: sub(headline),
+    body: sub(body),
+    createdAt: new Date().toISOString(),
+    matchId: opts.matchId,
+    matchSnapshot: opts.matchSnapshot,
+  };
+}
+
+/** Press article: CMF renders judgment (walkover applied or acquittal). */
+export function generateCmfJugementItem(opts: {
+  round: number;
+  seed: string;
+  teamId: string;
+  teamName: string;
+  walkoverApplied: boolean;
+  matchId?: string;
+  matchSnapshot?: NonNullable<PressItem['matchSnapshot']>;
+}): PressItem {
+  const r = rng(opts.seed + 'jugement');
+  const pairs = opts.walkoverApplied ? CMF_JUGEMENT_WALKOVER_PAIRS : CMF_JUGEMENT_ACQUITTE_PAIRS;
+  const [headline, body] = pick(pairs, r);
+  const sub = (s: string) => s.replace(/{team}/g, opts.teamName);
+  return {
+    id: crypto.randomUUID(),
+    round: opts.round,
+    teamId: opts.teamId,
+    category: 'cmf',
+    headline: sub(headline),
+    body: sub(body),
+    createdAt: new Date().toISOString(),
+    matchId: opts.matchId,
+    matchSnapshot: opts.matchSnapshot,
   };
 }
 
