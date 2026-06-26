@@ -27,6 +27,7 @@ export function initialState(matchId: string, speed: MatchState['speed'], rules:
     events: [],
     shots: { home: 0, away: 0 },
     shotsOnTarget: { home: 0, away: 0 },
+    xg: { home: 0, away: 0 },
     saves: { home: 0, away: 0 },
     passes: { home: 0, away: 0 },
     fouls: { home: 0, away: 0 },
@@ -188,6 +189,7 @@ function resolveShot(
   const com = shooter?.stats.mental.composure ?? 10;
   const gkVal = oppGk?.overall ?? 50;
   const pGoal = clamp(sigmoid((fin + com - gkVal * 0.5) / 8) * pGoalMult, 0.04, 0.75);
+  state.xg[possessing] = Math.round((state.xg[possessing] + pGoal) * 100) / 100;
   const ballZone = zone ?? (possessing === 'home' ? ZONE.awayBox : ZONE.homeBox);
   const onTarget = chance(0.55);
   if (onTarget) {
@@ -245,6 +247,7 @@ function tryPenaltyShot(
   const com = shooter?.stats.mental.composure ?? 10;
   const gkVal = oppGk?.overall ?? 50;
   const pGoal = clamp(sigmoid((fin + com - gkVal * 0.5) / 8) * 1.8, 0.04, 0.75);
+  state.xg[possessing] = Math.round((state.xg[possessing] + pGoal) * 100) / 100;
   const ballZone = possessing === 'home' ? ZONE.awayBox : ZONE.homeBox;
   state.shots[possessing]++;
   const onTarget = chance(0.55);

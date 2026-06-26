@@ -106,6 +106,7 @@ export type MatchState = {
   events: MatchEvent[];
   shots: { home: number; away: number };
   shotsOnTarget: { home: number; away: number };
+  xg: { home: number; away: number };
   saves: { home: number; away: number };
   passes: { home: number; away: number };
   fouls: { home: number; away: number };

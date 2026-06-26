@@ -52,6 +52,7 @@ export function HalftimeOverlay({ state, home, away, homeSavedTactics = [], away
           <Stat label="Possession" h={`${state.possession.home}%`} a={`${state.possession.away}%`} />
           <Stat label="Tirs" h={state.shots.home} a={state.shots.away} />
           <Stat label="Cadrés" h={state.shotsOnTarget.home} a={state.shotsOnTarget.away} />
+          <Stat label="xG" h={state.xg.home.toFixed(2)} a={state.xg.away.toFixed(2)} />
           <Stat label="Fautes" h={state.fouls.home} a={state.fouls.away} />
           <Stat label="Jaunes" h={state.cards.home.yellow.length} a={state.cards.away.yellow.length} />
           <Stat label="Rouges" h={state.cards.home.red.length} a={state.cards.away.red.length} />

@@ -52,6 +52,7 @@ export const IMPORTANCE_MULT: Record<CompetitionImportance, number> = {
 export type MatchStatSnapshot = {
   shots: { home: number; away: number };
   shotsOnTarget: { home: number; away: number };
+  xg?: { home: number; away: number };
   saves: { home: number; away: number };
   passes: { home: number; away: number };
   fouls: { home: number; away: number };
@@ -157,6 +158,7 @@ export type PlayerCompStats = {
   goals: number;
   assists: number;
   cleanSheets: number;
+  saves: number;
   yellowCards: number;
   redCards: number;
   matchRatings: number[];

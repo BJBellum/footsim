@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { COACH_TRAIT_LABEL, COACH_TRAIT_DESCRIPTION, POSITIVE_TRAITS, NEGATIVE_TRAITS } from '@/lib/gen/coach';
 import { POSITIONS, POSITION_LABEL, POSITION_FULL } from '@/lib/types';
 
-type Tab = 'moteur' | 'entraineurs' | 'moral' | 'notes' | 'presse' | 'postes';
+type Tab = 'moteur' | 'entraineurs' | 'moral' | 'notes' | 'presse' | 'postes' | 'statistiques';
 
 const TAB_LABEL: Record<Tab, string> = {
   moteur: 'Moteur de jeu',
@@ -11,6 +11,7 @@ const TAB_LABEL: Record<Tab, string> = {
   notes: 'Notes joueurs',
   presse: 'Presse',
   postes: 'Postes',
+  statistiques: 'Statistiques de match',
 };
 
 export default function Simulation() {
@@ -24,7 +25,7 @@ export default function Simulation() {
       </div>
 
       <div className="flex flex-wrap gap-1 border-b border-border">
-        {(['moteur', 'entraineurs', 'moral', 'notes', 'presse', 'postes'] as Tab[]).map((t) => (
+        {(['moteur', 'entraineurs', 'moral', 'notes', 'presse', 'postes', 'statistiques'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -41,6 +42,7 @@ export default function Simulation() {
       {tab === 'notes' && <NotesTab />}
       {tab === 'presse' && <PresseTab />}
       {tab === 'postes' && <PostesTab />}
+      {tab === 'statistiques' && <StatistiquesTab />}
     </div>
   );
 }
@@ -694,6 +696,56 @@ function PostesTab() {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+function StatistiquesTab() {
+  return (
+    <div className="space-y-10">
+      <Section title="Statistiques de match">
+        <p className="text-muted text-sm">
+          Chaque match produit une série de statistiques calculées en temps réel par le moteur de simulation.
+          Elles sont affichées en live dans le panneau latéral et conservées dans le récapitulatif de la rencontre.
+        </p>
+        <Table
+          headers={['Statistique', 'Description', 'Comment elle est calculée']}
+          rows={[
+            ['Possession', 'Part du ballon contrôlée par chaque équipe (en %)', 'À chaque tick, le camp qui gagne le duel de milieu incrémente son compteur. Le pourcentage final = ticks_domination / total_ticks × 100.'],
+            ['Tirs', 'Nombre total de tentatives (cadrées ou non)', "Incrémenté à chaque fois que l'événement « tir » est déclenché, que ce soit sur action directe, corner, coup franc ou dribble converti."],
+            ['Tirs cadrés', 'Tirs qui auraient obligé le gardien à intervenir sans le poteau ou un dégagement', '55 % de chance qu\'un tir soit cadré. Seuls les tirs cadrés peuvent donner lieu à un but ou un arrêt.'],
+            ['xG (expected goals)', 'Buts attendus : somme des probabilités de but de chaque tir', "Pour chaque tir, pGoal = sigmoid((finition + sang-froid − 0,5 × note_GK) / 8) × multiplicateur, clampé entre 0,04 et 0,75. Cette valeur est ajoutée au total xG de l'équipe. Un xG de 2,1 signifie que l'équipe aurait dû marquer ~2 buts selon la qualité de ses occasions."],
+            ['Arrêts', "Nombre d'interventions du gardien sur tirs cadrés non convertis", 'Incrémenté quand un tir cadré ne mène pas à un but ni à un poteau. Reflète la performance du portier.'],
+            ['Passes', 'Nombre total de passes réalisées', "Incrémenté à chaque tick où l'équipe conserve la possession — chaque minute de contrôle du ballon compte comme une action de passe."],
+            ['Fautes', "Nombre d'infractions commises", "Tirées selon le poids wFaute = 0,08 × foulRateMult de l'adversaire. Chaque faute peut mener à un carton ou un coup franc."],
+            ['Corners', "Nombre de coups de pied de coin accordés", "Déclenchés par l'événement « corner » (poids 0,04 × modificateur shotFreqMult). 45 % des corners donnent lieu à une tête cadrée."],
+            ['Hors-jeu', 'Nombre de positions de hors-jeu sifflées', 'Poids fixe de 0,03 par tick (0 si règle noOffside active). Événement purement narratif, sans conséquence sur le score.'],
+            ['Coups francs', 'Nombre de coups francs obtenus', "Déclenchés avec un poids de 0,03 par tick. 30 % d'entre eux donnent lieu à un tir direct (multiplicateur 0,75)."],
+            ['Passes clés', "Passes menant directement à une occasion franche", "Poids wPasseCle = 0,18 × midfieldMult. Les styles milieu-forts (tiki-taka, gegenpressing) en génèrent davantage."],
+            ['Dribbles', "Tentatives de dribble réussies menant à une situation dangereuse", "Poids wDribble = 0,28 × pAttaque × max(1, attackMult). 40 % débouchent sur un tir (multiplicateur 1,05). La stat dribbling du joueur influence le taux de conversion."],
+            ['Dégagements', "Interventions défensives pour écarter le danger", "Poids wDégagement = 0,03 × (1 − pAttaque) : plus l'équipe est sous pression, plus elle dégage."],
+            ['Cartons jaunes', 'Nombre de cartons jaunes reçus', "Tirés lors des événements foul/faute : 13–19 % de chance selon l'agressivité du joueur. Deux jaunes = rouge automatique."],
+            ['Cartons rouges', 'Nombre d\'expulsions directes', "0,5–1 % de chance par faute (rouge direct). Un rouge retire le joueur du terrain et pénalise la note milieu de l'équipe (×0,93 par expulsion)."],
+          ]}
+        />
+      </Section>
+
+      <Section title="Les xG en détail">
+        <p className="text-muted text-sm">
+          Les xG (expected goals) mesurent la <strong>dangerosité réelle</strong> des occasions, indépendamment de la chance ou de la performance du gardien.
+          Un xG de 0,04 = tir difficile depuis l'angle (4 % de chances de but). Un xG de 0,75 = occasion quasi-immanquable.
+        </p>
+        <ul className="text-sm space-y-2 list-disc list-inside text-muted">
+          <li><strong>Tir normal</strong> — multiplicateur ×1.0. xG ∈ [0,04 ; 0,75].</li>
+          <li><strong>Penalty</strong> (en jeu) — multiplicateur ×1,4. xG ∈ [0,04 ; 0,75].</li>
+          <li><strong>Corner → tête</strong> — multiplicateur ×0,85. Tir plus difficile, moins de précision.</li>
+          <li><strong>Coup franc direct</strong> — multiplicateur ×0,75. Mur défensif réduit l'angle.</li>
+          <li><strong>Dribble → tir</strong> — multiplicateur ×1,05. Légèrement favorisé car le défenseur est éliminé.</li>
+        </ul>
+        <p className="text-muted text-sm mt-2">
+          Comparaison xG vs buts réels : si une équipe totalise 2,8 xG pour 1 but marqué, elle a été malchanceuse ou le gardien adverse a réalisé un match exceptionnel. Si elle marque 3 buts pour 0,9 xG, elle a sur-performé.
+        </p>
+      </Section>
     </div>
   );
 }

@@ -179,6 +179,7 @@ export function accumulateMatchStats(
         goals: 0,
         assists: 0,
         cleanSheets: 0,
+        saves: 0,
         yellowCards: 0,
         redCards: 0,
         matchRatings: [],
@@ -244,6 +245,12 @@ export function accumulateMatchStats(
     if (gk) ensure(gk, away.team).cleanSheets++;
   }
 
+  // Accumulate saves per GK from playerSaves map
+  for (const [pid, saveCount] of Object.entries(state.playerSaves)) {
+    const r = resolvePlayer(pid);
+    if (r) ensure(r[0], r[1]).saves = (ensure(r[0], r[1]).saves ?? 0) + saveCount;
+  }
+
   // Collect all participants: starters (lineup) + subs (players who entered)
   const subEventIds = new Set(
     state.events.filter((e) => e.type === 'substitution' && e.playerId).map((e) => e.playerId!),
@@ -304,9 +311,10 @@ export function computeAwards(
   const byAssists = [...all].sort((a, b) => b.assists - a.assists || b.avgRating - a.avgRating);
   const topAssister = byAssists[0]?.assists > 0 ? byAssists[0].playerId : null;
 
-  // PlayerCompStats lacks position — bestGK = most cleanSheets (tiebreak avgRating)
-  const byCS = [...all].sort((a, b) => b.cleanSheets - a.cleanSheets || b.avgRating - a.avgRating);
-  const bestGK = byCS[0]?.cleanSheets > 0 ? byCS[0].playerId : null;
+  // bestGK = GK position, ranked by saves then cleanSheets then avgRating
+  const gks = all.filter((p) => p.position === 'GK');
+  const byGK = [...gks].sort((a, b) => (b.saves ?? 0) - (a.saves ?? 0) || b.cleanSheets - a.cleanSheets || b.avgRating - a.avgRating);
+  const bestGK = byGK[0]?.playerId ?? null;
 
   const byRating = [...all]
     .filter((p) => p.matchRatings.length >= 1)

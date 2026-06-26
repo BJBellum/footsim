@@ -2216,6 +2216,8 @@ export function generateCmfCommunique(opts: {
   matchSnapshot?: NonNullable<PressItem['matchSnapshot']>;
   /** Player name for doping_player — injected into headline/body via {player} */
   playerName?: string;
+  /** Full player data for doping_player — enables clickable mention */
+  dopingPlayer?: Player;
 }): PressItem {
   const r = rng(opts.seed + 'communique');
   let headline: string;
@@ -2234,6 +2236,22 @@ export function generateCmfCommunique(opts: {
   } else {
     [headline, body] = pick(CMF_COMMUNIQUE_DRAME, r);
   }
+  const mentions: PressMention[] = [];
+  if (opts.type === 'doping_player' && opts.dopingPlayer) {
+    const p = opts.dopingPlayer;
+    mentions.push({
+      type: 'player',
+      name: `${p.firstName} ${p.lastName}`,
+      overall: p.overall,
+      position: p.position,
+      stats: {
+        technical: p.stats.technical as unknown as Record<string, number>,
+        mental: p.stats.mental as unknown as Record<string, number>,
+        physical: p.stats.physical as unknown as Record<string, number>,
+        goalkeeping: p.stats.goalkeeping as unknown as Record<string, number> | undefined,
+      },
+    });
+  }
   return {
     id: crypto.randomUUID(),
     round: opts.round,
@@ -2244,6 +2262,7 @@ export function generateCmfCommunique(opts: {
     createdAt: new Date().toISOString(),
     matchId: opts.matchId,
     matchSnapshot: opts.matchSnapshot,
+    mentions: mentions.length > 0 ? mentions : undefined,
   };
 }
 

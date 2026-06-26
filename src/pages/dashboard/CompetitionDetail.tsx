@@ -573,11 +573,9 @@ export default function CompetitionDetail() {
                 🔧 Réparer noms
               </Button>
             )}
-            {current.status === 'completed' && (
-              <Button size="sm" variant="ghost" onClick={handleResyncMatchHistory} disabled={resyncing}>
-                {resyncing ? <Spinner className="h-4 w-4" /> : '🔄 Resync historique'}
-              </Button>
-            )}
+            <Button size="sm" variant="ghost" onClick={handleResyncMatchHistory} disabled={resyncing}>
+              {resyncing ? <Spinner className="h-4 w-4" /> : '🔄 Resync historique'}
+            </Button>
             {dirty && (
               <Button size="sm" variant="ghost" onClick={handleSync} disabled={syncing}>
                 {syncing ? <Spinner className="h-4 w-4" /> : '↑ Sauvegarder'}
@@ -694,7 +692,7 @@ export default function CompetitionDetail() {
             {tab === 'overview' ? 'Classement'
               : tab === 'bracket' ? 'Tableau'
               : tab === 'rounds' ? 'Journées'
-              : tab === 'stats' ? 'Statistiques'
+              : tab === 'stats' ? 'Statistiques individuelles'
               : tab === 'presse' ? 'Presse'
               : tab === 'medical' ? 'Médical'
               : 'Suspensions'}
@@ -791,6 +789,8 @@ export default function CompetitionDetail() {
             <CompetitionStats
               playerStats={current.playerStats ?? {}}
               teams={teamMap}
+              injuries={current.injuries ?? []}
+              suspensions={current.suspensions ?? []}
             />
           )}
 
@@ -800,6 +800,9 @@ export default function CompetitionDetail() {
               morale={current.morale ?? {}}
               teamMap={teamMap}
               teamIds={current.teamIds}
+              playerStats={current.playerStats ?? {}}
+              injuries={current.injuries ?? []}
+              suspensions={current.suspensions ?? []}
             />
           )}
 
@@ -1232,17 +1235,46 @@ function StatBar({ label, value }: { label: string; value: number }) {
   );
 }
 
-function MentionPopup({ mention, onClose }: { mention: PressMention; onClose: () => void }) {
+function MentionPopup({
+  mention,
+  onClose,
+  playerStats,
+  injuries,
+  suspensions,
+}: {
+  mention: PressMention;
+  onClose: () => void;
+  playerStats?: Record<string, import('@/lib/competition/types').PlayerCompStats>;
+  injuries?: Injury[];
+  suspensions?: Suspension[];
+}) {
   const isPlayer = mention.type === 'player';
   const isCoach = mention.type === 'coach';
   const p = isPlayer ? (mention as PressMentionPlayer) : null;
   const c = isCoach ? (mention as PressMentionCoach) : null;
 
+  // Lookup comp stats by name
+  const compStat = playerStats
+    ? Object.values(playerStats).find((s) => s.playerName === mention.name)
+    : undefined;
+  // Blessure/suspension active pour ce joueur
+  const injury = injuries?.find((i) => i.playerName === mention.name);
+  const suspension = suspensions?.find((s) => s.subjectName === mention.name);
+  // Suspension coach
+  const coachSuspension = isCoach ? suspensions?.find((s) => s.subjectId === 'coach' && s.subjectName === mention.name) : undefined;
+
+  function ratingColor(r: number) {
+    if (r >= 8) return 'text-green-400';
+    if (r >= 7) return 'text-accent';
+    if (r >= 6) return 'text-text';
+    return 'text-muted';
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60" />
       <div
-        className="relative z-10 rounded-xl border border-border bg-surface shadow-2xl w-full max-w-sm max-h-[80vh] overflow-y-auto"
+        className="relative z-10 rounded-xl border border-border bg-surface shadow-2xl w-full max-w-sm max-h-[85vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -1259,7 +1291,89 @@ function MentionPopup({ mention, onClose }: { mention: PressMention; onClose: ()
         </div>
 
         <div className="p-4 space-y-4">
-          {/* Player stats */}
+          {/* Blessure */}
+          {injury && (
+            <div className="rounded border border-danger/30 bg-danger/5 px-3 py-2 flex items-start gap-2">
+              <span className="text-danger text-sm shrink-0">🤕</span>
+              <div className="min-w-0">
+                <div className="text-xs font-medium text-danger">Blessé — {injury.severity}</div>
+                <div className="text-[10px] text-muted mt-0.5">{injury.description} · {injury.matchesRemaining} match{injury.matchesRemaining > 1 ? 's' : ''} restant{injury.matchesRemaining > 1 ? 's' : ''}</div>
+              </div>
+            </div>
+          )}
+
+          {/* Suspension joueur */}
+          {suspension && !isCoach && (
+            <div className="rounded border border-warning/30 bg-warning/5 px-3 py-2 flex items-start gap-2">
+              <span className="text-warning text-sm shrink-0">🟥</span>
+              <div className="min-w-0">
+                <div className="text-xs font-medium text-warning">Suspendu</div>
+                <div className="text-[10px] text-muted mt-0.5">{suspension.reason} · {suspension.matchesRemaining} match{suspension.matchesRemaining > 1 ? 's' : ''} restant{suspension.matchesRemaining > 1 ? 's' : ''}</div>
+              </div>
+            </div>
+          )}
+
+          {/* Suspension coach */}
+          {coachSuspension && (
+            <div className="rounded border border-warning/30 bg-warning/5 px-3 py-2 flex items-start gap-2">
+              <span className="text-warning text-sm shrink-0">🚫</span>
+              <div className="min-w-0">
+                <div className="text-xs font-medium text-warning">Suspendu (banc)</div>
+                <div className="text-[10px] text-muted mt-0.5">{coachSuspension.reason} · {coachSuspension.matchesRemaining} match{coachSuspension.matchesRemaining > 1 ? 's' : ''} restant{coachSuspension.matchesRemaining > 1 ? 's' : ''}</div>
+              </div>
+            </div>
+          )}
+
+          {/* Stats compétition joueur */}
+          {compStat && isPlayer && (
+            <div className="rounded border border-border bg-bg px-3 py-2 space-y-2">
+              <div className="text-[10px] uppercase tracking-widest text-muted">Stats en compétition</div>
+              <div className="grid grid-cols-4 gap-1 text-center">
+                <div>
+                  <div className="text-base font-display tabular-nums">{compStat.goals}</div>
+                  <div className="text-[10px] text-muted">Buts</div>
+                </div>
+                <div>
+                  <div className="text-base font-display tabular-nums">{compStat.assists}</div>
+                  <div className="text-[10px] text-muted">P.D.</div>
+                </div>
+                <div>
+                  <div className={`text-base font-display tabular-nums ${ratingColor(compStat.avgRating)}`}>
+                    {compStat.avgRating > 0 ? compStat.avgRating.toFixed(1) : '—'}
+                  </div>
+                  <div className="text-[10px] text-muted">Note</div>
+                </div>
+                {compStat.motmCount > 0 && (
+                  <div>
+                    <div className="text-base font-display tabular-nums text-yellow-400">{compStat.motmCount}</div>
+                    <div className="text-[10px] text-muted">MOTM</div>
+                  </div>
+                )}
+              </div>
+              {compStat.position === 'GK' && compStat.saves > 0 && (
+                <div className="grid grid-cols-2 gap-1 text-center border-t border-border/50 pt-2">
+                  <div>
+                    <div className="text-base font-display tabular-nums">{compStat.saves}</div>
+                    <div className="text-[10px] text-muted">Arrêts</div>
+                  </div>
+                  <div>
+                    <div className="text-base font-display tabular-nums">{compStat.cleanSheets}</div>
+                    <div className="text-[10px] text-muted">Clean sheets</div>
+                  </div>
+                </div>
+              )}
+              {compStat.matchRatings.length > 0 && (
+                <div className="flex items-center gap-1 pt-1 border-t border-border/50 flex-wrap">
+                  <span className="text-[10px] text-muted mr-1">Forme :</span>
+                  {compStat.matchRatings.slice(-5).map((r, i) => (
+                    <span key={i} className={`text-[10px] font-medium tabular-nums ${ratingColor(r)}`}>{r.toFixed(1)}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Player attributes */}
           {p && (
             <>
               <div className="space-y-1.5">
@@ -1291,7 +1405,7 @@ function MentionPopup({ mention, onClose }: { mention: PressMention; onClose: ()
             </>
           )}
 
-          {/* Coach stats + traits */}
+          {/* Coach stats + traits + forme */}
           {c && (
             <>
               <div className="space-y-1.5">
@@ -1300,6 +1414,17 @@ function MentionPopup({ mention, onClose }: { mention: PressMention; onClose: ()
                   <StatBar key={k} label={COACH_STAT_LABELS[k] ?? k} value={v as number} />
                 ))}
               </div>
+              {/* Forme coach : on utilise le playerStats du coach si dispo (coachId = nom) */}
+              {compStat && compStat.matchRatings.length > 0 && (
+                <div className="rounded border border-border bg-bg px-3 py-2 space-y-1.5">
+                  <div className="text-[10px] uppercase tracking-widest text-muted">Forme récente</div>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {compStat.matchRatings.slice(-5).map((r, i) => (
+                      <span key={i} className={`text-xs font-medium tabular-nums ${ratingColor(r)}`}>{r.toFixed(1)}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
               {c.positiveTraits.length > 0 && (
                 <div className="space-y-1.5">
                   <div className="text-[10px] uppercase tracking-widest text-muted mb-1">Traits positifs</div>
@@ -1330,13 +1455,31 @@ function MentionPopup({ mention, onClose }: { mention: PressMention; onClose: ()
   );
 }
 
-function PlayerCompPopup({ stat, teamMap, onClose }: { stat: import('@/lib/competition/types').PlayerCompStats; teamMap: Record<string, Team>; onClose: () => void }) {
+function PlayerCompPopup({
+  stat,
+  teamMap,
+  onClose,
+  injuries,
+  suspensions,
+}: {
+  stat: import('@/lib/competition/types').PlayerCompStats;
+  teamMap: Record<string, Team>;
+  onClose: () => void;
+  injuries?: Injury[];
+  suspensions?: Suspension[];
+}) {
   const team = teamMap[stat.teamId];
+  const injury = injuries?.find((i) => i.playerName === stat.playerName);
+  const suspension = suspensions?.find((s) => s.subjectName === stat.playerName && s.subjectId !== 'coach');
+  const recentRatings = stat.matchRatings.slice(-5);
+  function rc(r: number) {
+    return r >= 8 ? 'text-green-400' : r >= 7 ? 'text-accent' : r >= 6 ? 'text-text' : 'text-muted';
+  }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60" />
       <div
-        className="relative z-10 rounded-xl border border-border bg-surface shadow-2xl w-full max-w-xs"
+        className="relative z-10 rounded-xl border border-border bg-surface shadow-2xl w-full max-w-sm max-h-[85vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -1352,37 +1495,89 @@ function PlayerCompPopup({ stat, teamMap, onClose }: { stat: import('@/lib/compe
           </div>
           <button onClick={onClose} className="text-muted hover:text-text transition-colors text-lg leading-none">×</button>
         </div>
-        <div className="px-4 py-3 grid grid-cols-3 gap-2 text-center">
-          <div>
-            <div className="text-xl font-display tabular-nums">{stat.goals}</div>
-            <div className="text-[10px] text-muted">Buts</div>
-          </div>
-          <div>
-            <div className="text-xl font-display tabular-nums">{stat.assists}</div>
-            <div className="text-[10px] text-muted">Passes D.</div>
-          </div>
-          <div>
-            <div className={`text-xl font-display tabular-nums ${stat.avgRating >= 8 ? 'text-green-400' : stat.avgRating >= 7 ? 'text-accent' : stat.avgRating >= 6 ? 'text-text' : 'text-muted'}`}>
-              {stat.avgRating > 0 ? stat.avgRating.toFixed(1) : '—'}
-            </div>
-            <div className="text-[10px] text-muted">Note moy.</div>
-          </div>
-          {stat.cleanSheets > 0 && (
-            <div>
-              <div className="text-xl font-display tabular-nums">{stat.cleanSheets}</div>
-              <div className="text-[10px] text-muted">Clean sheets</div>
+        <div className="p-4 space-y-3">
+          {injury && (
+            <div className="rounded border border-danger/30 bg-danger/5 px-3 py-2 flex items-start gap-2">
+              <span className="text-danger text-sm shrink-0">🤕</span>
+              <div className="min-w-0">
+                <div className="text-xs font-medium text-danger">Blessé — {injury.severity}</div>
+                <div className="text-[10px] text-muted mt-0.5">{injury.description} · {injury.matchesRemaining} match{injury.matchesRemaining > 1 ? 's' : ''} restant{injury.matchesRemaining > 1 ? 's' : ''}</div>
+              </div>
             </div>
           )}
-          {stat.yellowCards > 0 && (
-            <div>
-              <div className="text-xl font-display tabular-nums text-yellow-400">{stat.yellowCards}</div>
-              <div className="text-[10px] text-muted">Jaunes</div>
+          {suspension && (
+            <div className="rounded border border-warning/30 bg-warning/5 px-3 py-2 flex items-start gap-2">
+              <span className="text-warning text-sm shrink-0">🟥</span>
+              <div className="min-w-0">
+                <div className="text-xs font-medium text-warning">Suspendu</div>
+                <div className="text-[10px] text-muted mt-0.5">{suspension.reason} · {suspension.matchesRemaining} match{suspension.matchesRemaining > 1 ? 's' : ''} restant{suspension.matchesRemaining > 1 ? 's' : ''}</div>
+              </div>
             </div>
           )}
-          {stat.redCards > 0 && (
+          <div className="grid grid-cols-4 gap-1.5 text-center">
             <div>
-              <div className="text-xl font-display tabular-nums text-danger">{stat.redCards}</div>
-              <div className="text-[10px] text-muted">Rouges</div>
+              <div className="text-xl font-display tabular-nums">{stat.goals}</div>
+              <div className="text-[10px] text-muted">Buts</div>
+            </div>
+            <div>
+              <div className="text-xl font-display tabular-nums">{stat.assists}</div>
+              <div className="text-[10px] text-muted">P.D.</div>
+            </div>
+            <div>
+              <div className={`text-xl font-display tabular-nums ${rc(stat.avgRating)}`}>
+                {stat.avgRating > 0 ? stat.avgRating.toFixed(1) : '—'}
+              </div>
+              <div className="text-[10px] text-muted">Note</div>
+            </div>
+            {stat.motmCount > 0 ? (
+              <div>
+                <div className="text-xl font-display tabular-nums text-yellow-400">{stat.motmCount}</div>
+                <div className="text-[10px] text-muted">MOTM</div>
+              </div>
+            ) : <div />}
+          </div>
+          {stat.position === 'GK' && (stat.saves > 0 || stat.cleanSheets > 0) && (
+            <div className="grid grid-cols-2 gap-1.5 text-center border-t border-border/50 pt-2">
+              {stat.saves > 0 && (
+                <div>
+                  <div className="text-xl font-display tabular-nums">{stat.saves}</div>
+                  <div className="text-[10px] text-muted">Arrêts</div>
+                </div>
+              )}
+              {stat.cleanSheets > 0 && (
+                <div>
+                  <div className="text-xl font-display tabular-nums">{stat.cleanSheets}</div>
+                  <div className="text-[10px] text-muted">Clean sheets</div>
+                </div>
+              )}
+            </div>
+          )}
+          {(stat.yellowCards > 0 || stat.redCards > 0) && (
+            <div className="flex gap-3 justify-center border-t border-border/50 pt-2">
+              {stat.yellowCards > 0 && (
+                <div className="text-center">
+                  <div className="text-base font-display tabular-nums text-yellow-400">{stat.yellowCards}</div>
+                  <div className="text-[10px] text-muted">Jaunes</div>
+                </div>
+              )}
+              {stat.redCards > 0 && (
+                <div className="text-center">
+                  <div className="text-base font-display tabular-nums text-danger">{stat.redCards}</div>
+                  <div className="text-[10px] text-muted">Rouges</div>
+                </div>
+              )}
+            </div>
+          )}
+          {recentRatings.length > 0 && (
+            <div className="border-t border-border/50 pt-2">
+              <div className="text-[10px] uppercase tracking-widest text-muted mb-1.5">Forme récente ({stat.matchRatings.length} matchs)</div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {recentRatings.map((r, i) => (
+                  <span key={i} className={`text-xs font-medium tabular-nums px-1.5 py-0.5 rounded border ${r >= 8 ? 'border-green-800/40 bg-green-950/30 text-green-400' : r >= 7 ? 'border-accent/30 bg-accent/5 text-accent' : r >= 6 ? 'border-border text-text' : 'border-border/50 text-muted'}`}>
+                    {r.toFixed(1)}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -1478,11 +1673,17 @@ function PressTab({
   morale,
   teamMap,
   teamIds,
+  playerStats,
+  injuries,
+  suspensions,
 }: {
   pressItems: PressItem[];
   morale: Record<string, number>;
   teamMap: Record<string, Team>;
   teamIds: string[];
+  playerStats: Record<string, import('@/lib/competition/types').PlayerCompStats>;
+  injuries: Injury[];
+  suspensions: Suspension[];
 }) {
   const [filter, setFilter] = useState<string>('all');
   const [catFilter, setCatFilter] = useState<string>('all');
@@ -1506,7 +1707,7 @@ function PressTab({
 
   return (
     <div className="space-y-6">
-      {activeMention && <MentionPopup mention={activeMention} onClose={() => setActiveMention(null)} />}
+      {activeMention && <MentionPopup mention={activeMention} onClose={() => setActiveMention(null)} playerStats={playerStats} injuries={injuries} suspensions={suspensions} />}
       {matchPopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setMatchPopup(null)}>
           <div className="w-full max-w-sm rounded-xl border border-border bg-surface shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
@@ -1902,7 +2103,7 @@ function MedicalTab({
         </div>
       </div>
       {activeStat && (
-        <PlayerCompPopup stat={activeStat} teamMap={teamMap} onClose={() => setActiveStat(null)} />
+        <PlayerCompPopup stat={activeStat} teamMap={teamMap} onClose={() => setActiveStat(null)} injuries={injuries} />
       )}
     </>
   );
@@ -1991,7 +2192,7 @@ function SuspensionsTab({
         </div>
       )}
       {activeStat && (
-        <PlayerCompPopup stat={activeStat} teamMap={teamMap} onClose={() => setActiveStat(null)} />
+        <PlayerCompPopup stat={activeStat} teamMap={teamMap} onClose={() => setActiveStat(null)} suspensions={suspensions} />
       )}
     </div>
   );

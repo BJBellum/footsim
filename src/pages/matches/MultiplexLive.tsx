@@ -236,6 +236,7 @@ export default function MultiplexLive() {
         stats: {
           shots: ss.shots,
           shotsOnTarget: ss.shotsOnTarget,
+          xg: ss.xg,
           saves: ss.saves ?? { home: 0, away: 0 },
           passes: ss.passes ?? { home: 0, away: 0 },
           fouls: ss.fouls,
@@ -476,11 +477,13 @@ export default function MultiplexLive() {
           updatedDopingSuspensions = [...updatedDopingSuspensions, dopingSuspension];
           dopingBannedTeamIds.push(tid);
           matchDopingOccurred = true;
+          const dopingPlayerObj = [...slot.homePlayers, ...slot.awayPlayers].find((p) => p.id === dopingSuspension.subjectId);
           updatedPressItems = [...updatedPressItems, generateCmfCommunique({
             round: current.currentRound,
             seed: `${baseSeed}-cmf-dop-${tid}`,
             type: 'doping_player',
             playerName: dopingSuspension.subjectName,
+            dopingPlayer: dopingPlayerObj,
             matchId: slot.compMatchId,
             matchSnapshot: slotMatchSnap,
           })];
@@ -678,9 +681,8 @@ export default function MultiplexLive() {
         const nextPhaseMatches = updatedMatches.filter((m) => m.phase !== ph && m.status === 'pending');
         const nextPh = nextPhaseMatches[0]?.phase;
         const qualifiedForNext = nextPh ? [...new Set(nextPhaseMatches.flatMap((m) => [m.homeTeamId, m.awayTeamId]).filter((id): id is string => !!id))] : [];
-        // Pour "fin", favoris = qualifiés pour la suite (pas les éliminés de cette phase)
-        const finQualified = qualifiedForNext.length > 0 ? qualifiedForNext : [...new Set(phaseMatches.flatMap((m) => [m.homeTeamId, m.awayTeamId]).filter((id): id is string => !!id))];
-        updatedPressItems = [...updatedPressItems, ...generateCmfItems({ ...cmfBase, seed: `${current.id}-r${roundNum}-cmf-fin-${ph}`, phase: ph, moment: 'fin', qualifiedTeamIds: finQualified.length > 0 ? finQualified : undefined })];
+        // Pour "fin", favoris = qualifiés pour la suite uniquement (jamais les éliminés)
+        updatedPressItems = [...updatedPressItems, ...generateCmfItems({ ...cmfBase, seed: `${current.id}-r${roundNum}-cmf-fin-${ph}`, phase: ph, moment: 'fin', qualifiedTeamIds: qualifiedForNext.length > 0 ? qualifiedForNext : undefined })];
         if (nextPh) {
           const playoffPairsForNext = nextPh === 'lpm_playoff'
             ? updatedMatches.filter((m) => m.phase === 'lpm_playoff' && m.leg === 1 && m.homeTeamId && m.awayTeamId).map((m) => ({ homeTeamId: m.homeTeamId!, awayTeamId: m.awayTeamId! }))

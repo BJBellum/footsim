@@ -33,7 +33,7 @@ function CardRow({ label, home, away }: { label: string; home: number; away: num
 
 function StatRows({ s, yellowCards, redCards }: {
   s: {
-    possession: StatSide; shots: StatSide; shotsOnTarget: StatSide; saves?: StatSide;
+    possession: StatSide; shots: StatSide; shotsOnTarget: StatSide; xg?: StatSide; saves?: StatSide;
     passes?: StatSide; fouls: StatSide; corners?: StatSide; offsides?: StatSide;
     freekicks?: StatSide; dribbles?: StatSide; clearances?: StatSide; keyPasses?: StatSide;
   };
@@ -45,6 +45,7 @@ function StatRows({ s, yellowCards, redCards }: {
       <Bar label="Possession" home={s.possession.home} away={s.possession.away} suffix="%" />
       <Bar label="Tirs" home={s.shots.home} away={s.shots.away} />
       <Bar label="Tirs cadrés" home={s.shotsOnTarget.home} away={s.shotsOnTarget.away} />
+      {s.xg && <Bar label="xG" home={s.xg.home} away={s.xg.away} />}
       {s.saves && <Bar label="Arrêts" home={s.saves.home} away={s.saves.away} />}
       {s.passes && <Bar label="Passes" home={s.passes.home} away={s.passes.away} />}
       <Bar label="Fautes" home={s.fouls.home} away={s.fouls.away} />
