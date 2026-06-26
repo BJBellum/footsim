@@ -339,6 +339,7 @@ export default function MyTeam() {
               : t === 'stats' ? 'Stats individuelles'
               : t === 'palmares' ? 'Palmarès'
               : t === 'historique' ? 'Historique matchs'
+              : t === 'stats' ? 'Statistiques individuelles'
               : 'Entraîneur'}
           </button>
         ))}
@@ -533,7 +534,6 @@ export default function MyTeam() {
       {tab === 'stats' && (
         <MyTeamStatsTab
           recentMatches={data.team.recentMatches ?? []}
-          compHistory={data.team.compHistory ?? []}
           players={data.players}
         />
       )}
@@ -876,11 +876,9 @@ const RESULT_COLOR: Record<CompHistoryEntry['result'], string> = {
 
 function MyTeamStatsTab({
   recentMatches,
-  compHistory,
   players,
 }: {
   recentMatches: RecentMatchSummary[];
-  compHistory: CompHistoryEntry[];
   players: Player[];
 }) {
   type PlayerStat = { goals: number; assists: number };
@@ -906,9 +904,7 @@ function MyTeamStatsTab({
     .filter((r) => r.player)
     .sort((a, b) => b.goals - a.goals || b.assists - a.assists);
 
-  const wins = compHistory.filter((e) => e.result === 'winner');
-
-  if (rows.length === 0 && wins.length === 0) {
+  if (rows.length === 0) {
     return (
       <div className="py-16 text-center text-muted text-sm">
         Aucune statistique individuelle. Les données apparaissent après les matchs de compétition.
@@ -944,23 +940,6 @@ function MyTeamStatsTab({
                 ))}
               </tbody>
             </table>
-          </div>
-        </section>
-      )}
-
-      {wins.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="font-display text-xl">Palmarès de l'équipe</h2>
-          <div className="space-y-2">
-            {wins.map((e, i) => (
-              <div key={i} className="flex items-center gap-3 rounded-lg border border-warning/30 bg-warning/5 px-4 py-3">
-                <span className="text-xl">🏆</span>
-                <div>
-                  <div className="font-medium text-sm">{e.compName}</div>
-                  <div className="text-xs text-muted">{e.year ?? '—'} · {FORMAT_LABEL[e.format]}</div>
-                </div>
-              </div>
-            ))}
           </div>
         </section>
       )}
