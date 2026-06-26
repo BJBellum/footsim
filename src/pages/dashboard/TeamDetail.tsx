@@ -1553,7 +1553,10 @@ function StatsIndividuellesTab({
     setResyncing(true);
     try {
       const { readJson } = await import('@/lib/github/api');
-      const comps = await listCompetitions(pat);
+      const { listTeams } = await import('@/lib/github/store');
+      const [comps, allTeams] = await Promise.all([listCompetitions(pat), listTeams(pat)]);
+      const teamSlugs: Record<string, string> = {};
+      for (const t of allTeams) teamSlugs[t.id] = t.slug;
       let synced = 0;
       for (const summary of comps) {
         // Include both ongoing and completed competitions
@@ -1571,6 +1574,7 @@ function StatsIndividuellesTab({
           compKind: comp.data.kind,
           compScope: comp.data.scope,
           compImportance: comp.data.importance,
+          teamSlugs,
         });
         synced += r.synced;
         if (r.skipped > 0) toast('info', `${summary.name} : ${r.skipped} match(s) ignorés (pas de fichier match).`);

@@ -260,11 +260,16 @@ export default function CompetitionDetail() {
         const snap = current.teamSnapshot?.[id];
         if (snap?.globalStrength) strengths[id] = snap.globalStrength;
       }
+      const { listTeams } = await import('@/lib/github/store');
+      const allTeams = await listTeams(pat);
+      const teamSlugs: Record<string, string> = {};
+      for (const t of allTeams) teamSlugs[t.id] = t.slug;
       const { synced } = await resyncCompetitionMatchHistory(current, pat, {
         compKind: current.kind,
         compScope: current.scope,
         compImportance: current.importance,
         teamStrengths: strengths,
+        teamSlugs,
       });
       const processed = current.matches.filter(m => m.status === 'completed' && m.result != null).length;
       toast('success', `Historique resynchronisé : ${synced} équipes mises à jour (${processed} matchs traités).`);

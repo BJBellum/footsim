@@ -342,7 +342,7 @@ async function doAppendRecent(team: Team, summary: RecentMatchSummary, token: st
 export async function resyncCompetitionMatchHistory(
   comp: import('@/lib/competition/types').Competition,
   token: string,
-  meta?: { compKind?: CompetitionKind; compScope?: CompetitionScope; compImportance?: CompetitionImportance; teamStrengths?: Record<string, number> },
+  meta?: { compKind?: CompetitionKind; compScope?: CompetitionScope; compImportance?: CompetitionImportance; teamStrengths?: Record<string, number>; teamSlugs?: Record<string, string> },
 ): Promise<{ synced: number; skipped: number }> {
   const compKind = meta?.compKind ?? comp.kind;
   const compScope = meta?.compScope ?? comp.scope;
@@ -360,8 +360,8 @@ export async function resyncCompetitionMatchHistory(
     const awayId = m.awayTeamId!;
     const homeSnap = snapshot[homeId];
     const awaySnap = snapshot[awayId];
-    const homeSlug = homeSnap?.slug ?? homeId;
-    const awaySlug = awaySnap?.slug ?? awayId;
+    const homeSlug = meta?.teamSlugs?.[homeId] ?? homeSnap?.slug ?? homeId;
+    const awaySlug = meta?.teamSlugs?.[awayId] ?? awaySnap?.slug ?? awayId;
     const homeName = homeSnap?.name ?? homeId;
     const awayName = awaySnap?.name ?? awayId;
     const homeStrength = (meta?.teamStrengths?.[homeId] ?? homeSnap?.globalStrength) ?? 50;
