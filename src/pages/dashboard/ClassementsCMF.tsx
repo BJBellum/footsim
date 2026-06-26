@@ -5,6 +5,7 @@ import { toast } from '@/components/ui/Toast';
 import { useCredentials } from '@/stores/credentials';
 import { useBackendArgs } from '@/hooks/useBackendArgs';
 import { listTeams, loadTeam } from '@/lib/github/store';
+import { listCompetitions } from '@/lib/github/competitions';
 import { POSITION_LABEL, CULTURE_LABEL, CONTINENT_LABEL } from '@/lib/types';
 import type { Continent } from '@/lib/types';
 import { env } from '@/lib/env';
@@ -121,7 +122,12 @@ export default function ClassementsCMF({ embedded }: { embedded?: boolean }) {
   useEffect(() => {
     async function load() {
       try {
-        const teams = await listTeams(token);
+        const [teams, allSummaries] = await Promise.all([
+          listTeams(token),
+          listCompetitions(token),
+        ]);
+        const ongoingSummaries = allSummaries.filter((s) => s.status === 'ongoing');
+
         const rankEntries: TeamRankEntry[] = [];
         const players: PlayerEntry[] = [];
 
@@ -162,6 +168,9 @@ export default function ClassementsCMF({ embedded }: { embedded?: boolean }) {
               m.scoreFor > m.scoreAgainst ? 'W' : m.scoreFor === m.scoreAgainst ? 'D' : 'L',
             );
 
+            // Count ongoing participations not yet in compHistory
+            const ongoingCount = ongoingSummaries.filter((s) => s.teamIds?.includes(team.id)).length;
+
             rankEntries.push({
               team,
               players: teamPlayers,
@@ -169,7 +178,7 @@ export default function ClassementsCMF({ embedded }: { embedded?: boolean }) {
               wins,
               finals,
               thirds,
-              participations: history.length,
+              participations: history.length + ongoingCount,
               form,
             });
           }),
