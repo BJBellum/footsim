@@ -175,6 +175,7 @@ export default function MultiplexLive() {
                 tacticStyle: homeTactics?.style,
                 morale: moraleMap[m.homeTeamId!] ?? MORALE_DEFAULT,
                 unavailablePlayerIds: [...homeUnavail].filter((id) => id !== 'coach'),
+                hasTactic: !!homeTactics,
               },
               away: {
                 team: awayData.team,
@@ -186,6 +187,7 @@ export default function MultiplexLive() {
                 tacticStyle: awayTactics?.style,
                 morale: moraleMap[m.awayTeamId!] ?? MORALE_DEFAULT,
                 unavailablePlayerIds: [...awayUnavail].filter((id) => id !== 'coach'),
+                hasTactic: !!awayTactics,
               },
               speed: globalSpeed,
               rules: (m.phase === 'lpm_playoff' && m.leg === 1)

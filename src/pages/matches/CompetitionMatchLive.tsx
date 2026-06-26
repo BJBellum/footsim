@@ -185,6 +185,7 @@ export default function CompetitionMatchLive() {
             positionMap: homeTactics?.positionMap,
             tokenPositions: homeTactics?.tokenPositions,
             formationLabel: homeTactics?.formationLabel,
+            hasTactic: !!homeTactics,
           },
           away: {
             team: awayData.team,
@@ -197,6 +198,7 @@ export default function CompetitionMatchLive() {
             tacticStyle: awayTactics?.style,
             morale: moraleMap[compMatch.awayTeamId!] ?? MORALE_DEFAULT,
             unavailablePlayerIds: [...awayUnavail].filter((id) => id !== 'coach'),
+            hasTactic: !!awayTactics,
             positionMap: awayTactics?.positionMap,
             tokenPositions: awayTactics?.tokenPositions,
           },
