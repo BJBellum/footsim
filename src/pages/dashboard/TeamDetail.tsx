@@ -749,6 +749,7 @@ async function applyNewStrength(strength: number) {
           recentMatches={team.recentMatches ?? []}
           players={players}
           teamSlug={team.slug}
+          teamId={team.id}
           pat={effectivePat}
           onResync={(updated) => mutate({ team: { ...team, recentMatches: updated }, players })}
         />
@@ -1534,12 +1535,14 @@ function StatsIndividuellesTab({
   recentMatches,
   players,
   teamSlug,
+  teamId,
   pat,
   onResync,
 }: {
   recentMatches: RecentMatchSummary[];
   players: Player[];
   teamSlug: string;
+  teamId: string;
   pat: string | null;
   onResync: (updated: RecentMatchSummary[]) => void;
 }) {
@@ -1561,7 +1564,7 @@ function StatsIndividuellesTab({
         if (!comp) continue;
         const teamInComp = comp.data.teamIds.some((id) => {
           const snap = comp.data.teamSnapshot?.[id];
-          return snap?.slug === teamSlug || id === teamSlug;
+          return snap?.slug === teamSlug || id === teamSlug || id === teamId;
         });
         if (!teamInComp) continue;
         const r = await resyncCompetitionMatchHistory(comp.data, pat, {
@@ -1586,7 +1589,7 @@ function StatsIndividuellesTab({
   type PlayerStat = { goals: number; assists: number };
   const stats = new Map<string, PlayerStat>();
 
-  for (const m of recentMatches.filter((m) => m.compKind !== 'amicale')) {
+  for (const m of recentMatches.filter((m) => !m.compKind || m.compKind !== 'amicale')) {
     for (const g of m.scorers ?? []) {
       if (!g.playerId) continue;
       const s = stats.get(g.playerId) ?? { goals: 0, assists: 0 };
