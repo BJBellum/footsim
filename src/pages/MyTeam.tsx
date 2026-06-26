@@ -42,7 +42,7 @@ const STATUS_COLOR: Record<string, string> = {
   completed: 'text-warning',
 };
 
-type Tab = 'tactique' | 'joueurs' | 'noms' | 'postes' | 'competitions' | 'palmares' | 'historique' | 'classements' | 'simulation' | 'entraineur';
+type Tab = 'tactique' | 'joueurs' | 'noms' | 'postes' | 'competitions' | 'palmares' | 'historique' | 'classements' | 'simulation' | 'entraineur' | 'stats';
 
 export default function MyTeam() {
   const session = useSession((s) => s.session);
@@ -333,7 +333,7 @@ export default function MyTeam() {
 
       {/* Tabs */}
       <div className="flex flex-wrap items-center gap-1 border-b border-border">
-        {(['tactique', 'joueurs', 'noms', 'postes', 'competitions', 'palmares', 'historique', 'classements', 'entraineur', 'simulation'] as Tab[]).map((t) => (
+        {(['tactique', 'joueurs', 'noms', 'postes', 'competitions', 'palmares', 'historique', 'stats', 'classements', 'entraineur', 'simulation'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -344,6 +344,7 @@ export default function MyTeam() {
               : t === 'noms' ? 'Noms'
               : t === 'postes' ? 'Postes'
               : t === 'competitions' ? 'Compétitions'
+              : t === 'stats' ? 'Stats individuelles'
               : t === 'palmares' ? 'Palmarès'
               : t === 'historique' ? 'Historique matchs'
               : t === 'classements' ? 'Classements CMF'
@@ -538,6 +539,13 @@ export default function MyTeam() {
       {/* Palmarès */}
       {tab === 'palmares' && (
         <MyTeamPalmaresTab compHistory={data.team.compHistory ?? []} />
+      )}
+      {tab === 'stats' && (
+        <MyTeamStatsTab
+          recentMatches={data.team.recentMatches ?? []}
+          compHistory={data.team.compHistory ?? []}
+          players={data.players}
+        />
       )}
       {/* Historique des matchs */}
       {tab === 'historique' && (
@@ -879,6 +887,100 @@ const RESULT_COLOR: Record<CompHistoryEntry['result'], string> = {
   round64: 'text-muted border-border bg-surface',
   participant: 'text-muted border-border bg-surface',
 };
+
+function MyTeamStatsTab({
+  recentMatches,
+  compHistory,
+  players,
+}: {
+  recentMatches: RecentMatchSummary[];
+  compHistory: CompHistoryEntry[];
+  players: Player[];
+}) {
+  type PlayerStat = { goals: number; assists: number };
+  const stats = new Map<string, PlayerStat>();
+
+  for (const m of recentMatches.filter((m) => m.compKind === 'officielle')) {
+    for (const g of m.scorers ?? []) {
+      if (!g.playerId) continue;
+      const s = stats.get(g.playerId) ?? { goals: 0, assists: 0 };
+      s.goals++;
+      stats.set(g.playerId, s);
+      if (g.assistId) {
+        const a = stats.get(g.assistId) ?? { goals: 0, assists: 0 };
+        a.assists++;
+        stats.set(g.assistId, a);
+      }
+    }
+  }
+
+  const playerMap = new Map(players.map((p) => [p.id, p]));
+  const rows = [...stats.entries()]
+    .map(([id, s]) => ({ id, player: playerMap.get(id), ...s }))
+    .filter((r) => r.player)
+    .sort((a, b) => b.goals - a.goals || b.assists - a.assists);
+
+  const wins = compHistory.filter((e) => e.result === 'winner');
+
+  if (rows.length === 0 && wins.length === 0) {
+    return (
+      <div className="py-16 text-center text-muted text-sm">
+        Aucune statistique individuelle. Les données apparaissent après les matchs de compétition.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      {rows.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="font-display text-xl">Buteurs & Passeurs</h2>
+          <div className="overflow-x-auto rounded-lg border border-border bg-surface">
+            <table className="w-full text-sm">
+              <thead className="bg-bg text-left text-xs text-muted uppercase tracking-wide">
+                <tr>
+                  <th className="px-4 py-2">#</th>
+                  <th className="px-4 py-2">Joueur</th>
+                  <th className="px-4 py-2">Poste</th>
+                  <th className="px-4 py-2 text-center">⚽ Buts</th>
+                  <th className="px-4 py-2 text-center">🎯 Passes D.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={r.id} className={`border-t border-border ${i % 2 === 1 ? 'bg-surface/50' : ''}`}>
+                    <td className="px-4 py-2 text-xs text-muted tabular-nums">{i + 1}</td>
+                    <td className="px-4 py-2 font-medium">{r.player!.firstName} {r.player!.lastName}</td>
+                    <td className="px-4 py-2 text-xs text-muted">{r.player!.position}</td>
+                    <td className="px-4 py-2 text-center tabular-nums font-semibold text-accent">{r.goals}</td>
+                    <td className="px-4 py-2 text-center tabular-nums text-muted">{r.assists}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {wins.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="font-display text-xl">Palmarès de l'équipe</h2>
+          <div className="space-y-2">
+            {wins.map((e, i) => (
+              <div key={i} className="flex items-center gap-3 rounded-lg border border-warning/30 bg-warning/5 px-4 py-3">
+                <span className="text-xl">🏆</span>
+                <div>
+                  <div className="font-medium text-sm">{e.compName}</div>
+                  <div className="text-xs text-muted">{e.year ?? '—'} · {FORMAT_LABEL[e.format]}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
 
 function MyTeamPalmaresTab({ compHistory }: { compHistory: CompHistoryEntry[] }) {
   if (compHistory.length === 0) {

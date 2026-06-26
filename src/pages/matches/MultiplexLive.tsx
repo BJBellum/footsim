@@ -480,6 +480,7 @@ export default function MultiplexLive() {
             round: current.currentRound,
             seed: `${baseSeed}-cmf-dop-${tid}`,
             type: 'doping_player',
+            playerName: dopingSuspension.subjectName,
             matchId: slot.compMatchId,
             matchSnapshot: slotMatchSnap,
           })];

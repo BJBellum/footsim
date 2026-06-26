@@ -12,8 +12,10 @@ import { TacticsPanel } from '@/components/team/TacticsPanel';
 import { TacticsSummary } from '@/components/team/TacticsSummary';
 import type { Player, SavedTactic, Team, TeamTactics, Culture, Continent } from '@/lib/types';
 import type { CompHistoryEntry } from '@/lib/competition/types';
-import type { RecentMatchSummary } from '@/lib/github/matches';
 import { FORMAT_LABEL } from '@/lib/competition/types';
+import type { RecentMatchSummary } from '@/lib/github/matches';
+import { resyncCompetitionMatchHistory } from '@/lib/github/matches';
+import { listCompetitions } from '@/lib/github/competitions';
 import { CULTURE_LABEL, CONTINENT_LABEL, CULTURES_BY_CONTINENT } from '@/lib/types';
 import { FlagUpload } from '@/components/team/FlagUpload';
 import { Input } from '@/components/ui/Input';
@@ -43,7 +45,7 @@ export default function TeamDetail() {
   const [deleteCount, setDeleteCount] = useState(1);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [tab, setTab] = useState<'roster' | 'tactique' | 'entraineur' | 'infos' | 'palmares' | 'historique'>('roster');
+  const [tab, setTab] = useState<'roster' | 'tactique' | 'entraineur' | 'infos' | 'palmares' | 'historique' | 'stats'>('roster');
   const [savedTactics, setSavedTactics] = useState<SavedTactic[]>([]);
   const [activeTacticId, setActiveTacticId] = useState<string | undefined>();
   const [editingTacticId, setEditingTacticId] = useState<string | null>(null);
@@ -560,13 +562,13 @@ async function applyNewStrength(strength: number) {
 
       {/* Tab bar */}
       <div className="flex items-center gap-1 border-b border-border">
-        {(['roster', 'tactique', 'entraineur', 'palmares', 'historique'] as const).map((t) => (
+        {(['roster', 'tactique', 'entraineur', 'palmares', 'historique', 'stats'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium transition-colors ${tab === t ? 'border-b-2 border-accent text-accent' : 'text-muted hover:text-text'}`}
           >
-            {t === 'roster' ? 'Roster' : t === 'tactique' ? 'Tactique' : t === 'entraineur' ? 'Entraîneur' : t === 'palmares' ? 'Palmarès' : 'Historique'}
+            {t === 'roster' ? 'Roster' : t === 'tactique' ? 'Tactique' : t === 'entraineur' ? 'Entraîneur' : t === 'palmares' ? 'Palmarès' : t === 'historique' ? 'Historique' : 'Stats individuelles'}
           </button>
         ))}
         <div className="ml-auto">
@@ -739,6 +741,17 @@ async function applyNewStrength(strength: number) {
             mutate({ team: { ...team, recentMatches: [] }, players });
             setDirty(true);
           }}
+        />
+      )}
+
+      {tab === 'stats' && (
+        <StatsIndividuellesTab
+          recentMatches={team.recentMatches ?? []}
+          compHistory={team.compHistory ?? []}
+          players={players}
+          teamSlug={team.slug}
+          pat={effectivePat}
+          onResync={(updated) => mutate({ team: { ...team, recentMatches: updated }, players })}
         />
       )}
 
@@ -1514,6 +1527,155 @@ function RecentMatchDetails({ m }: { m: RecentMatchSummary }) {
           <span className="text-muted/60">{c.minute}'</span>
         </span>
       ))}
+    </div>
+  );
+}
+
+function StatsIndividuellesTab({
+  recentMatches,
+  compHistory,
+  players,
+  teamSlug,
+  pat,
+  onResync,
+}: {
+  recentMatches: RecentMatchSummary[];
+  compHistory: CompHistoryEntry[];
+  players: Player[];
+  teamSlug: string;
+  pat: string | null;
+  onResync: (updated: RecentMatchSummary[]) => void;
+}) {
+  const [resyncing, setResyncing] = useState(false);
+
+  async function handleResync() {
+    if (!pat) return;
+    setResyncing(true);
+    try {
+      const { readJson } = await import('@/lib/github/api');
+      const comps = await listCompetitions(pat);
+      let synced = 0;
+      for (const summary of comps) {
+        // Include both ongoing and completed competitions
+        if (summary.status === 'setup') continue;
+        const comp = await readJson<import('@/lib/competition/types').Competition>(
+          `data/competitions/${summary.id}.json`, pat
+        );
+        if (!comp) continue;
+        const teamInComp = comp.data.teamIds.some((id) => {
+          const snap = comp.data.teamSnapshot?.[id];
+          return snap?.slug === teamSlug || id === teamSlug;
+        });
+        if (!teamInComp) continue;
+        const r = await resyncCompetitionMatchHistory(comp.data, pat, {
+          compKind: comp.data.kind,
+          compScope: comp.data.scope,
+          compImportance: comp.data.importance,
+        });
+        synced += r.synced;
+      }
+      type TW = import('@/lib/types').Team & { recentMatches?: RecentMatchSummary[] };
+      const fresh = await readJson<TW>(`data/teams/${teamSlug}/team.json`, pat);
+      if (fresh) onResync(fresh.data.recentMatches ?? []);
+      toast('success', `Resync terminé — ${synced} match(s) mis à jour.`);
+    } catch {
+      toast('error', 'Erreur lors du resync.');
+    } finally {
+      setResyncing(false);
+    }
+  }
+
+  type PlayerStat = { goals: number; assists: number };
+  const stats = new Map<string, PlayerStat>();
+
+  // Officielles uniquement — les amicales ne comptent pas dans les stats individuelles
+  for (const m of recentMatches.filter((m) => m.compKind === 'officielle')) {
+    for (const g of m.scorers ?? []) {
+      if (!g.playerId) continue;
+      const s = stats.get(g.playerId) ?? { goals: 0, assists: 0 };
+      s.goals++;
+      stats.set(g.playerId, s);
+      if (g.assistId) {
+        const a = stats.get(g.assistId) ?? { goals: 0, assists: 0 };
+        a.assists++;
+        stats.set(g.assistId, a);
+      }
+    }
+  }
+
+  const playerMap = new Map(players.map((p) => [p.id, p]));
+  const rows = [...stats.entries()]
+    .map(([id, s]) => ({ id, player: playerMap.get(id), ...s }))
+    .filter((r) => r.player)
+    .sort((a, b) => b.goals - a.goals || b.assists - a.assists);
+
+  const wins = compHistory.filter((e) => e.result === 'winner');
+
+  return (
+    <div className="space-y-8">
+      {pat && (
+        <div className="flex justify-end">
+          <Button size="sm" variant="ghost" onClick={handleResync} disabled={resyncing}>
+            {resyncing ? <Spinner className="mr-1" /> : null}
+            Resync depuis GitHub
+          </Button>
+        </div>
+      )}
+
+      {rows.length === 0 && wins.length === 0 ? (
+        <div className="py-16 text-center text-muted text-sm">
+          Aucune statistique individuelle. Les données apparaissent après les matchs de compétition.
+        </div>
+      ) : (
+        <>
+          {rows.length > 0 && (
+            <section className="space-y-3">
+              <h2 className="font-display text-xl">Buteurs & Passeurs</h2>
+              <div className="overflow-x-auto rounded-lg border border-border bg-surface">
+                <table className="w-full text-sm">
+                  <thead className="bg-bg text-left text-xs text-muted uppercase tracking-wide">
+                    <tr>
+                      <th className="px-4 py-2">#</th>
+                      <th className="px-4 py-2">Joueur</th>
+                      <th className="px-4 py-2">Poste</th>
+                      <th className="px-4 py-2 text-center">⚽ Buts</th>
+                      <th className="px-4 py-2 text-center">🎯 Passes D.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r, i) => (
+                      <tr key={r.id} className={`border-t border-border ${i % 2 === 1 ? 'bg-surface/50' : ''}`}>
+                        <td className="px-4 py-2 text-xs text-muted tabular-nums">{i + 1}</td>
+                        <td className="px-4 py-2 font-medium">{r.player!.firstName} {r.player!.lastName}</td>
+                        <td className="px-4 py-2 text-xs text-muted">{r.player!.position}</td>
+                        <td className="px-4 py-2 text-center tabular-nums font-semibold text-accent">{r.goals}</td>
+                        <td className="px-4 py-2 text-center tabular-nums text-muted">{r.assists}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
+          {wins.length > 0 && (
+            <section className="space-y-3">
+              <h2 className="font-display text-xl">Palmarès de l'équipe</h2>
+              <div className="space-y-2">
+                {wins.map((e, i) => (
+                  <div key={i} className="flex items-center gap-3 rounded-lg border border-warning/30 bg-warning/5 px-4 py-3">
+                    <span className="text-xl">🏆</span>
+                    <div>
+                      <div className="font-medium text-sm">{e.compName}</div>
+                      <div className="text-xs text-muted">{e.year ?? '—'} · {FORMAT_LABEL[e.format]}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+        </>
+      )}
     </div>
   );
 }
