@@ -18,6 +18,8 @@ import { TacticPitch } from '@/components/team/TeamTacticCard';
 
 // ─── Points system ────────────────────────────────────────────────────────────
 
+const CMF_MATCH_LIMIT = 10;
+
 const RESULT_BASE: Record<CompHistoryEntry['result'], number> = {
   winner: 100,
   finalist: 65,
@@ -147,7 +149,9 @@ export default function ClassementsCMF({ embedded }: { embedded?: boolean }) {
               else if (entry.result === 'third') thirds++;
             }
 
-            const recent: RecentMatchSummary[] = team.recentMatches ?? [];
+            const recent: RecentMatchSummary[] = [...(team.recentMatches ?? [])]
+              .sort((a, b) => b.playedAt.localeCompare(a.playedAt))
+              .slice(0, CMF_MATCH_LIMIT);
             for (const m of recent) {
               points += matchPoints(m);
             }
@@ -351,7 +355,7 @@ function ExplicationsTab() {
         <h2 className="font-display text-2xl">Principe général</h2>
         <p className="text-muted leading-relaxed">
           Le classement CMF (Confédération Mondiale du Football) attribue des points aux équipes selon deux sources :
-          leurs <strong className="text-text">performances en match</strong> (jusqu'aux 20 derniers matchs de compétition)
+          leurs <strong className="text-text">performances en match</strong> (jusqu'aux 10 derniers matchs de compétition)
           et leurs <strong className="text-text">résultats finals</strong> dans chaque compétition (palmarès).
           Le score total est la somme des deux.
         </p>
@@ -544,7 +548,7 @@ function ExplicationsTab() {
       <section className="space-y-4">
         <h2 className="font-display text-2xl">Bonus palmarès</h2>
         <p className="text-muted leading-relaxed">
-          En plus des points match, chaque résultat final dans une compétition rapporte un bonus permanent (non limité aux 20 derniers) :
+          En plus des points match, chaque résultat final dans une compétition rapporte un bonus permanent (non limité aux 10 derniers) :
         </p>
         <table className="w-full text-xs border border-border rounded-lg overflow-hidden">
           <thead className="bg-bg text-muted uppercase tracking-wide">
@@ -738,7 +742,9 @@ function LineupSection({ players, formation, formationLabel, lineup, tokenPositi
 
 function ExpandedTeamDetail({ entry, onPlayerClick }: { entry: TeamRankEntry; onPlayerClick: (p: Player) => void }) {
   const history = entry.team.compHistory ?? [];
-  const recent: RecentMatchSummary[] = (entry.team.recentMatches ?? []).slice(0, 10);
+  const recent: RecentMatchSummary[] = [...(entry.team.recentMatches ?? [])]
+    .sort((a, b) => b.playedAt.localeCompare(a.playedAt))
+    .slice(0, CMF_MATCH_LIMIT);
   const palmaresTotal = history.reduce((s, e) => s + entryPoints(e), 0);
   const matchTotal = recent.reduce((s, m) => s + matchPoints(m), 0);
 

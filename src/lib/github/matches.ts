@@ -121,8 +121,6 @@ export type RecentMatchSummary = {
 const MATCH_PATH = (id: string) => `data/matches/${id}.json`;
 const TEAM_PATH = (slug: string) => `data/teams/${slug}/team.json`;
 
-const RECENT_LIMIT = 20;
-
 export type SaveMatchMeta = {
   compKind?: CompetitionKind;
   compScope?: CompetitionScope;
@@ -317,7 +315,7 @@ async function doAppendRecent(team: Team, summary: RecentMatchSummary, token: st
     if (!existing) return;
     const recent = existing.data.recentMatches ?? [];
     if (recent.some((r) => r.matchId === summary.matchId && r.homeAway === summary.homeAway)) return;
-    const next = [summary, ...recent].slice(0, RECENT_LIMIT);
+    const next = [summary, ...recent].sort((a, b) => b.playedAt.localeCompare(a.playedAt));
     const updated: TeamWithRecent = { ...existing.data, recentMatches: next };
     try {
       await writeJson({
@@ -406,7 +404,7 @@ export async function resyncCompetitionMatchHistory(
       const matchIds = new Set(newSummaries.map((s) => s.matchId));
       const kept = prev.filter((r) => !matchIds.has(r.matchId));
       const sorted = [...newSummaries].sort((a, b) => b.playedAt.localeCompare(a.playedAt));
-      const next = [...sorted, ...kept].slice(0, RECENT_LIMIT);
+      const next = [...sorted, ...kept].sort((a, b) => b.playedAt.localeCompare(a.playedAt));
       try {
         await writeJson({
           path: TEAM_PATH(slug), token,

@@ -1528,6 +1528,7 @@ function HistoriqueTab({
   onDeleteAll: () => void;
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
+  const sortedMatches = [...matches].sort((a, b) => b.playedAt.localeCompare(a.playedAt));
 
   if (matches.length === 0) {
     return (
@@ -1540,7 +1541,9 @@ function HistoriqueTab({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-muted">{matches.length} match{matches.length > 1 ? 's' : ''} — les suppressions s'appliquent localement, publie pour valider sur GitHub.</p>
+        <p className="text-sm text-muted">
+          Historique complet · {matches.length} match{matches.length > 1 ? 's' : ''} — les suppressions s'appliquent localement, publie pour valider sur GitHub.
+        </p>
         <button
           onClick={() => { if (confirm('Supprimer tout l\'historique de matchs ?')) onDeleteAll(); }}
           className="rounded-md border border-danger/40 px-3 py-1.5 text-xs text-danger hover:bg-danger/10 transition-colors"
@@ -1564,7 +1567,7 @@ function HistoriqueTab({
             </tr>
           </thead>
           <tbody>
-            {matches.map((m) => {
+            {sortedMatches.map((m) => {
               const result = m.scoreFor > m.scoreAgainst ? 'V' : m.scoreFor === m.scoreAgainst ? 'N' : 'D';
               const resultColor = result === 'V' ? 'text-green-500' : result === 'N' ? 'text-yellow-400' : 'text-red-500';
               const date = new Date(m.playedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' });

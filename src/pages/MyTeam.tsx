@@ -776,7 +776,9 @@ function MyTeamHistoriqueTab({ recentMatches }: { recentMatches: RecentMatchSumm
 
   return (
     <div className="space-y-3">
-      <div className="text-xs text-muted">{recentMatches.length} match{recentMatches.length > 1 ? 's' : ''} enregistré{recentMatches.length > 1 ? 's' : ''} (20 derniers)</div>
+      <div className="text-xs text-muted">
+        Historique complet · {recentMatches.length} match{recentMatches.length > 1 ? 's' : ''} enregistré{recentMatches.length > 1 ? 's' : ''}
+      </div>
       <div className="overflow-x-auto rounded-lg border border-border bg-surface">
         <table className="w-full text-sm">
           <thead className="bg-bg text-left text-xs text-muted uppercase tracking-wide">
@@ -797,7 +799,7 @@ function MyTeamHistoriqueTab({ recentMatches }: { recentMatches: RecentMatchSumm
               const resultLabel = won ? 'V' : drew ? 'N' : 'D';
               const resultColor = won ? 'text-green-400' : drew ? 'text-warning' : 'text-danger';
               const pts = m.opponentStrength != null
-                ? calcCmfMatchPoints({ scoreFor: m.scoreFor, scoreAgainst: m.scoreAgainst, opponentStrength: m.opponentStrength, compKind: m.compKind, compScope: m.compScope, compImportance: m.compImportance })
+                ? calcCmfMatchPoints({ scoreFor: m.scoreFor, scoreAgainst: m.scoreAgainst, opponentStrength: m.opponentStrength, compKind: m.compKind, compScope: m.compScope, compImportance: m.compImportance, participantCount: m.participantCount })
                 : (m.cmfPoints ?? 0);
               const key = `${m.matchId}-${m.homeAway}`;
               const hasDetails = !!(m.scorers?.length || m.cards?.length);
