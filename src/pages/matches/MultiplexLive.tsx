@@ -31,6 +31,8 @@ export default function MultiplexLive() {
   const save = useCompetition((s) => s.save);
   const saveLocal = useCompetition((s) => s.saveLocal);
   const current = useCompetition((s) => s.current);
+  const currentRef = useRef(current);
+  useEffect(() => { currentRef.current = current; }, [current]);
   const teamsStore = useTeams((s) => s.teams);
   const fetchTeam = useTeams((s) => s.fetchTeam);
   const refreshTeams = useTeams((s) => s.refresh);
@@ -39,6 +41,8 @@ export default function MultiplexLive() {
   const { ownerId, pat: effectivePat } = useBackendArgs();
 
   const slots = useMultiplex((s) => s.slots);
+  const slotsRef = useRef(slots);
+  useEffect(() => { slotsRef.current = slots; }, [slots]);
   const allFinished = useMultiplex((s) => s.allFinished);
   const globalSpeed = useMultiplex((s) => s.globalSpeed);
   const start = useMultiplex((s) => s.start);
@@ -214,6 +218,8 @@ export default function MultiplexLive() {
 
   // Compute pending update when all finished — does NOT auto-save
   useEffect(() => {
+    const current = currentRef.current;
+    const slots = slotsRef.current;
     if (!allFinished || !current || slots.length === 0 || pendingUpdate) return;
 
     let updatedMatches = current.matches;
