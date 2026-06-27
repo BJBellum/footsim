@@ -200,6 +200,16 @@ function forcedDesiredHome(ctx: EngineCtx): 'win' | 'loss' | 'draw' | null {
   const ho = ctx.home.team.matchOutcome;
   const ao = ctx.away.team.matchOutcome;
   if (!ho && !ao) return null;
+
+  // Both want same impossible outcome (both win or both lose) → neutralise
+  if (ho === 'win' && ao === 'win') return null;
+  if (ho === 'loss' && ao === 'loss') return null;
+  // Both want draw → draw
+  if (ho === 'draw' && ao === 'draw') return 'draw';
+  // One wants win, other wants loss → both agree on same result → honour it
+  if (ho === 'win' && ao === 'loss') return 'win';
+  if (ho === 'loss' && ao === 'win') return 'loss';
+  // One has outcome, other doesn't (or mixed with draw) → home takes priority
   if (ho) return ho;
   return ao === 'win' ? 'loss' : ao === 'loss' ? 'win' : 'draw';
 }
