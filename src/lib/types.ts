@@ -312,6 +312,8 @@ export type Team = {
   injuries?: import('@/lib/competition/injuries').Injury[];
   /** Active suspensions carried over from previous competition */
   suspensions?: import('@/lib/competition/injuries').Suspension[];
+  /** Force match outcome for this team: win/loss/draw regardless of simulation */
+  matchOutcome?: 'win' | 'loss' | 'draw' | null;
 };
 
 export type LeagueClub = {

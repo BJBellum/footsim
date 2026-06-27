@@ -164,6 +164,43 @@ function posFamily(pos: Position): Position[] {
   return ['LW', 'RW', 'ST'];
 }
 
+function applyForcedOutcome(state: MatchState, ctx: EngineCtx): void {
+  const homeOutcome = ctx.home.team.matchOutcome;
+  const awayOutcome = ctx.away.team.matchOutcome;
+  // Priority: home outcome, then away outcome (if both set they may conflict — home wins)
+  const outcome: 'win' | 'loss' | 'draw' | null | undefined =
+    homeOutcome || awayOutcome || null;
+  if (!outcome) return;
+
+  // Determine desired result from home perspective
+  let desiredHome: 'win' | 'loss' | 'draw';
+  if (homeOutcome) {
+    desiredHome = homeOutcome;
+  } else {
+    // awayOutcome set — invert for home
+    desiredHome = awayOutcome === 'win' ? 'loss' : awayOutcome === 'loss' ? 'win' : 'draw';
+  }
+
+  const h = state.score.home;
+  const a = state.score.away;
+  const currentResult: 'win' | 'loss' | 'draw' = h > a ? 'win' : a > h ? 'loss' : 'draw';
+
+  if (currentResult === desiredHome) return; // already correct
+
+  if (desiredHome === 'win') {
+    // home must win: set home = away + 1 (or keep higher if already winning)
+    state.score.home = Math.max(h, a + 1);
+  } else if (desiredHome === 'loss') {
+    // home must lose: set away = home + 1
+    state.score.away = Math.max(a, h + 1);
+  } else {
+    // draw: equalise to higher score
+    const eq = Math.max(h, a);
+    state.score.home = eq;
+    state.score.away = eq;
+  }
+}
+
 function checkGoldenGoal(state: MatchState, ctx: EngineCtx): void {
   if ((state.status === 'extraTimeFirst' || state.status === 'extraTimeSecond') && state.rules.goldenGoal) {
     state.status = 'fulltime';
@@ -503,6 +540,7 @@ export function tick(state: MatchState, ctx: EngineCtx): MatchState {
 
   if (state.status === 'penalties') {
     simulatePenalties(state, ctx);
+    applyForcedOutcome(state, ctx);
     state.status = 'fulltime';
     pushEvent(state, ctx, { type: 'fulltime', side: null, ballPos: ZONE.centre }, ctx.home.team.name);
     return state;
@@ -532,6 +570,7 @@ export function tick(state: MatchState, ctx: EngineCtx): MatchState {
       return state;
     }
     if (tied && state.rules.penalties) { state.status = 'penalties'; return state; }
+    applyForcedOutcome(state, ctx);
     state.status = 'fulltime';
     pushEvent(state, ctx, { type: 'fulltime', side: null, ballPos: ZONE.centre }, ctx.home.team.name);
     return state;
@@ -548,6 +587,7 @@ export function tick(state: MatchState, ctx: EngineCtx): MatchState {
       ? (state.score.home + state.leg1Score.away) === (state.score.away + state.leg1Score.home)
       : state.score.home === state.score.away;
     if (tied && state.rules.penalties) { state.status = 'penalties'; return state; }
+    applyForcedOutcome(state, ctx);
     state.status = 'fulltime';
     pushEvent(state, ctx, { type: 'fulltime', side: null, ballPos: ZONE.centre }, ctx.home.team.name);
     return state;

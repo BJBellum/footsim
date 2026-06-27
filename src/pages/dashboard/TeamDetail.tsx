@@ -61,6 +61,7 @@ const [regenStrength, setRegenStrength] = useState(false);
   const [showActionFoot, setShowActionFoot] = useState(false);
   const [actionFootRating, setActionFootRating] = useState(0);
   const [actionFootFunding, setActionFootFunding] = useState(0);
+  const [editMatchOutcome, setEditMatchOutcome] = useState<'win' | 'loss' | 'draw' | null>(null);
 
   useEffect(() => {
     if (!ownerId) return;
@@ -407,6 +408,7 @@ async function applyNewStrength(strength: number) {
     setEditJerseyColor(team.jerseyColor ?? '#e63c3c');
     setActionFootRating(team.actionFoot?.rating ?? 5);
     setActionFootFunding(team.actionFoot?.funding ?? 0);
+    setEditMatchOutcome(team.matchOutcome ?? null);
     setShowActionFoot(false);
     setTab('infos');
   }
@@ -444,6 +446,7 @@ async function applyNewStrength(strength: number) {
         continents: editContinent.length > 0 ? editContinent : undefined,
         managerDiscordId: editManagerId.trim() || undefined,
         jerseyColor: editJerseyColor,
+        matchOutcome: editMatchOutcome ?? undefined,
       },
       players: updatedPlayers,
     });
@@ -774,6 +777,40 @@ async function applyNewStrength(strength: number) {
             onJerseyColor={setEditJerseyColor}
             onSave={saveInfos}
           />
+
+          {/* Résultat forcé */}
+          <div className="border-t border-border pt-6 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">Résultat forcé</span>
+              <span className="text-xs text-muted">(admin uniquement — s'applique à tous les matchs)</span>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {([null, 'win', 'draw', 'loss'] as const).map((v) => (
+                <button
+                  key={String(v)}
+                  onClick={() => {
+                    setEditMatchOutcome(v);
+                    mutate({ team: { ...team, matchOutcome: v ?? undefined }, players });
+                  }}
+                  className={`px-4 py-1.5 rounded text-sm border transition-colors ${
+                    editMatchOutcome === v
+                      ? v === 'win' ? 'border-accent bg-accent/20 text-accent'
+                        : v === 'loss' ? 'border-danger bg-danger/20 text-danger'
+                        : v === 'draw' ? 'border-warning bg-warning/20 text-warning'
+                        : 'border-border bg-surface/80 text-text'
+                      : 'border-border bg-surface text-muted hover:text-text'
+                  }`}
+                >
+                  {v === null ? 'Normal' : v === 'win' ? '🏆 Victoire' : v === 'draw' ? '🤝 Match nul' : '💀 Défaite'}
+                </button>
+              ))}
+            </div>
+            {editMatchOutcome && (
+              <p className="text-xs text-warning">
+                ⚠ Cette équipe {editMatchOutcome === 'win' ? 'gagnera' : editMatchOutcome === 'loss' ? 'perdra' : 'fera match nul'} tous ses prochains matchs.
+              </p>
+            )}
+          </div>
 
           {/* Action sur le Foot */}
           <div className="border-t border-border pt-6">
