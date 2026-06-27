@@ -96,6 +96,9 @@ export function saveCompetition(competition: Competition, token: string): Promis
       winner: competition.winner,
       year: competition.year,
       teamIds: competition.teamIds,
+      kind: competition.kind,
+      scope: competition.scope,
+      importance: competition.importance,
     };
     const list = idx?.data ?? [];
     const next = list.some((c) => c.id === competition.id)
