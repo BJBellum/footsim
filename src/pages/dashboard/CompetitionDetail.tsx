@@ -530,13 +530,13 @@ export default function CompetitionDetail() {
       <div className="max-w-4xl space-y-6">
         <div>
           <Link to={backTo} className="text-sm text-muted hover:text-text">{backLabel}</Link>
-          <h1 className="mt-2 font-display text-4xl">Tirage — Barrages de la Peur</h1>
+          <h1 className="mt-2 font-display text-4xl">Tirage — Barrages A/R</h1>
           <p className="text-muted text-sm mt-1">{current.name}</p>
         </div>
         <LPMDrawCeremony
           pairs={lpmDraw}
           teams={allTeams}
-          title="Barrages de la Peur — 8 confrontations"
+          title="Barrages A/R — 8 confrontations"
           subtitle="Places 25–40 · Aller-Retour · Les vainqueurs décrochent les derniers tickets"
           pairLabels={(i) => `Match ${'ABCDEFGH'[i]}`}
           onConfirm={confirmLPMDraw}
@@ -723,7 +723,7 @@ export default function CompetitionDetail() {
       {showLPMPlayoffSeed && (
         <div className="rounded-lg border border-warning/40 bg-warning/5 p-4 flex items-center justify-between gap-3">
           <div>
-            <div className="font-medium">11 journées terminées — Barrages de la Peur</div>
+            <div className="font-medium">11 journées terminées — Barrages A/R</div>
             <div className="text-sm text-muted">Places 25–40 : génère les 8 confrontations aller-retour pour les derniers tickets.</div>
           </div>
           <Button size="sm" onClick={seedLPMBarrages}>
@@ -2346,7 +2346,7 @@ function LPMStandingsView({
 
   const zones = [
     { label: 'Zone Or — Qualifiés directement', from: 0, to: 23, borderCls: 'border-yellow-500/40', bgCls: 'bg-yellow-400/5' },
-    { label: 'Zone Rouge — Barrages de la Peur', from: 24, to: 39, borderCls: 'border-danger/40', bgCls: 'bg-danger/5' },
+    { label: 'Zone Rouge — Barrages A/R', from: 24, to: 39, borderCls: 'border-danger/40', bgCls: 'bg-danger/5' },
     { label: 'Zone Noire — Éliminés', from: 40, to: 47, borderCls: 'border-border/30', bgCls: 'bg-surface/50' },
   ];
 

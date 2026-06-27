@@ -621,7 +621,7 @@ function ExplicationsTab() {
           <div className="rounded-lg border border-orange-400/40 bg-orange-400/5 p-4 space-y-2">
             <div className="flex items-center gap-2 font-medium text-orange-400">
               <span className="text-lg">⚠</span>
-              <span>Zone Rouge — Rangs 25 à 40 (barrages)</span>
+              <span>Zone Rouge — Barrages A/R</span>
             </div>
             <p className="text-xs text-muted">Équipes ayant disputé les barrages de qualification.</p>
             <div className="grid grid-cols-2 gap-2 text-xs mt-2">

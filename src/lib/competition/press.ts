@@ -460,6 +460,117 @@ const ELIMINATED_BODIES = [
   'On espérait mieux. {team} méritait mieux. Mais les résultats parlent d\'eux-mêmes : cette élimination est la conséquence logique d\'une compétition ratée de bout en bout. Amère conclusion.',
 ];
 
+// ── Templates LPM spécifiques ─────────────────────────────────────────────────
+
+/** Victoire en LPM avec contexte qualification directe */
+const LPM_WIN_ZONE_OR_BODIES = [
+  '{team} consolide sa place en Zone Or. La qualification directe pour la Coupe du Monde se dessine — mais rien n\'est acté. Les prochaines journées seront décisives.',
+  'Trois points précieux pour {team} qui reste dans la course à la qualification directe. La Zone Or est là, tangible. Il faut maintenant la tenir.',
+  '{team} tient la bonne position au classement LPM. Cette victoire est bien plus qu\'un résultat — c\'est un message envoyé aux concurrents directs pour la Zone Or.',
+  'À ce stade de la LPM, chaque point en Zone Or est une promesse de Coupe du Monde. {team} le sait. Et ce soir, il a agi en conséquence.',
+];
+
+/** Victoire en LPM Zone Rouge — équipe qui se bat pour les barrages */
+const LPM_WIN_ZONE_ROUGE_BODIES = [
+  'Victoire cruciale pour {team} qui reste dans la course aux barrages A/R. Le combat pour éviter la Zone Noire continue — mais ce soir, l\'espoir est intact.',
+  '{team} se maintient dans la zone des barrages. C\'est pas la qualification directe, mais c\'est encore une chance. Et ce groupe s\'y accroche.',
+  'Trois points importants pour {team} dans la lutte acharnée de la Zone Rouge. Les barrages A/R, c\'est au moins ça — une deuxième chance que ce groupe mérite.',
+  'La Zone Noire recule. {team} maintient son rang dans les barrages et garde un fil d\'espoir pour la Coupe du Monde. Tout reste à jouer.',
+];
+
+/** Défaite en LPM avec contexte classement dramatique */
+const LPM_LOSS_ZONE_OR_HEADLINES = [
+  '{team} glisse de la Zone Or — le cauchemar des barrages se rapproche',
+  'Chute au classement LPM pour {team} — la qualification directe s\'éloigne',
+  '{team} sort du top 24 — l\'angoisse des barrages A/R pointe le bout du nez',
+  'LPM : {team} lâche sa place en Zone Or — catastrophe au classement',
+];
+const LPM_LOSS_ZONE_OR_BODIES = [
+  'La défaite fait mal, mais le classement est encore plus cruel. {team} quitte la Zone Or et glisse dans l\'inconnu. La qualification directe pour la Coupe du Monde n\'est plus garantie. La pression est maximale.',
+  'Une seule défaite et tout s\'emballe. {team} tombe sous la 24e place et voit les barrages A/R se dessiner à l\'horizon. Ce n\'était pas le plan. Il va falloir réagir vite.',
+  'Le classement LPM est sans pitié. {team} sort du top 24 après cette défaite. Chaque point perdu ici peut signifier des barrages supplémentaires — ou pire, l\'élimination directe. Le staff est en état d\'urgence.',
+  'Zone Or ce matin, Zone Rouge ce soir. {team} a vécu une journée cauchemardesque au classement LPM. La Coupe du Monde n\'est plus qu\'une promesse en danger. Il faut réagir — maintenant.',
+];
+
+/** Critique LPM — équipe sous-performante dans grande compétition */
+const LPM_CRITIQUE_HEADLINES = [
+  '{team} : cette LPM mérite mieux que cette médiocrité',
+  'LPM — {team} : le niveau affiché est une insulte à la compétition',
+  '{team} en LPM : honteux d\'être là et de jouer comme ça',
+  'La LPM révèle {team} pour ce qu\'il est vraiment — insuffisant',
+  '{team} en LPM : trop juste, trop mou, trop peu — et ça se voit',
+  'CMF : {team} salit l\'image de la Ligue Préliminaire Mondiale',
+  '{team} : la LPM c\'est pas un tournoi de village — réveille-toi',
+  'Disqualifié moralement : {team} n\'a pas sa place parmi les 48',
+];
+const LPM_CRITIQUE_BODIES = [
+  'La Ligue Préliminaire Mondiale met en scène les 48 meilleures nations — ou censées l\'être. Ce soir, {team} a démontré qu\'il n\'a peut-être pas sa place dans ce tableau. Aucune intensité, aucune ambition, aucune idée. La CMF se pose des questions. On se les pose aussi.',
+  'Ce n\'est pas un tournoi de quartier. C\'est la LPM. La compétition qui décide qui va à la Coupe du Monde. Et {team} joue ça comme si c\'était un amical de présaison. Pas de pressing, pas de réaction, pas de dignité. Choquant.',
+  'On ne sait pas ce qui est plus affligeant : le niveau de jeu de {team}, ou l\'absence totale de réaction du staff face à cette déroute. La LPM impose un standard. {team} est en dessous du sol. Et le classement le dit clairement.',
+  'La LPM était une chance pour {team} de prouver sa valeur sur la scène internationale. À mi-compétition, le verdict est cinglant : ils n\'ont pas saisi cette chance. Pire — ils l\'ont gaspillée avec une nonchalance qui dépasse l\'entendement.',
+  'Quelqu\'un dans le staff de {team} peut expliquer ce qu\'on a vu ce soir ? Parce que si c\'est le plan, c\'est un plan pour perdre. La LPM est impitoyable pour les équipes sans caractère. Et {team} vient de confirmer qu\'il en fait partie.',
+];
+
+/** Scandale LPM — enjeux énormes, tensions dramatisées */
+const LPM_SCANDAL_PAIRS: [string, string][] = [
+  [
+    'SCANDALE LPM : {team} accusé de match arrangé — la CMF enquête',
+    'Des paris suspects ont été détectés sur le dernier match de {team} en LPM. Les cotes s\'effondraient avant le coup d\'envoi. La Commission d\'Intégrité de la CMF a ouvert une enquête d\'urgence. Si les faits sont confirmés, l\'élimination directe de {team} serait envisagée. La LPM a son premier grand scandale.',
+  ],
+  [
+    '{team} en LPM : le capitaine accuse le staff de "sabotage tactique délibéré"',
+    'Une bombe éclate dans le camp {team}. Selon nos sources, le capitaine aurait envoyé un message privé à plusieurs coéquipiers accusant le staff d\'adopter délibérément une tactique perdante pour protéger des intérêts financiers liés aux paris sportifs. Le staff dément. La CMF surveille. La LPM tremble.',
+  ],
+  [
+    'RÉVÉLATIONS : des joueurs de {team} auraient snobé la préparation LPM',
+    'Un rapport interne révèle que plusieurs joueurs cadres de {team} auraient volontairement réduit leur engagement à l\'entraînement dans les semaines précédant la LPM. Des sources proches du vestiaire évoquent des "arrangements avec des agents et des clubs acheteurs". La CMF prend les informations au sérieux.',
+  ],
+  [
+    'FUITE : les notes tactiques secrètes de {team} vendues à des adversaires LPM',
+    'Un membre du staff de {team} aurait vendu les plans de jeu confidentiels de l\'équipe à deux nations adverses en LPM. Les transactions auraient été substantielles. L\'affaire est entre les mains de la justice sportive. La CMF pourrait annuler des résultats. Cauchemar total pour {team}.',
+  ],
+  [
+    '{team} LPM : bagarre dans le vestiaire, deux joueurs mis à l\'écart',
+    'Deux titulaires de {team} se sont violemment accrochés lors d\'une séance d\'entraînement, deux jours avant un match LPM crucial. L\'altercation, qui a dégénéré en bagarre physique, a conduit le staff à écarter les deux joueurs. Résultat : une équipe amputée de ses meilleurs éléments pour un match qui vaut une qualification. Irresponsable.',
+  ],
+  [
+    'LPM — {team} : le sélectionneur démissionne en pleine compétition',
+    'Coup de tonnerre. Le sélectionneur de {team} a remis sa démission ce matin, en plein cœur de la LPM, invoquant des "désaccords profonds avec la fédération sur la gestion du groupe". Il part sans adjoint désigné, sans plan de succession, et avec une équipe qui n\'a plus de leader technique à mi-compétition. Un abandon que personne n\'oubliera.',
+  ],
+  [
+    'AFFAIRE {team} : des primes de défaite évoquées dans le vestiaire LPM',
+    'Selon un joueur anonyme de {team} ayant contacté nos rédactions, des membres du groupe auraient évoqué entre eux l\'idée de "lâcher certains matchs" pour éviter des adversaires plus forts en phase éliminatoire. Si rien de concret n\'a été prouvé, la CMF a été alertée et l\'atmosphère dans le camp {team} est explosive.',
+  ],
+  [
+    '{team} en LPM : une délégation infiltrée par un agent double',
+    'La fédération de {team} a confirmé avoir découvert qu\'un membre accrédité de sa délégation officielle en LPM transmettait des informations internes à des tiers non identifiés. Identités des bénéficiaires encore inconnues. L\'impact sur les résultats de {team} reste à évaluer. La CMF réclame un rapport complet sous 48h.',
+  ],
+];
+
+/** Tension barrage A/R — match aller */
+const LPM_BARRAGE_ALLER_WIN_BODIES = [
+  'L\'avantage est acquis, mais rien n\'est joué. En barrage A/R, le match retour sera une autre guerre. {team} a gagné la première manche — il doit maintenant la transformer en qualification.',
+  'Victoire à l\'aller — mais l\'adversaire viendra tout faire pour renverser ça au retour. {team} le sait. Le staff l\'a martelé dans le vestiaire : "Ce n\'est pas fini. Rien n\'est fini tant qu\'on n\'a pas signé la qualification." Rendez-vous au retour.',
+  '{team} prend l\'avantage mais c\'est une guerre de deux matchs. La tension des barrages A/R ne sera totalement dissipée qu\'après le coup de sifflet final du retour. Ce groupe a fait le plus dur — reste à confirmer.',
+];
+const LPM_BARRAGE_ALLER_LOSS_BODIES = [
+  'Défaite à l\'aller — mais tout reste possible au retour. Les barrages A/R sont impitoyables, mais c\'est ça leur magie : aucune équipe n\'est mathématiquement éliminée après le match aller. {team} doit y croire. Le retour sera une finale.',
+  '{team} est dos au mur, mais pas encore éliminé. Le match retour sera une montagne à gravir. L\'histoire de la LPM regorge de remontadas — la question est de savoir si ce groupe a le caractère pour en écrire une nouvelle page.',
+  'C\'est mauvais, mais pas fatal. {team} perd à l\'aller dans ces barrages A/R. Il devra marquer au moins un but au retour et limiter les dégâts. La Coupe du Monde n\'est pas encore perdue — mais elle demande un dernier sursaut d\'orgueil.',
+];
+
+/** Tension barrage A/R — match retour */
+const LPM_BARRAGE_RETOUR_WIN_BODIES = [
+  '{team} QUALIFIÉ ! Le retour de barrage est remporté — la Coupe du Monde est là ! Des scènes de joie indescriptibles dans le vestiaire. Ce groupe a traversé l\'enfer des barrages A/R pour décrocher son billet. Une qualification qui a un goût d\'exploit.',
+  'La remontada est accomplie. {team} renverse l\'adversaire au match retour et décroche sa qualification pour la Coupe du Monde. Les joueurs n\'y croient pas encore. Mais le score, lui, est sans appel. Qualifié.',
+  'Il fallait un exploit. {team} l\'a fait. Match retour de barrage A/R remporté, qualification obtenue. Dans le vestiaire, les larmes se mêlent aux cris. La Coupe du Monde attendait — {team} lui répond présent.',
+];
+const LPM_BARRAGE_RETOUR_LOSS_BODIES = [
+  'Éliminé au retour des barrages A/R. {team} ne verra pas la Coupe du Monde. La désillusion est immense pour un groupe qui y avait cru jusqu\'au bout. Ces barrages auront été un chemin de croix que ce groupe n\'aura pas réussi à parcourir jusqu\'au bout.',
+  'La Coupe du Monde s\'éloigne définitivement. {team} est éliminé au match retour des barrages A/R. Après avoir survécu onze journées de LPM, c\'est dans ces matchs décisifs que tout s\'est brisé. Une fin de parcours cruelle pour un groupe qui méritait peut-être mieux.',
+  '{team} s\'arrête aux portes de la Coupe du Monde. Les barrages A/R auront été fatals. La défaite au retour est la conclusion amère d\'une LPM qui promettait plus. Le bilan sera lourd à digérer.',
+];
+
 /** Danger zone — LPM barrages (25-40) ou fond de tableau ligue */
 const DANGER_ZONE_BODIES = [
   'Le classement ne ment pas. {team} se retrouve dans une position délicate, avec le spectre des barrages qui se précise. Le prochain match aura des allures de finale. La pression est maximale.',
@@ -477,7 +588,7 @@ const LPM_ELIMINATED_HEADLINES = [
 ];
 const LPM_ELIMINATED_BODIES = [
   'Pas même les barrages. {team} termine si loin dans le classement qu\'aucune deuxième chance ne lui est accordée. Une campagne catastrophique que les mots peinent à décrire. L\'équipe rentre à la maison avec zéro point de plus et beaucoup de questions.',
-  '{team} n\'aura pas droit aux barrages de la peur. Le classement est sans appel : cette élimination directe est la sanction d\'une compétition ratée de A à Z. Dans les tribunes, les supporters ne cachent pas leur colère et leur honte.',
+  '{team} n\'aura pas droit aux barrages A/R. Le classement est sans appel : cette élimination directe est la sanction d\'une compétition ratée de A à Z. Dans les tribunes, les supporters ne cachent pas leur colère et leur honte.',
   'Sortie par le fond. {team} termine dans les dernières places et dit au revoir à la compétition sans avoir jamais existé vraiment. Un résultat cruel mais mérité au vu des prestations affichées.',
 ];
 
@@ -1498,9 +1609,27 @@ export function generateMatchPressItem(opts: {
     const isLPM = (phase === 'league' || phase === 'lpm_playoff') && opts.totalTeams && opts.totalTeams >= 40;
     const isLPMEliminated = isLPM && opts.rank !== undefined && opts.rank > 40;
     const isLPMDanger = isLPM && opts.rank !== undefined && opts.rank >= 25 && opts.rank <= 40;
+    const isLPMZoneOr = isLPM && opts.rank !== undefined && opts.rank <= 24;
+    const isLPMBarrage = phase === 'lpm_playoff';
+    const isLPMBarrageAller = isLPMBarrage && opts.matchId !== undefined && /leg.*1|aller/i.test(opts.matchId ?? '');
+
+    // Critiques spéciales LPM — 18% sur défaite normale, 35% sur grosse défaite
+    const lpmCritiqueChance = isLPM && !isKnockout && diff < 0 && !opts.isEliminated
+      ? (isBigLoss ? 0.35 : 0.18) : 0;
+    const isLPMCritique = !isCritique && r() < lpmCritiqueChance;
+
+    // Scandales spécifiques LPM — 0.8% sur n'importe quel résultat en LPM
+    const lpmScandalChance = isLPM && !opts.isEliminated && !isPlayerDoping && !isTeamDoping && !scandalize ? 0.008 : 0;
+    const isLPMScandal = r() < lpmScandalChance;
 
     // Élimination mathématique confirmée (groupe/ligue standard) — article dédié
-    if (opts.isEliminated) {
+    if (isLPMScandal) {
+      category = 'scandale';
+      const [h, b] = pick(LPM_SCANDAL_PAIRS, r);
+      headline = sub(h);
+      body = sub(b);
+      moraleShock = -(8 + Math.floor(r() * 10));
+    } else if (opts.isEliminated) {
       category = 'crise';
       moraleShock = -(10 + Math.floor(r() * 8));
       if (isLPMEliminated) {
@@ -1513,6 +1642,14 @@ export function generateMatchPressItem(opts: {
         headline = sub(pick(ELIMINATED_HEADLINES, r));
         body = sub(pick(ELIMINATED_BODIES, r));
       }
+    } else if (isLPMCritique && diff < 0) {
+      // Critique LPM contextualisée — ton journalistique spécifique à la compétition
+      category = 'critique';
+      headline = sub(pick(LPM_CRITIQUE_HEADLINES, r));
+      body = sub(pick(LPM_CRITIQUE_BODIES, r));
+      moraleShock = -(10 + Math.floor(r() * 8));
+      if (isLPMDanger) body += ' ' + sub(pick(DANGER_ZONE_BODIES, r));
+      else if (isLPMZoneOr) body += ' ' + sub(pick(LPM_LOSS_ZONE_OR_BODIES, r));
     } else if (diff > 0) {
       category = isBigWin ? 'exploit' : 'victoire';
       moraleBoost = isBigWin ? (8 + Math.floor(r() * 7)) : (4 + Math.floor(r() * 5));
@@ -1526,8 +1663,20 @@ export function generateMatchPressItem(opts: {
         headline = sub(pick(isManita ? MANITA_HEADLINES : isBigWin ? BIG_WIN_HEADLINES : WIN_HEADLINES, r));
         body = sub(pick(isManita ? MANITA_BODIES : isBigWin ? BIG_WIN_BODIES : WIN_BODIES, r));
       }
-      // Contexte classement — seulement si encore en course
-      if (!opts.isEliminated) {
+      // Contexte classement LPM
+      if (isLPM && !opts.isEliminated && r() < 0.55) {
+        if (isLPMBarrage) {
+          body += ' ' + sub(pick(isLPMBarrageAller ? LPM_BARRAGE_ALLER_WIN_BODIES : LPM_BARRAGE_RETOUR_WIN_BODIES, r));
+        } else if (isLPMZoneOr && r() < 0.5) {
+          body += ' ' + sub(pick(LPM_WIN_ZONE_OR_BODIES, r));
+        } else if (isLPMDanger) {
+          body += ' ' + sub(pick(LPM_WIN_ZONE_ROUGE_BODIES, r));
+        } else if (opts.rank === 1 && r() < 0.6) {
+          body += ' ' + sub(pick(STANDINGS_LEADER_WIN, r));
+        } else if (opts.rank && opts.rank >= 2 && r() < 0.5) {
+          body += ' ' + sub(pick(STANDINGS_CLIMB_WIN, r));
+        }
+      } else if (!isLPM && !opts.isEliminated) {
         if (opts.rank === 1 && r() < 0.6) {
           body += ' ' + sub(pick(STANDINGS_LEADER_WIN, r));
         } else if (opts.rank && opts.rank >= 2 && r() < 0.5) {
@@ -1543,13 +1692,20 @@ export function generateMatchPressItem(opts: {
       } else if (isWorldCup && r() < 0.55) {
         headline = sub(pick(WC_GROUP_LOSS_HEADLINES, r));
         body = sub(pick(WC_GROUP_LOSS_BODIES, r));
+      } else if (isLPM && isLPMZoneOr && r() < 0.50) {
+        // Perd la Zone Or — headlines dramatiques spécifiques
+        headline = sub(pick(LPM_LOSS_ZONE_OR_HEADLINES, r));
+        body = sub(pick(isBigLoss ? HEAVY_LOSS_BODIES : LOSS_BODIES, r));
+        body += ' ' + sub(pick(LPM_LOSS_ZONE_OR_BODIES, r));
       } else {
         headline = sub(pick(isBigLoss ? HEAVY_LOSS_HEADLINES : LOSS_HEADLINES, r));
         body = sub(pick(isBigLoss ? HEAVY_LOSS_BODIES : LOSS_BODIES, r));
       }
       // Suffixes standings/danger seulement si encore en course et réellement en danger
       if (!opts.isEliminated) {
-        if (opts.isInDangerZone || isLPMDanger) {
+        if (isLPMBarrage) {
+          body += ' ' + sub(pick(isLPMBarrageAller ? LPM_BARRAGE_ALLER_LOSS_BODIES : LPM_BARRAGE_RETOUR_LOSS_BODIES, r));
+        } else if (opts.isInDangerZone || isLPMDanger) {
           body += ' ' + sub(pick(DANGER_ZONE_BODIES, r));
         } else if (opts.standing && opts.rank && opts.totalTeams && opts.rank > Math.ceil(opts.totalTeams / 2)) {
           // Seulement si team est dans la moitié basse du tableau
