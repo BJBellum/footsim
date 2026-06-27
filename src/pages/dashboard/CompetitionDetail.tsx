@@ -30,7 +30,7 @@ import { PRESS_CATEGORY_COLOR, PRESS_CATEGORY_LABEL, generateCmfItems } from '@/
 import { COACH_TRAIT_LABEL, COACH_TRAIT_DESCRIPTION } from '@/lib/gen/coach';
 import { batchUpdateTeamCompHistory, batchUpdateTeamMedical, batchRemoveTeamRecentMatches } from '@/lib/github/store';
 import { commitFiles, readJson as ghReadJson } from '@/lib/github/api';
-import { resyncCompetitionMatchHistory, deleteCompetitionMatchFiles, distributeLpmZonePoints, calcLpmZoneBonus } from '@/lib/github/matches';
+import { resyncCompetitionMatchHistory, deleteCompetitionMatchFiles, distributeLpmZonePoints } from '@/lib/github/matches';
 import type { Injury, Suspension } from '@/lib/competition/injuries';
 import { SEVERITY_COLOR, CAUSE_LABEL } from '@/lib/competition/injuries';
 

@@ -593,6 +593,72 @@ function ExplicationsTab() {
         </p>
       </section>
 
+      <section className="space-y-4">
+        <h2 className="font-display text-2xl">Bonus de zone LPM</h2>
+        <p className="text-muted leading-relaxed">
+          À la clôture de la <strong className="text-text">Ligue Préliminaire Mondiale</strong>, chaque équipe reçoit un bonus CMF
+          unique selon sa zone de classement final. Ces points s'ajoutent au classement CMF comme une entrée distincte
+          (visible dans l'historique de l'équipe).
+        </p>
+        <div className="space-y-3">
+          <div className="rounded-lg border border-yellow-400/40 bg-yellow-400/5 p-4 space-y-2">
+            <div className="flex items-center gap-2 font-medium text-yellow-400">
+              <span className="text-lg">★</span>
+              <span>Zone Or — Rangs 1 à 24</span>
+            </div>
+            <p className="text-xs text-muted">Qualifiés directement. Bonus décroissant linéairement.</p>
+            <div className="grid grid-cols-4 gap-2 text-xs mt-2">
+              {[[1,80],[5,70],[10,57],[15,44],[20,31],[24,20]].map(([r,p]) => (
+                <div key={r} className="rounded border border-border bg-surface px-2 py-1.5 text-center">
+                  <div className="font-bold text-yellow-400">+{p} pts</div>
+                  <div className="text-muted">{r === 24 ? '24e' : r === 1 ? '1er' : `${r}e`}</div>
+                </div>
+              ))}
+            </div>
+            <div className="font-mono text-xs text-muted mt-1">80 − (rang − 1) × (60 / 23)</div>
+          </div>
+
+          <div className="rounded-lg border border-orange-400/40 bg-orange-400/5 p-4 space-y-2">
+            <div className="flex items-center gap-2 font-medium text-orange-400">
+              <span className="text-lg">⚠</span>
+              <span>Zone Rouge — Rangs 25 à 40 (barrages)</span>
+            </div>
+            <p className="text-xs text-muted">Équipes ayant disputé les barrages de qualification.</p>
+            <div className="grid grid-cols-2 gap-2 text-xs mt-2">
+              <div className="rounded border border-border bg-surface px-3 py-2 text-center">
+                <div className="font-bold text-accent">+8 pts</div>
+                <div className="text-muted">Qualifié (barrage passé)</div>
+              </div>
+              <div className="rounded border border-border bg-surface px-3 py-2 text-center">
+                <div className="font-bold text-danger">−5 pts</div>
+                <div className="text-muted">Éliminé (barrage perdu)</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-red-900/40 bg-red-900/5 p-4 space-y-2">
+            <div className="flex items-center gap-2 font-medium text-danger">
+              <span className="text-lg">✕</span>
+              <span>Zone Noire — Rangs 41 à 48</span>
+            </div>
+            <p className="text-xs text-muted">Éliminés en phase de groupes. Malus décroissant.</p>
+            <div className="grid grid-cols-4 gap-2 text-xs mt-2">
+              {[[41,-10],[43,-13],[45,-16],[48,-20]].map(([r,p]) => (
+                <div key={r} className="rounded border border-border bg-surface px-2 py-1.5 text-center">
+                  <div className="font-bold text-danger">{p} pts</div>
+                  <div className="text-muted">{r === 41 ? '41e' : `${r}e`}</div>
+                </div>
+              ))}
+            </div>
+            <div className="font-mono text-xs text-muted mt-1">−10 − (rang − 41) × (10 / 7)</div>
+          </div>
+        </div>
+        <p className="text-xs text-muted">
+          Ces bonus sont distribués via le bouton <strong className="text-text">★ Points CMF LPM</strong> sur la page de la compétition une fois celle-ci terminée.
+          Chaque équipe ne peut recevoir ce bonus qu'une seule fois par édition.
+        </p>
+      </section>
+
       <section className="space-y-3">
         <h2 className="font-display text-2xl">Forme (5 derniers matchs)</h2>
         <p className="text-muted leading-relaxed">
