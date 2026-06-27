@@ -244,6 +244,14 @@ export default function CompetitionMatchLive() {
     celebTimerRef.current = setTimeout(() => setCelebration(null), 4000);
   }
 
+  // Clear celebration when halftime/fulltime overlay arrives
+  useEffect(() => {
+    if (matchState?.status === 'halftime' || matchState?.status === 'extraTimeHalfTime' || matchState?.status === 'fulltime') {
+      if (celebTimerRef.current) clearTimeout(celebTimerRef.current);
+      setCelebration(null);
+    }
+  }, [matchState?.status]);
+
   // Load saved tactics for halftime tactic switcher
   useEffect(() => {
     if (!matchInput) return;

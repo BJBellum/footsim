@@ -76,6 +76,14 @@ export default function MatchLive() {
     celebTimerRef.current = setTimeout(() => setCelebration(null), 4000);
   }
 
+  // Clear celebration when halftime/fulltime overlay arrives
+  useEffect(() => {
+    if (state?.status === 'halftime' || state?.status === 'extraTimeHalfTime' || state?.status === 'fulltime') {
+      if (celebTimerRef.current) clearTimeout(celebTimerRef.current);
+      setCelebration(null);
+    }
+  }, [state?.status]);
+
   // On finish: trigger penalty replay or corruption reveal
   useEffect(() => {
     if (!finished || !state || !input || savedRef.current) return;
