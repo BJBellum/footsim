@@ -627,6 +627,10 @@ export default function CompetitionDetail() {
         <CompletedMetaEditor current={current} setCurrent={setCurrent} />
       )}
 
+      {current.status === 'ongoing' && isAdmin && (
+        <OngoingSettingsPanel current={current} setCurrent={setCurrent} teamMap={teamMap} />
+      )}
+
       {current.status === 'completed' && current.winner && (
         <div className="rounded-lg border border-warning/40 bg-warning/5 p-5 space-y-4">
           <div className="text-center space-y-2">
@@ -2376,6 +2380,112 @@ function LPMStandingsView({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function OngoingSettingsPanel({
+  current,
+  setCurrent,
+  teamMap,
+}: {
+  current: Competition;
+  setCurrent: (c: Competition) => void;
+  teamMap: Record<string, Team>;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const participantOptions = current.teamIds.map((id) => ({
+    id,
+    name: teamMap[id]?.name ?? current.teamSnapshot?.[id]?.name ?? id,
+    flag: teamMap[id]?.flag ?? current.teamSnapshot?.[id]?.flag,
+  }));
+
+  return (
+    <div className="rounded-lg border border-border bg-surface">
+      <button
+        className="w-full flex items-center justify-between px-4 py-3 text-sm text-muted hover:text-text transition-colors"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="font-medium">⚙️ Paramètres</span>
+        <span>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="px-4 pb-4 grid gap-3 sm:grid-cols-2">
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted">Nom</span>
+            <Input
+              value={current.name}
+              onChange={(e) => setCurrent({ ...current, name: e.target.value })}
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted">Année</span>
+            <Input
+              type="number"
+              value={current.year ?? ''}
+              onChange={(e) => setCurrent({ ...current, year: e.target.value ? Number(e.target.value) : undefined })}
+              placeholder="Ex : 2026"
+              min={1900}
+              max={2200}
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted">Nature (Officielle / Amicale)</span>
+            <select
+              className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm"
+              value={current.kind ?? ''}
+              onChange={(e) => setCurrent({ ...current, kind: (e.target.value || undefined) as CompetitionKind | undefined })}
+            >
+              <option value="">— Non défini —</option>
+              {(Object.keys(COMPETITION_KIND_LABEL) as CompetitionKind[]).map((k) => (
+                <option key={k} value={k}>{COMPETITION_KIND_LABEL[k]}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted">Type</span>
+            <select
+              className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm"
+              value={current.scope ?? ''}
+              onChange={(e) => setCurrent({ ...current, scope: (e.target.value || undefined) as CompetitionScope | undefined })}
+            >
+              <option value="">— Non défini —</option>
+              {(Object.keys(COMPETITION_SCOPE_LABEL) as CompetitionScope[]).map((s) => (
+                <option key={s} value={s}>{COMPETITION_SCOPE_LABEL[s]}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted">Importance CMF</span>
+            <select
+              className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm"
+              value={current.importance ?? ''}
+              onChange={(e) => setCurrent({ ...current, importance: (e.target.value || undefined) as CompetitionImportance | undefined })}
+            >
+              <option value="">— Non défini —</option>
+              {(Object.keys(COMPETITION_IMPORTANCE_LABEL) as CompetitionImportance[]).map((i) => (
+                <option key={i} value={i}>{COMPETITION_IMPORTANCE_LABEL[i]}</option>
+              ))}
+            </select>
+          </label>
+          {(current.format === 'lpm' || current.format === 'groups_knockout') && (
+            <label className="block text-sm">
+              <span className="mb-1 block text-muted">Équipe hôte</span>
+              <select
+                className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm"
+                value={current.hostTeamId ?? ''}
+                onChange={(e) => setCurrent({ ...current, hostTeamId: e.target.value || undefined })}
+              >
+                <option value="">— Aucun hôte —</option>
+                {participantOptions.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+      )}
     </div>
   );
 }
