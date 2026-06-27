@@ -1030,10 +1030,16 @@ function TeamRanking({ entries, onPlayerClick, continentFilter, onContinentFilte
                       <span className="font-medium truncate">{e.team.name}</span>
                       <span className="text-xs text-muted ml-1">{isOpen ? '▲' : '▼'}</span>
                     </div>
-                    {/* mobile: inline form + palmares */}
+                    {/* mobile: form + palmarès séparés */}
                     <div className="sm:hidden flex items-center gap-1 mt-0.5">
                       {e.form.map((r, i) => <FormIcon key={i} result={r} />)}
-                      {e.wins > 0 && <span className="text-[10px] text-warning ml-1">🏆{e.wins}</span>}
+                      {(e.wins > 0 || e.finals > 0 || e.thirds > 0) && (
+                        <span className="text-[10px] text-muted ml-1 flex items-center gap-0.5">
+                          {e.wins > 0 && <span>🏆{e.wins}</span>}
+                          {e.finals > 0 && <span>🥈{e.finals}</span>}
+                          {e.thirds > 0 && <span>🥉{e.thirds}</span>}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-2 py-2.5 text-center tabular-nums hidden sm:table-cell">{e.wins || '—'}</td>
@@ -1048,7 +1054,7 @@ function TeamRanking({ entries, onPlayerClick, continentFilter, onContinentFilte
                       }
                     </div>
                   </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums font-bold text-accent">{e.points}</td>
+                  <td className="pl-4 pr-3 py-2.5 text-right tabular-nums font-bold text-accent">{e.points}</td>
                 </tr>
                 {isOpen && (
                   <tr key={`${e.team.id}-detail`} className="border-t border-border bg-bg/30">
