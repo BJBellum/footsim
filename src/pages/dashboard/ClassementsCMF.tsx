@@ -220,7 +220,7 @@ export default function ClassementsCMF({ embedded }: { embedded?: boolean }) {
 
   return (
     <>
-    <div className="max-w-5xl space-y-6">
+    <div className="max-w-5xl space-y-6 min-w-0">
       {!embedded && (
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -238,7 +238,7 @@ export default function ClassementsCMF({ embedded }: { embedded?: boolean }) {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-border">
+      <div className="flex gap-1 border-b border-border overflow-x-auto scrollbar-none">
         {([['equipes', 'Meilleures équipes'], ['joueurs', 'Meilleurs joueurs'], ['explications', 'Explications']] as const).map(([t, label]) => (
           <button
             key={t}
@@ -284,15 +284,15 @@ export default function ClassementsCMF({ embedded }: { embedded?: boolean }) {
             <span className="text-xs text-muted">{filteredPlayers.length} joueurs</span>
           </div>
 
-          <div className="overflow-hidden rounded-lg border border-border bg-surface">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto rounded-lg border border-border bg-surface">
+            <table className="w-full text-sm min-w-[400px]">
               <thead className="bg-bg text-left text-xs text-muted uppercase tracking-wide">
                 <tr>
                   <th className="px-3 py-2 w-10 text-center">#</th>
-                  <th className="px-4 py-2">Joueur</th>
-                  <th className="px-4 py-2">Poste</th>
-                  <th className="px-4 py-2">Nationalité</th>
-                  <th className="px-4 py-2">Culture</th>
+                  <th className="px-3 py-2">Joueur</th>
+                  <th className="px-3 py-2 hidden sm:table-cell">Poste</th>
+                  <th className="px-3 py-2">Équipe</th>
+                  <th className="px-3 py-2 hidden md:table-cell">Culture</th>
                   <th className="px-3 py-2 text-right font-bold">OVR</th>
                 </tr>
               </thead>
@@ -308,23 +308,26 @@ export default function ClassementsCMF({ embedded }: { embedded?: boolean }) {
                   return (
                     <tr key={player.id} className="border-t border-border hover:bg-border/10 transition-colors">
                       <td className={`px-3 py-2.5 text-center tabular-nums text-sm ${rankColor}`}>{rank}</td>
-                      <td className="px-4 py-2.5">
-                        <span className="font-medium">{player.firstName} {player.lastName}</span>
+                      <td className="px-3 py-2.5">
+                        <div className="font-medium leading-tight">{player.firstName} {player.lastName}</div>
+                        <div className="sm:hidden text-xs text-muted mt-0.5">
+                          <span className="rounded bg-border/40 px-1.5 py-0.5 font-mono">{POSITION_LABEL[player.position as Position]}</span>
+                        </div>
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-3 py-2.5 hidden sm:table-cell">
                         <span className="rounded bg-border/40 px-2 py-0.5 font-mono text-xs">
                           {POSITION_LABEL[player.position as Position]}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-3 py-2.5">
                         <div className="flex items-center gap-2 min-w-0">
                           {team.flag && (
                             <img src={team.flag} alt="" className="h-5 w-5 rounded-sm object-cover shrink-0" />
                           )}
-                          <span className="truncate max-w-[120px] text-sm">{team.name}</span>
+                          <span className="truncate max-w-[100px] text-sm">{team.name}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-2.5 text-muted text-xs">
+                      <td className="px-3 py-2.5 text-muted text-xs hidden md:table-cell">
                         {CULTURE_LABEL[team.culture] ?? team.culture}
                       </td>
                       <td className="px-3 py-2.5 text-right tabular-nums font-bold text-accent">{player.overall}</td>
@@ -359,7 +362,7 @@ export default function ClassementsCMF({ embedded }: { embedded?: boolean }) {
 
 function ExplicationsTab() {
   return (
-    <div className="space-y-8 text-sm max-w-3xl">
+    <div className="space-y-8 text-sm max-w-3xl min-w-0">
 
       <section className="space-y-3">
         <h2 className="font-display text-2xl">Principe général</h2>
@@ -376,14 +379,14 @@ function ExplicationsTab() {
         <p className="text-muted leading-relaxed">
           Chaque match de compétition simulé rapporte des points selon la formule :
         </p>
-        <div className="rounded-lg border border-border bg-surface p-4 font-mono text-xs leading-relaxed">
-          pts = base × multiplicateur_portée × multiplicateur_statut × multiplicateur_importance × facteur_adversaire × multiplicateur_participants + bonus_écart
+        <div className="rounded-lg border border-border bg-surface p-4 font-mono text-xs leading-relaxed overflow-x-auto whitespace-nowrap">
+          pts = base × mult_portée × mult_statut × mult_importance × facteur_adv × mult_participants + bonus_écart
         </div>
 
         <div className="space-y-4">
           <div>
             <div className="font-medium mb-2">Base selon le résultat</div>
-            <table className="w-full text-xs border border-border rounded-lg overflow-hidden">
+            <div className="overflow-x-auto rounded-lg border border-border"><table className="w-full text-xs min-w-[260px]">
               <thead className="bg-bg text-muted uppercase tracking-wide">
                 <tr>
                   <th className="px-4 py-2 text-left">Résultat</th>
@@ -411,12 +414,12 @@ function ExplicationsTab() {
                   </td>
                 </tr>
               </tbody>
-            </table>
+            </table></div>
           </div>
 
           <div>
             <div className="font-medium mb-2">Multiplicateur de portée</div>
-            <table className="w-full text-xs border border-border rounded-lg overflow-hidden">
+            <div className="overflow-x-auto rounded-lg border border-border"><table className="w-full text-xs min-w-[260px]">
               <thead className="bg-bg text-muted uppercase tracking-wide">
                 <tr>
                   <th className="px-4 py-2 text-left">Portée</th>
@@ -431,12 +434,12 @@ function ExplicationsTab() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
 
           <div>
             <div className="font-medium mb-2">Multiplicateur de statut</div>
-            <table className="w-full text-xs border border-border rounded-lg overflow-hidden">
+            <div className="overflow-x-auto rounded-lg border border-border"><table className="w-full text-xs min-w-[260px]">
               <thead className="bg-bg text-muted uppercase tracking-wide">
                 <tr>
                   <th className="px-4 py-2 text-left">Statut</th>
@@ -451,7 +454,7 @@ function ExplicationsTab() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
 
           <div>
@@ -460,7 +463,7 @@ function ExplicationsTab() {
               Défini manuellement sur chaque compétition. Permet de distinguer un tournoi mineur d'une Coupe du Monde.
               Si non défini, le niveau <strong className="text-text">Tournoi international</strong> s'applique par défaut (×0.8).
             </p>
-            <table className="w-full text-xs border border-border rounded-lg overflow-hidden">
+            <div className="overflow-x-auto rounded-lg border border-border"><table className="w-full text-xs min-w-[260px]">
               <thead className="bg-bg text-muted uppercase tracking-wide">
                 <tr>
                   <th className="px-4 py-2 text-left">Importance</th>
@@ -484,7 +487,7 @@ function ExplicationsTab() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
 
           <div>
@@ -518,7 +521,7 @@ function ExplicationsTab() {
               Plus une compétition regroupe d'équipes, plus elle est prestigieuse — et plus les points gagnés valent.
               Ce facteur valorise les performances dans les grands tournois face à des adversaires plus nombreux.
             </p>
-            <table className="w-full text-xs border border-border rounded-lg overflow-hidden">
+            <div className="overflow-x-auto rounded-lg border border-border"><table className="w-full text-xs min-w-[260px]">
               <thead className="bg-bg text-muted uppercase tracking-wide">
                 <tr>
                   <th className="px-4 py-2 text-left">Nombre d'équipes</th>
@@ -542,16 +545,19 @@ function ExplicationsTab() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         </div>
 
-        <div className="rounded-lg border border-accent/30 bg-accent/5 p-4 text-xs text-muted leading-relaxed">
-          <strong className="text-text">Exemple :</strong> Victoire 3–0 contre une équipe force 80 dans une Coupe du Monde à 32 équipes (internationale, officielle, mondiale) :<br />
-          <span className="font-mono">(3 × 1.5 × 1.2 × 2.0 × (80/50)^0.75 × 1.30) + 1.0 ≈ <strong className="text-accent">22.1 pts</strong></span>
-          <br /><br />
-          <strong className="text-text">Exemple :</strong> Défaite 0–3 contre une équipe force 60 dans un amical 1v1 (internationale, amicale, tournoi) :<br />
-          <span className="font-mono">max(0, 0 × 1.5 × 0.2 × 0.8 × √(60/50) × 0.70 − 1.0) = <strong className="text-accent">0 pt</strong></span>
+        <div className="rounded-lg border border-accent/30 bg-accent/5 p-4 text-xs text-muted leading-relaxed space-y-2">
+          <div>
+            <strong className="text-text">Exemple :</strong> Victoire 3–0 vs force 80, CdM 32 éq. (Intl · Off · Mondial) :
+            <div className="font-mono overflow-x-auto whitespace-nowrap mt-1">(3×1.5×1.2×2.0×(80/50)^0.75×1.30)+1.0 ≈ <strong className="text-accent">22.1 pts</strong></div>
+          </div>
+          <div>
+            <strong className="text-text">Exemple :</strong> Défaite 0–3 vs force 60, amical 1v1 (Intl · Amicale · Tournoi) :
+            <div className="font-mono overflow-x-auto whitespace-nowrap mt-1">max(0, 0×1.5×0.2×0.8×√(60/50)×0.70−1.0) = <strong className="text-accent">0 pt</strong></div>
+          </div>
         </div>
       </section>
 
@@ -560,12 +566,12 @@ function ExplicationsTab() {
         <p className="text-muted leading-relaxed">
           En plus des points match, chaque résultat final dans une compétition rapporte un bonus permanent (non limité aux 10 derniers) :
         </p>
-        <table className="w-full text-xs border border-border rounded-lg overflow-hidden">
+        <div className="overflow-x-auto rounded-lg border border-border"><table className="w-full text-xs min-w-[280px]">
           <thead className="bg-bg text-muted uppercase tracking-wide">
             <tr>
-              <th className="px-4 py-2 text-left">Résultat final</th>
+              <th className="px-4 py-2 text-left">Résultat</th>
               <th className="px-4 py-2 text-right">Base</th>
-              <th className="px-4 py-2 text-right">Exemple (Intl · Off · Prestige · 16 éq.)</th>
+              <th className="px-4 py-2 text-right hidden sm:table-cell">Exemple ×1.98</th>
             </tr>
           </thead>
           <tbody>
@@ -583,11 +589,11 @@ function ExplicationsTab() {
               <tr key={r} className="border-t border-border">
                 <td className="px-4 py-2">{r}</td>
                 <td className="px-4 py-2 text-right font-bold text-accent">{b}</td>
-                <td className="px-4 py-2 text-right text-muted">{ex}</td>
+                <td className="px-4 py-2 text-right text-muted hidden sm:table-cell">{ex}</td>
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
         <p className="text-xs text-muted">
           Les mêmes multiplicateurs portée × statut × importance × participants s'appliquent. Intl · Off · Prestige · 16 éq. = ×1.5 × 1.0 × 1.1 × 1.2 = ×1.98.
         </p>
@@ -866,7 +872,7 @@ function ExpandedTeamDetail({ entry, onPlayerClick }: { entry: TeamRankEntry; on
   return (
     <div className="space-y-5">
       {/* ── Palmarès + Matchs ── */}
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs uppercase tracking-widest text-muted">Palmarès</span>
@@ -984,18 +990,18 @@ function TeamRanking({ entries, onPlayerClick, continentFilter, onContinentFilte
           ))}
         </div>
       )}
-    <div className="overflow-hidden rounded-lg border border-border bg-surface">
-      <table className="w-full text-sm">
+    <div className="overflow-x-auto rounded-lg border border-border bg-surface">
+      <table className="w-full text-sm min-w-[340px]">
         <thead className="bg-bg text-left text-xs text-muted uppercase tracking-wide">
           <tr>
             <th className="px-3 py-2 w-10 text-center">#</th>
-            <th className="px-4 py-2">Équipe</th>
-            <th className="px-3 py-2 text-center">🏆</th>
-            <th className="px-3 py-2 text-center">🥈</th>
-            <th className="px-3 py-2 text-center">🥉</th>
-            <th className="px-3 py-2 text-center">Participations</th>
-            <th className="px-3 py-2 text-center">Forme</th>
-            <th className="px-3 py-2 text-right font-bold">Points</th>
+            <th className="px-3 py-2">Équipe</th>
+            <th className="px-2 py-2 text-center hidden sm:table-cell">🏆</th>
+            <th className="px-2 py-2 text-center hidden sm:table-cell">🥈</th>
+            <th className="px-2 py-2 text-center hidden sm:table-cell">🥉</th>
+            <th className="px-2 py-2 text-center hidden md:table-cell">Partic.</th>
+            <th className="px-2 py-2 text-center hidden sm:table-cell">Forme</th>
+            <th className="px-3 py-2 text-right font-bold">Pts</th>
           </tr>
         </thead>
         <tbody>
@@ -1016,7 +1022,7 @@ function TeamRanking({ entries, onPlayerClick, continentFilter, onContinentFilte
                   onClick={() => setExpanded(isOpen ? null : e.team.id)}
                 >
                   <td className={`px-3 py-2.5 text-center tabular-nums text-sm ${rankColor}`}>{rank}</td>
-                  <td className="px-4 py-2.5">
+                  <td className="px-3 py-2.5">
                     <div className="flex items-center gap-2 min-w-0">
                       {e.team.flag && (
                         <img src={e.team.flag} alt="" className="h-6 w-6 rounded-sm object-cover shrink-0" />
@@ -1024,12 +1030,17 @@ function TeamRanking({ entries, onPlayerClick, continentFilter, onContinentFilte
                       <span className="font-medium truncate">{e.team.name}</span>
                       <span className="text-xs text-muted ml-1">{isOpen ? '▲' : '▼'}</span>
                     </div>
+                    {/* mobile: inline form + palmares */}
+                    <div className="sm:hidden flex items-center gap-1 mt-0.5">
+                      {e.form.map((r, i) => <FormIcon key={i} result={r} />)}
+                      {e.wins > 0 && <span className="text-[10px] text-warning ml-1">🏆{e.wins}</span>}
+                    </div>
                   </td>
-                  <td className="px-3 py-2.5 text-center tabular-nums">{e.wins || '—'}</td>
-                  <td className="px-3 py-2.5 text-center tabular-nums">{e.finals || '—'}</td>
-                  <td className="px-3 py-2.5 text-center tabular-nums">{e.thirds || '—'}</td>
-                  <td className="px-3 py-2.5 text-center tabular-nums text-muted">{e.participations}</td>
-                  <td className="px-3 py-2.5">
+                  <td className="px-2 py-2.5 text-center tabular-nums hidden sm:table-cell">{e.wins || '—'}</td>
+                  <td className="px-2 py-2.5 text-center tabular-nums hidden sm:table-cell">{e.finals || '—'}</td>
+                  <td className="px-2 py-2.5 text-center tabular-nums hidden sm:table-cell">{e.thirds || '—'}</td>
+                  <td className="px-2 py-2.5 text-center tabular-nums text-muted hidden md:table-cell">{e.participations}</td>
+                  <td className="px-2 py-2.5 hidden sm:table-cell">
                     <div className="flex items-center justify-center gap-0.5">
                       {e.form.length === 0
                         ? <span className="text-xs text-muted">—</span>
@@ -1042,7 +1053,7 @@ function TeamRanking({ entries, onPlayerClick, continentFilter, onContinentFilte
                 {isOpen && (
                   <tr key={`${e.team.id}-detail`} className="border-t border-border bg-bg/30">
                     <td />
-                    <td colSpan={7} className="px-4 py-4">
+                    <td colSpan={7} className="px-3 py-4">
                       <ExpandedTeamDetail entry={e} onPlayerClick={onPlayerClick} />
                     </td>
                   </tr>
