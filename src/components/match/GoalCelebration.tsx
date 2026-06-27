@@ -5,6 +5,8 @@ import type { Team } from '@/lib/types';
 const VIDEOS = [
   '/videos/celebration-but-1.mp4',
   '/videos/celebration-but-2.mp4',
+  '/videos/celebration-but-3.mp4',
+  '/videos/celebration-but-4.mp4',
 ];
 
 type Props = {
@@ -44,27 +46,11 @@ export function GoalCelebration({ visible, scoringTeam, home, away, score }: Pro
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
+          style={{ background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.96) 100%)' }}
         >
-          {/* Vidéo en fond */}
-          <video
-            ref={videoRef}
-            src={videoSrc}
-            muted
-            playsInline
-            loop={false}
-            className="absolute inset-0 h-full w-full object-cover"
-            style={{ filter: 'brightness(0.45) saturate(1.2)' }}
-          />
-
-          {/* Gradient overlay */}
-          <div
-            className="absolute inset-0"
-            style={{ background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.75) 100%)' }}
-          />
-
-          {/* Contenu */}
+          {/* Contenu centré */}
           <motion.div
-            className="relative z-10 flex flex-col items-center gap-5 text-center px-6"
+            className="relative z-10 flex flex-col items-center gap-4 text-center px-6 w-full max-w-md"
             initial={{ scale: 0.5, y: 50, opacity: 0 }}
             animate={{ scale: 1, y: 0, opacity: 1 }}
             exit={{ scale: 0.7, y: -30, opacity: 0 }}
@@ -125,10 +111,28 @@ export function GoalCelebration({ visible, scoringTeam, home, away, score }: Pro
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.5 }}
+              transition={{ delay: 0.45 }}
               className="text-xs text-white/50 tracking-widest uppercase"
             >
               {home.name} · {away.name}
+            </motion.div>
+
+            {/* Encart vidéo */}
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.55 }}
+              className="w-full rounded-xl overflow-hidden border border-white/10 shadow-2xl mt-2"
+              style={{ aspectRatio: '16/9' }}
+            >
+              <video
+                ref={videoRef}
+                src={videoSrc}
+                muted
+                playsInline
+                loop={false}
+                className="w-full h-full object-cover"
+              />
             </motion.div>
           </motion.div>
         </motion.div>
