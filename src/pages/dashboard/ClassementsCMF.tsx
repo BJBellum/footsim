@@ -310,30 +310,12 @@ export default function ClassementsCMF({ embedded }: { embedded?: boolean }) {
                 </table>
               </div>
 
-              {playerPagination.pages > 1 && (
-                <div className="flex items-center justify-center gap-2 pt-2">
-                  <button
-                    onClick={() => loadPlayerPage(playerPage - 1, posFilter)}
-                    disabled={playerPage <= 1 || playerPageLoading}
-                    className="px-3 py-1.5 rounded-md border border-border text-sm text-muted hover:text-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  >←</button>
-                  {Array.from({ length: playerPagination.pages }, (_, i) => i + 1).map((p) => (
-                    <button
-                      key={p}
-                      onClick={() => loadPlayerPage(p, posFilter)}
-                      disabled={playerPageLoading}
-                      className={`w-8 h-8 rounded-md border text-sm transition-colors disabled:opacity-40 ${
-                        p === playerPage ? 'border-accent bg-accent/10 text-accent font-bold' : 'border-border text-muted hover:text-text'
-                      }`}
-                    >{p}</button>
-                  ))}
-                  <button
-                    onClick={() => loadPlayerPage(playerPage + 1, posFilter)}
-                    disabled={playerPage >= playerPagination.pages || playerPageLoading}
-                    className="px-3 py-1.5 rounded-md border border-border text-sm text-muted hover:text-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  >→</button>
-                </div>
-              )}
+              <Pagination
+                page={playerPage}
+                pages={playerPagination.pages}
+                loading={playerPageLoading}
+                onChange={(p) => loadPlayerPage(p, posFilter)}
+              />
             </>
           )}
         </div>
@@ -676,6 +658,52 @@ function ExplicationsTab() {
         </div>
       </section>
 
+    </div>
+  );
+}
+
+// ─── Pagination ───────────────────────────────────────────────────────────────
+
+function paginationPages(current: number, total: number): (number | '…')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages: (number | '…')[] = [1];
+  if (current > 3) pages.push('…');
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) pages.push(p);
+  if (current < total - 2) pages.push('…');
+  pages.push(total);
+  return pages;
+}
+
+function Pagination({ page, pages, loading, onChange }: {
+  page: number; pages: number; loading: boolean; onChange: (p: number) => void;
+}) {
+  if (pages <= 1) return null;
+  return (
+    <div className="flex items-center justify-center gap-1 pt-2 flex-wrap">
+      <button
+        onClick={() => onChange(page - 1)}
+        disabled={page <= 1 || loading}
+        className="px-2.5 py-1.5 rounded-md border border-border text-sm text-muted hover:text-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      >←</button>
+      {paginationPages(page, pages).map((p, i) =>
+        p === '…' ? (
+          <span key={`ellipsis-${i}`} className="w-8 text-center text-muted text-sm">…</span>
+        ) : (
+          <button
+            key={p}
+            onClick={() => onChange(p)}
+            disabled={loading}
+            className={`w-8 h-8 rounded-md border text-sm transition-colors disabled:opacity-40 ${
+              p === page ? 'border-accent bg-accent/10 text-accent font-bold' : 'border-border text-muted hover:text-text'
+            }`}
+          >{p}</button>
+        )
+      )}
+      <button
+        onClick={() => onChange(page + 1)}
+        disabled={page >= pages || loading}
+        className="px-2.5 py-1.5 rounded-md border border-border text-sm text-muted hover:text-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      >→</button>
     </div>
   );
 }
@@ -1048,39 +1076,12 @@ function TeamRanking({ entries, continentFilter, onContinentFilter, pagination, 
     </div>
 
     {/* Pagination */}
-    {pagination.pages > 1 && (
-      <div className="flex items-center justify-center gap-2 pt-2">
-        <button
-          onClick={() => onPageChange(pagination.page - 1)}
-          disabled={pagination.page <= 1 || pageLoading}
-          className="px-3 py-1.5 rounded-md border border-border text-sm text-muted hover:text-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          ←
-        </button>
-        {Array.from({ length: pagination.pages }, (_, i) => i + 1).map((p) => (
-          <button
-            key={p}
-            onClick={() => onPageChange(p)}
-            disabled={pageLoading}
-            className={`w-8 h-8 rounded-md border text-sm transition-colors disabled:opacity-40 ${
-              p === pagination.page
-                ? 'border-accent bg-accent/10 text-accent font-bold'
-                : 'border-border text-muted hover:text-text'
-            }`}
-          >
-            {p}
-          </button>
-        ))}
-        <button
-          onClick={() => onPageChange(pagination.page + 1)}
-          disabled={pagination.page >= pagination.pages || pageLoading}
-          className="px-3 py-1.5 rounded-md border border-border text-sm text-muted hover:text-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          →
-        </button>
-        {pageLoading && <span className="text-xs text-muted ml-1">Chargement…</span>}
-      </div>
-    )}
+    <Pagination
+      page={pagination.page}
+      pages={pagination.pages}
+      loading={pageLoading}
+      onChange={onPageChange}
+    />
     </div>
   );
 }
