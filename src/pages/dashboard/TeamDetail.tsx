@@ -138,10 +138,10 @@ const [regenStrength, setRegenStrength] = useState(false);
     if (!data) return;
     setPublishing(true);
     try {
-      await saveTeam({ ...data.team, ownerId }, data.players, null);
+      await saveTeam({ ...data.team, ownerId }, data.players, null, effectivePat);
       setDirty(false);
-      setUnpublished(true);
-      toast('success', 'Enregistré localement.');
+      setUnpublished(false);
+      toast('success', 'Équipe enregistrée en DB.');
     } catch (err) {
       toast('error', String(err));
     } finally {
@@ -150,18 +150,7 @@ const [regenStrength, setRegenStrength] = useState(false);
   }
 
   async function publish() {
-    if (!data) return;
-    setPublishing(true);
-    try {
-      await saveTeam(data.team, data.players, null, effectivePat);
-      setDirty(false);
-      setUnpublished(false);
-      toast('success', 'Publié sur GitHub.');
-    } catch (err) {
-      toast('error', String(err));
-    } finally {
-      setPublishing(false);
-    }
+    return saveLocal();
   }
 
   async function addPlayers(extra: number) {

@@ -23,14 +23,12 @@ import type { Competition, CompMatch, PlayerCompStats, CompHistoryEntry, Competi
 import { COMPETITION_KIND_LABEL, COMPETITION_SCOPE_LABEL, COMPETITION_IMPORTANCE_LABEL } from '@/lib/competition/types';
 import type { CorruptionDeal } from '@/lib/sim/types';
 import type { Team } from '@/lib/types';
-import { env } from '@/lib/env';
 import { moraleLabel, MORALE_DEFAULT } from '@/lib/competition/morale';
 import type { PressItem, PressMention, PressMentionPlayer, PressMentionCoach } from '@/lib/competition/press';
 import { PRESS_CATEGORY_COLOR, PRESS_CATEGORY_LABEL, generateCmfItems } from '@/lib/competition/press';
 import { COACH_TRAIT_LABEL, COACH_TRAIT_DESCRIPTION } from '@/lib/gen/coach';
-import { batchUpdateTeamCompHistory, batchUpdateTeamMedical, batchRemoveTeamRecentMatches } from '@/lib/github/store';
-import { commitFiles, readJson as ghReadJson } from '@/lib/github/api';
-import { resyncCompetitionMatchHistory, deleteCompetitionMatchFiles, distributeLpmZonePoints } from '@/lib/github/matches';
+import { PrApiTeamBackend } from '@/lib/prapi/teamBackend';
+import { calcCmfMatchPoints } from '@/lib/github/matches';
 import type { Injury, Suspension } from '@/lib/competition/injuries';
 import { SEVERITY_COLOR, CAUSE_LABEL } from '@/lib/competition/injuries';
 
@@ -65,29 +63,21 @@ export default function CompetitionDetail() {
   const [roundDraw, setRoundDraw] = useState<{ round: number; pairs: LPMPair[]; isScheduleDraw?: boolean } | null>(null);
   const [preMatchModal, setPreMatchModal] = useState<{ matchId: string; home: Team; away: Team } | null>(null);
 
-  // For public repos, reads work without a token. PAT only needed for writes.
-  const readToken = effectivePat ?? env.githubReadToken ?? '';
-
   useEffect(() => {
     if (!id) { setLoading(false); return; }
 
     async function init() {
-      // Load competition first (usually instant from localStorage)
       const comp = current?.id === id ? current : await load(id!, '', effectivePat);
-
-      // If teamSnapshot covers all teamIds, skip the expensive listTeams call entirely.
-      // Teams store is still loaded lazily when admin needs it (handleSync, handleDelete use teams directly).
       const snapshotIds = new Set(Object.keys(comp?.teamSnapshot ?? {}));
       const allCovered = comp != null && comp.teamIds.every((tid) => snapshotIds.has(tid));
-
       if (!allCovered && teams.length === 0) {
-        await refreshTeams(ownerId, effectivePat ?? null);
+        await refreshTeams(ownerId, null, effectivePat);
       }
     }
 
     init().finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, readToken]);
+  }, [id, effectivePat]);
 
   // Generate CMF debut articles before round 1 (once per competition, when it becomes ongoing)
   useEffect(() => {
@@ -165,36 +155,34 @@ export default function CompetitionDetail() {
   const allStandings = Object.values(current.standings);
 
   async function ensureTeams() {
-    if (teams.length === 0) await refreshTeams(ownerId, effectivePat);
+    if (teams.length === 0) await refreshTeams(ownerId, null, effectivePat);
   }
+
+  function teamBackend() {
+    return new PrApiTeamBackend(effectivePat ?? '');
+  }
+
+
 
   async function handleSync() {
     if (!effectivePat || !current) return;
-    await ensureTeams();
     setSyncing(true);
     try {
       await save(current, '', effectivePat);
 
-      // When competition is completed, append/update compHistory — one Git commit for all teams
+      // When completed, update compHistory on each participating team
       if (current.status === 'completed') {
         const snapshot = current.teamSnapshot ?? {};
-        // Use teamSnapshot slugs — avoids dependency on Zustand store load state
-        const participatingEntries = current.teamIds
+        const entries = current.teamIds
           .map((tid) => ({ tid, slug: snapshot[tid]?.slug }))
           .filter((x): x is { tid: string; slug: string } => !!x.slug);
 
-        const reads = await Promise.all(
-          participatingEntries.map(async ({ tid, slug }) => ({
-            tid, slug,
-            existing: await ghReadJson<import('@/lib/types').Team>(`data/teams/${slug}/team.json`, effectivePat),
-          })),
-        );
-        const files: Array<{ path: string; content: unknown }> = [];
-        for (const { tid, slug, existing } of reads) {
-          if (!existing) continue;
-          const team = existing.data;
-          const prev = team.compHistory ?? [];
-          const existingIdx = prev.findIndex((e) => e.compId === current.id);
+        await Promise.all(entries.map(async ({ tid, slug }) => {
+          const backend = teamBackend();
+          const res = await backend.loadTeam(slug, ownerId);
+          if (!res) return;
+          const prev = res.team.compHistory ?? [];
+          const idx = prev.findIndex((e) => e.compId === current.id);
           const entry: CompHistoryEntry = {
             compId: current.id,
             compName: current.name,
@@ -207,19 +195,16 @@ export default function CompetitionDetail() {
             phase: deriveTeamPhase(tid, current),
             participantCount: current.teamIds.length,
           };
-          const next = existingIdx >= 0
-            ? prev.map((e, i) => i === existingIdx ? entry : e)
+          const next = idx >= 0
+            ? prev.map((e, i) => i === idx ? entry : e)
             : [...prev, entry];
-          const changed = existingIdx < 0 || JSON.stringify(prev[existingIdx]) !== JSON.stringify(entry);
-          if (!changed) continue;
-          files.push({ path: `data/teams/${slug}/team.json`, content: { ...team, compHistory: next } });
-        }
-        if (files.length > 0) {
-          await commitFiles(files, `chore(teams): update palmares ${current.name} (${files.length} équipes)`, effectivePat);
-        }
+          const changed = idx < 0 || JSON.stringify(prev[idx]) !== JSON.stringify(entry);
+          if (!changed) return;
+          await backend.saveTeam({ ...res.team, compHistory: next }, res.players);
+        }));
       }
 
-      toast('success', 'Compétition sauvegardée sur GitHub.');
+      toast('success', 'Compétition sauvegardée en DB.');
     } catch (err) {
       toast('error', String(err));
     } finally {
@@ -244,7 +229,7 @@ export default function CompetitionDetail() {
     setSyncing(true);
     try {
       await save(updated, '', effectivePat);
-      toast('success', 'Noms et drapeaux mis à jour.');
+      toast('success', 'Noms et drapeaux mis à jour en DB.');
     } catch (err) {
       toast('error', String(err));
     } finally {
@@ -256,24 +241,68 @@ export default function CompetitionDetail() {
     if (!effectivePat || !current) return;
     setResyncing(true);
     try {
-      const strengths: Record<string, number> = {};
-      for (const id of current.teamIds) {
-        const snap = current.teamSnapshot?.[id];
-        if (snap?.globalStrength) strengths[id] = snap.globalStrength;
+      const snapshot = current.teamSnapshot ?? {};
+      const backend = teamBackend();
+      const completedMatches = current.matches.filter((m) => m.status === 'completed' && m.result != null);
+      const participantCount = current.teamIds.length;
+
+      const byTeam: Record<string, import('@/lib/github/matches').RecentMatchSummary[]> = {};
+      for (const m of completedMatches) {
+        const homeId = m.homeTeamId;
+        const awayId = m.awayTeamId;
+        if (!homeId || !awayId || !m.result) continue;
+        const homeSnap = snapshot[homeId];
+        const awaySnap = snapshot[awayId];
+        if (!homeSnap?.slug || !awaySnap?.slug) continue;
+
+        const playedAt = m.simulatedAt ?? new Date().toISOString();
+        const makeSummary = (isHome: boolean): import('@/lib/github/matches').RecentMatchSummary => {
+          const oppSnap = isHome ? awaySnap : homeSnap;
+          const oppStrength = (oppSnap as any).globalStrength ?? 50;
+          const scoreFor = isHome ? m.result!.home : m.result!.away;
+          const scoreAgainst = isHome ? m.result!.away : m.result!.home;
+          return {
+            matchId: m.id ?? '',
+            playedAt,
+            opponentSlug: oppSnap.slug ?? '',
+            opponentName: oppSnap.name ?? '',
+            homeAway: isHome ? 'home' : 'away',
+            homeTeamId: homeId,
+            awayTeamId: awayId,
+            scoreFor,
+            scoreAgainst,
+            opponentStrength: oppStrength,
+            compKind: current.kind,
+            cmfPoints: calcCmfMatchPoints({
+              scoreFor,
+              scoreAgainst,
+              opponentStrength: oppStrength,
+              compKind: current.kind,
+              compScope: current.scope,
+              compImportance: current.importance,
+              participantCount,
+            }),
+          };
+        };
+        (byTeam[homeId] ??= []).push(makeSummary(true));
+        (byTeam[awayId] ??= []).push(makeSummary(false));
       }
-      const { listTeams } = await import('@/lib/github/store');
-      const allTeams = await listTeams(effectivePat);
-      const teamSlugs: Record<string, string> = {};
-      for (const t of allTeams) teamSlugs[t.id] = t.slug;
-      const { synced } = await resyncCompetitionMatchHistory(current, effectivePat, {
-        compKind: current.kind,
-        compScope: current.scope,
-        compImportance: current.importance,
-        teamStrengths: strengths,
-        teamSlugs,
-      });
-      const processed = current.matches.filter(m => m.status === 'completed' && m.result != null).length;
-      toast('success', `Historique resynchronisé : ${synced} équipes mises à jour (${processed} matchs traités).`);
+
+      let synced = 0;
+      const compMatchIds = new Set(current.matches.map((m) => m.id));
+      await Promise.all(
+        Object.entries(byTeam).map(async ([teamId, newEntries]) => {
+          const slug = snapshot[teamId]?.slug;
+          if (!slug) return;
+          const res = await backend.loadTeam(slug, ownerId);
+          if (!res) return;
+          const existing = (res.team.recentMatches ?? []).filter((r) => !compMatchIds.has(r.matchId));
+          const merged = [...existing, ...newEntries].slice(-20);
+          await backend.saveTeam({ ...res.team, recentMatches: merged }, res.players);
+          synced++;
+        }),
+      );
+      toast('success', `Historique resynchronisé : ${synced} équipes mises à jour.`);
     } catch (err) {
       toast('error', String(err));
     } finally {
@@ -286,14 +315,25 @@ export default function CompetitionDetail() {
     setSyncingMedical(true);
     try {
       const teamSnap = current.teamSnapshot ?? {};
-      const slugs = current.teamIds.map((tid) => teamSnap[tid]?.slug).filter(Boolean) as string[];
-      const teamIdBySlug: Record<string, string> = {};
-      for (const tid of current.teamIds) {
-        const slug = teamSnap[tid]?.slug;
-        if (slug) teamIdBySlug[slug] = tid;
-      }
-      await batchUpdateTeamMedical(slugs, teamIdBySlug, current.injuries ?? [], current.suspensions ?? [], effectivePat);
-      toast('success', 'État médical synchronisé sur les équipes.');
+      const backend = teamBackend();
+      const injuries = current.injuries ?? [];
+      const suspensions = current.suspensions ?? [];
+
+      await Promise.all(
+        current.teamIds.map(async (tid) => {
+          const slug = teamSnap[tid]?.slug;
+          if (!slug) return;
+          const res = await backend.loadTeam(slug, ownerId);
+          if (!res) return;
+          const teamInjuries = injuries.filter((i) => i.teamId === tid);
+          const teamSuspensions = suspensions.filter((s) => s.teamId === tid);
+          await backend.saveTeam(
+            { ...res.team, injuries: teamInjuries, suspensions: teamSuspensions },
+            res.players,
+          );
+        }),
+      );
+      toast('success', 'État médical synchronisé en DB.');
     } catch (err) {
       toast('error', String(err));
     } finally {
@@ -306,16 +346,13 @@ export default function CompetitionDetail() {
     setDistributingLpm(true);
     try {
       const { sortStandings } = await import('@/lib/competition/scheduler');
-      const { listTeams } = await import('@/lib/github/store');
-      const allTeams = await listTeams(effectivePat);
-      const teamSlugs: Record<string, string> = {};
-      for (const t of allTeams) teamSlugs[t.id] = t.slug;
+      const snapshot = current.teamSnapshot ?? {};
+      const backend = teamBackend();
 
       const sorted = sortStandings(Object.values(current.standings));
       const ranks: Record<string, number> = {};
       sorted.forEach((s, i) => { ranks[s.teamId] = i + 1; });
 
-      // Playoff qualified: teams in Zone Rouge that appear as winners in playoff matches
       const playoffQualifiedIds = new Set<string>();
       for (const m of current.matches) {
         if (m.phase !== 'lpm_playoff' || m.status !== 'completed' || !m.result) continue;
@@ -324,7 +361,41 @@ export default function CompetitionDetail() {
         else if (!homeWon && m.awayTeamId) playoffQualifiedIds.add(m.awayTeamId);
       }
 
-      const { distributed, skipped } = await distributeLpmZonePoints(current, effectivePat, { ranks, playoffQualifiedIds, teamSlugs });
+      // LPM zone points: 3 zones (Rouge top5, Orange mid, Verte bottom)
+      const LPM_ZONE_POINTS: Record<string, number> = {};
+      sorted.forEach((s, i) => {
+        const rank = i + 1;
+        LPM_ZONE_POINTS[s.teamId] = rank <= 5 ? 3 : rank <= 10 ? 1 : 0;
+        if (playoffQualifiedIds.has(s.teamId)) LPM_ZONE_POINTS[s.teamId] += 2;
+      });
+
+      let distributed = 0;
+      let skipped = 0;
+      await Promise.all(
+        current.teamIds.map(async (tid) => {
+          const slug = snapshot[tid]?.slug;
+          if (!slug) { skipped++; return; }
+          const res = await backend.loadTeam(slug, ownerId);
+          if (!res) { skipped++; return; }
+          const pts = LPM_ZONE_POINTS[tid] ?? 0;
+          if (pts === 0) { skipped++; return; }
+          // Append a synthetic recentMatch entry to carry the CMF bonus
+          const bonusEntry: import('@/lib/github/matches').RecentMatchSummary = {
+            matchId: `lpm-zone-${current.id}-${tid}`,
+            playedAt: new Date().toISOString(),
+            opponentSlug: '',
+            opponentName: `LPM — Bonus zone (${current.name})`,
+            homeAway: 'home',
+            scoreFor: 0,
+            scoreAgainst: 0,
+            cmfPoints: pts,
+            compKind: current.kind,
+          };
+          const recentMatches = [...(res.team.recentMatches ?? []), bonusEntry].slice(-20);
+          await backend.saveTeam({ ...res.team, recentMatches }, res.players);
+          distributed++;
+        }),
+      );
       toast('success', `Points CMF LPM distribués : ${distributed} équipes mises à jour, ${skipped} ignorées.`);
     } catch (err) {
       toast('error', String(err));
@@ -336,24 +407,27 @@ export default function CompetitionDetail() {
   async function handleDelete() {
     if (!effectivePat || !current) return;
     if (!confirm(`Supprimer « ${current.name} » ? Cette action est irréversible.`)) return;
-    await ensureTeams();
     setDeleting(true);
     try {
-      // Delete stored match files sequentially (each requires a SHA read first)
-      const matchFileIds = current.matches
-        .filter((m) => m.matchFileId)
-        .map((m) => m.matchFileId as string);
-      if (matchFileIds.length > 0) {
-        await deleteCompetitionMatchFiles(matchFileIds, effectivePat);
-      }
-      await remove(current.id, effectivePat);
+      // Delete competition from DB
+      await remove(current.id, '', effectivePat);
+
+      // Strip compHistory + recentMatches from each team
       const snapshot = current.teamSnapshot ?? {};
-      const participatingSlugs = current.teamIds.map((tid) => snapshot[tid]?.slug).filter((s): s is string => !!s);
-      // Strip compHistory entries
-      await batchUpdateTeamCompHistory(participatingSlugs, effectivePat, { mode: 'remove', compId: current.id });
-      // Strip recentMatches entries for all matches in this competition
       const compMatchIds = new Set(current.matches.map((m) => m.id).filter(Boolean));
-      await batchRemoveTeamRecentMatches(participatingSlugs, compMatchIds, effectivePat, current.id);
+      const backend = teamBackend();
+
+      await Promise.all(
+        current.teamIds.map(async (tid) => {
+          const slug = snapshot[tid]?.slug;
+          if (!slug) return;
+          const res = await backend.loadTeam(slug, ownerId);
+          if (!res) return;
+          const compHistory = (res.team.compHistory ?? []).filter((e) => e.compId !== current.id);
+          const recentMatches = (res.team.recentMatches ?? []).filter((r) => !compMatchIds.has(r.matchId));
+          await backend.saveTeam({ ...res.team, compHistory, recentMatches }, res.players);
+        }),
+      );
       navigate(backTo);
     } catch (err) {
       toast('error', String(err));
