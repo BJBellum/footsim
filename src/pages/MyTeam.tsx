@@ -10,22 +10,20 @@ import { useSession } from '@/stores/session';
 import { usePrApiToken } from '@/stores/prApiToken';
 import { PrApiTeamBackend } from '@/lib/prapi/teamBackend';
 import { useCompetition } from '@/stores/competition';
-import { POSITIONS, POSITION_LABEL, POSITION_FULL, CULTURES_BY_CONTINENT, CULTURE_LABEL } from '@/lib/types';
-import type { Continent } from '@/lib/types';
+import { POSITION_LABEL } from '@/lib/types';
 import { FORMAT_LABEL } from '@/lib/competition/types';
 import type { Player, SavedTactic, Team, TeamTactics } from '@/lib/types';
 import type { CompetitionSummary, CompHistoryEntry } from '@/lib/competition/types';
 import { COMPETITION_IMPORTANCE_LABEL } from '@/lib/competition/types';
 import { calcCmfMatchPoints } from '@/lib/github/matches';
 import type { RecentMatchSummary } from '@/lib/github/matches';
-import type { CultureWeight } from '@/lib/gen/names';
 import { loadLocalTactics } from '@/lib/localTactics';
 import { PlayerView } from '@/components/team/PlayerView';
 import { COACH_TRAIT_LABEL, COACH_TRAIT_DESCRIPTION } from '@/lib/gen/coach';
 import type { Coach } from '@/lib/gen/coach';
 
 
-type Tab = 'tactique' | 'joueurs' | 'noms' | 'postes' | 'palmares' | 'historique' | 'entraineur' | 'stats';
+type Tab = 'tactique' | 'joueurs' | 'palmares' | 'historique' | 'entraineur' | 'stats';
 
 export default function MyTeam() {
   const session = useSession((s) => s.session);
@@ -43,11 +41,7 @@ export default function MyTeam() {
   const [summaries, setSummaries] = useState<CompetitionSummary[]>([]);
   const [, setLoadingComps] = useState(false);
   const [viewingPlayer, setViewingPlayer] = useState<Player | null>(null);
-  const [nameWeights, setNameWeights] = useState<CultureWeight[]>([]);
-  const [generatingNames, setGeneratingNames] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
-  const namesImportRef = useRef<HTMLInputElement>(null);
-  const [savingNames, setSavingNames] = useState(false);
 
   useEffect(() => {
     if (!session || !prApiToken) return;
@@ -227,65 +221,6 @@ export default function MyTeam() {
     e.target.value = '';
   }
 
-  async function handleNamesImport(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file || !data || !prApiToken) return;
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      try {
-        const json = JSON.parse(ev.target?.result as string) as { id: string; firstName: string; lastName: string }[];
-        if (!Array.isArray(json)) throw new Error('Format invalide');
-        const idToName = new Map(json.map((n) => [n.id, { firstName: n.firstName, lastName: n.lastName }]));
-        const updatedPlayers = data.players.map((p) => {
-          const names = idToName.get(p.id);
-          return names ? { ...p, ...names } : p;
-        });
-        const applied = updatedPlayers.filter((p, i) => {
-          const orig = data.players[i];
-          return p.firstName !== orig.firstName || p.lastName !== orig.lastName;
-        }).length;
-        setSavingNames(true);
-        try {
-          await new PrApiTeamBackend(prApiToken).saveTeam(data.team, updatedPlayers);
-          setData({ ...data, players: updatedPlayers });
-          toast('success', `${applied} joueur(s) renommé(s) et sauvegardés.`);
-        } catch {
-          toast('error', 'Échec de la sauvegarde des noms.');
-        } finally {
-          setSavingNames(false);
-        }
-      } catch {
-        toast('error', 'Fichier de noms invalide.');
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  }
-
-  async function exportNames() {
-    if (!data || nameWeights.length === 0) { toast('error', 'Sélectionne au moins une culture.'); return; }
-    setGeneratingNames(true);
-    try {
-      const { pickNameMixed } = await import('@/lib/gen/names');
-      const payload = data.players.map((p) => {
-        const { firstName, lastName } = pickNameMixed(nameWeights);
-        return { id: p.id, firstName, lastName };
-      });
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `noms-${data.team.slug ?? data.team.name.toLowerCase().replace(/\s+/g, '-')}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast('success', `${payload.length} noms générés.`);
-    } catch (err) {
-      toast('error', String(err));
-    } finally {
-      setGeneratingNames(false);
-    }
-  }
-
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
@@ -326,7 +261,7 @@ export default function MyTeam() {
 
       {/* Tabs */}
       <div className="flex flex-wrap items-center gap-1 border-b border-border">
-        {(['tactique', 'joueurs', 'noms', 'postes', 'palmares', 'historique', 'stats', 'entraineur'] as Tab[]).map((t) => (
+        {(['tactique', 'joueurs', 'palmares', 'historique', 'stats', 'entraineur'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -334,8 +269,6 @@ export default function MyTeam() {
           >
             {t === 'tactique' ? 'Tactique'
               : t === 'joueurs' ? 'Joueurs'
-              : t === 'noms' ? 'Noms'
-              : t === 'postes' ? 'Postes'
               : t === 'stats' ? 'Statistiques individuelles'
               : t === 'palmares' ? 'Palmarès'
               : t === 'historique' ? 'Historique matchs'
@@ -460,50 +393,6 @@ export default function MyTeam() {
         </div>
       )}
 
-      {/* Noms */}
-      {tab === 'noms' && (
-        <>
-          <NomExportPanel
-            weights={nameWeights}
-            onChange={setNameWeights}
-            onExport={exportNames}
-            busy={generatingNames}
-            playerCount={data.players.length}
-            onImportClick={() => namesImportRef.current?.click()}
-            savingNames={savingNames}
-          />
-          <input ref={namesImportRef} type="file" accept=".json" className="hidden" onChange={handleNamesImport} />
-        </>
-      )}
-
-      {/* Postes */}
-      {tab === 'postes' && (
-        <div className="space-y-4 max-w-sm">
-          <div className="overflow-hidden rounded-lg border border-border bg-surface">
-            <table className="w-full text-sm">
-              <thead className="bg-bg text-left text-muted">
-                <tr>
-                  <th className="px-4 py-2 font-medium">Abrév.</th>
-                  <th className="px-4 py-2 font-medium">Poste</th>
-                </tr>
-              </thead>
-              <tbody>
-                {POSITIONS.map((p) => (
-                  <tr key={p} className="border-t border-border">
-                    <td className="px-4 py-2">
-                      <span className="rounded bg-border/40 px-2 py-0.5 font-mono text-xs font-medium">
-                        {POSITION_LABEL[p]}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-text/80">{POSITION_FULL[p]}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
       {/* Palmarès */}
       {tab === 'palmares' && (
         <MyTeamPalmaresTab
@@ -616,132 +505,6 @@ function CoachReadPanel({ coach, teamSlug, isAdmin }: { coach: Coach | null; tea
             </div>
           ))}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function NomExportPanel({
-  weights, onChange, onExport, busy, playerCount, onImportClick, savingNames,
-}: {
-  weights: CultureWeight[];
-  onChange: (w: CultureWeight[]) => void;
-  onExport: () => void;
-  busy: boolean;
-  playerCount: number;
-  onImportClick: () => void;
-  savingNames: boolean;
-}) {
-  const selected = weights.map((w) => w.culture);
-  const total = weights.reduce((s, c) => s + c.weight, 0);
-
-  function toggleCulture(culture: CultureWeight['culture']) {
-    if (selected.includes(culture)) {
-      if (weights.length === 1) return;
-      onChange(weights.filter((w) => w.culture !== culture));
-    } else {
-      const n = weights.length + 1;
-      const eq = Math.round(100 / n);
-      onChange([...weights.map((w) => ({ ...w, weight: eq })), { culture, weight: 100 - eq * (n - 1) }]);
-    }
-  }
-
-  function setWeight(culture: CultureWeight['culture'], value: number) {
-    const clamped = Math.max(1, Math.min(100, value));
-    const others = weights.filter((w) => w.culture !== culture);
-    const remaining = Math.max(0, 100 - clamped);
-    const otherTotal = others.reduce((s, w) => s + w.weight, 0);
-    onChange(weights.map((w) => {
-      if (w.culture === culture) return { ...w, weight: clamped };
-      const share = otherTotal > 0 ? Math.round((w.weight / otherTotal) * remaining) : Math.round(remaining / others.length);
-      return { ...w, weight: Math.max(1, share) };
-    }));
-  }
-
-  function distribute() {
-    if (weights.length === 0) return;
-    const equal = Math.round(100 / weights.length);
-    onChange(weights.map((w, i) => ({ ...w, weight: i === weights.length - 1 ? 100 - equal * (weights.length - 1) : equal })));
-  }
-
-  return (
-    <div className="space-y-6 max-w-2xl">
-      <div>
-        <h2 className="font-display text-xl mb-1">Générer des noms</h2>
-        <p className="text-sm text-muted">
-          Choisis une ou plusieurs cultures, définis leurs proportions, puis télécharge un fichier JSON à transmettre à l'administrateur.
-        </p>
-      </div>
-
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-xs uppercase tracking-widest text-muted">Cultures ({weights.length})</span>
-          {weights.length > 1 && (
-            <button onClick={distribute} className="text-xs text-accent hover:text-accent/70 transition-colors">
-              Répartir également
-            </button>
-          )}
-        </div>
-        <div className="max-h-72 overflow-y-auto space-y-3 pr-1">
-          {(Object.keys(CULTURES_BY_CONTINENT) as Continent[]).map((continent) => (
-            <div key={continent}>
-              <div className="mb-1 px-1 text-xs uppercase tracking-widest text-muted">{continent}</div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {CULTURES_BY_CONTINENT[continent].map((c) => {
-                  const active = selected.includes(c);
-                  return (
-                    <button
-                      key={c}
-                      onClick={() => toggleCulture(c)}
-                      className={`rounded-md border px-3 py-2 text-left text-sm transition-colors ${active ? 'border-accent bg-accent/10 text-accent' : 'border-border hover:border-border/70'}`}
-                    >
-                      {CULTURE_LABEL[c]}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {weights.length > 0 && (
-        <div className="rounded-lg border border-border bg-surface p-4 space-y-3">
-          <div className="text-xs uppercase tracking-widest text-muted">Proportions</div>
-          {weights.map((cw) => {
-            const pct = total > 0 ? Math.round((cw.weight / total) * 100) : 0;
-            return (
-              <div key={cw.culture} className="space-y-1">
-                <div className="flex items-center justify-between text-sm">
-                  <span>{CULTURE_LABEL[cw.culture]}</span>
-                  <span className="font-medium tabular-nums text-accent">{pct}%</span>
-                </div>
-                <input
-                  type="range" min={1} max={100} value={cw.weight}
-                  onChange={(e) => setWeight(cw.culture, Number(e.target.value))}
-                  className="w-full accent-[var(--accent)]"
-                />
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      <div className="flex flex-wrap gap-3">
-        <button
-          onClick={onExport}
-          disabled={busy || weights.length === 0 || playerCount === 0}
-          className="rounded-md bg-accent px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50 transition-opacity"
-        >
-          {busy ? 'Génération…' : `↓ Télécharger JSON (${playerCount} joueurs)`}
-        </button>
-        <button
-          onClick={onImportClick}
-          disabled={savingNames || playerCount === 0}
-          className="rounded-md border border-border px-5 py-2.5 text-sm font-medium hover:border-accent/50 disabled:opacity-50 transition-colors"
-        >
-          {savingNames ? 'Sauvegarde…' : '↑ Importer des noms (JSON) → DB'}
-        </button>
       </div>
     </div>
   );

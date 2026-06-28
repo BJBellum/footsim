@@ -74,6 +74,10 @@ export const prapi = {
       tokenPositions?: Record<string, { x: number; y: number }>;
     }>('GET', `/rankings/teams/${slug}/lineup`, null),
 
+  /** Upload a flag data URL to R2. Returns the CDN URL. */
+  uploadFlag: (slug: string, dataUrl: string, token: string) =>
+    request<{ url: string }>('POST', '/upload-flag', token, { slug, dataUrl }),
+
   /** Exchange a Discord access_token for a FootSim JWT. */
   exchangeDiscordToken: (discordToken: string) =>
     request<{

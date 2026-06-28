@@ -19,6 +19,7 @@ import { FlagUpload } from '@/components/team/FlagUpload';
 import { Input } from '@/components/ui/Input';
 import { useTeams } from '@/stores/teams';
 import { useBackendArgs } from '@/hooks/useBackendArgs';
+import { PrApiMatchBackend } from '@/lib/prapi/matchBackend';
 import type { CultureWeight } from '@/lib/gen/names';
 import { pickName, pickNameMixed } from '@/lib/gen/names';
 import { generateCoach, COACH_TRAIT_LABEL, COACH_TRAIT_DESCRIPTION, POSITIVE_TRAITS, NEGATIVE_TRAITS, type Coach, type CoachStats, type PositiveTrait, type NegativeTrait } from '@/lib/gen/coach';
@@ -294,6 +295,14 @@ async function applyNewStrength(strength: number) {
     if (!data) return;
     setDeleting(true);
     try {
+      if (effectivePat) {
+        const matchIds = (data.team.recentMatches ?? [])
+          .map((m) => m.matchId)
+          .filter(Boolean) as string[];
+        if (matchIds.length > 0) {
+          await new PrApiMatchBackend(effectivePat).deleteMatchesBulk(matchIds);
+        }
+      }
       await removeTeam(data.team.slug, ownerId, null, effectivePat);
       toast('success', 'Équipe supprimée.');
       navigate('/dashboard/teams');

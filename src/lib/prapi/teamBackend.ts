@@ -23,7 +23,12 @@ export class PrApiTeamBackend implements ITeamBackend {
   }
 
   async saveTeam(team: Team, players: Player[]): Promise<void> {
-    await prapi.put(`/teams/${team.slug}`, this.token, { team, players });
+    let flagUrl = team.flag;
+    if (flagUrl && flagUrl.startsWith('data:image/')) {
+      const { url } = await prapi.uploadFlag(team.slug, flagUrl, this.token);
+      flagUrl = url;
+    }
+    await prapi.put(`/teams/${team.slug}`, this.token, { team: { ...team, flag: flagUrl }, players });
   }
 
   async deleteTeam(slug: string, _ownerId: string): Promise<void> {
