@@ -600,6 +600,11 @@ async function applyNewStrength(strength: number) {
                 : { ...team, tactics: undefined }}
               players={players}
               onSave={saveTactics}
+              onSaveStyles={(styles, activeId) => {
+                if (!data) return;
+                const updatedTactics = savedTactics.map((t) => ({ ...t, customStyles: styles, activeCustomStyleId: t.id === editingTacticId ? activeId : t.activeCustomStyleId }));
+                mutate({ ...data, team: { ...data.team, customStyles: styles, savedTactics: updatedTactics } });
+              }}
             />
           </div>
         </section>

@@ -413,6 +413,16 @@ export default function MyTeam() {
                 : { ...team, tactics: undefined }}
               players={players}
               onSave={saveTactics}
+              onSaveStyles={(styles, activeId) => {
+                if (!data || !prApiToken) return;
+                const updatedTeam: Team = { ...data.team, customStyles: styles };
+                const updatedTactics = savedTactics.map((t) => ({ ...t, customStyles: styles, activeCustomStyleId: t.id === editingTacticId ? activeId : t.activeCustomStyleId }));
+                setData({ ...data, team: updatedTeam });
+                setSavedTactics(updatedTactics);
+                new PrApiTeamBackend(prApiToken).saveTeam({ ...updatedTeam, savedTactics: updatedTactics }, data.players).catch(() => {
+                  toast('error', 'Échec de la sauvegarde des styles.');
+                });
+              }}
             />
           </div>
         </div>

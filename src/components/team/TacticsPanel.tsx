@@ -106,11 +106,12 @@ type Props = {
   team: Team;
   players: Player[];
   onSave: (tactics: TeamTactics) => Promise<void>;
+  onSaveStyles?: (styles: CustomTacticStyle[], activeId?: string) => void;
 };
 
 type PanelTab = 'formation' | 'style' | 'stylesperso' | 'remplacements';
 
-export function TacticsPanel({ team, players, onSave }: Props) {
+export function TacticsPanel({ team, players, onSave, onSaveStyles }: Props) {
   const [panelTab, setPanelTab] = useState<PanelTab>('formation');
   const [formation, setFormation] = useState<Formation>(team.tactics?.formation ?? team.formation);
   const [formationLabel, setFormationLabel] = useState<string | undefined>(team.tactics?.formationLabel);
@@ -253,16 +254,17 @@ export function TacticsPanel({ team, players, onSave }: Props) {
     }
   }
 
-  async function save() {
+  async function save(overrideStyles?: CustomTacticStyle[], overrideActiveId?: string) {
     const filled = lineup.filter(Boolean) as string[];
     if (filled.length < 11) return;
     setSaving(true);
     try {
       const filledSet = new Set(filled);
       const validBench = benchOrder.filter((id) => !filledSet.has(id));
-      // Filter planned subs to only valid IDs
       const validPlannedSubs = plannedSubs.filter((s) => filledSet.has(s.outId) && players.some((p) => p.id === s.inId));
-      await onSave({ style, formation, lineup: filled, bench: validBench.length ? validBench : undefined, plannedSubs: validPlannedSubs.length ? validPlannedSubs : undefined, formationLabel, positionMap, tokenPositions, customStyles, activeCustomStyleId });
+      const cs = overrideStyles ?? customStyles;
+      const acid = overrideActiveId !== undefined ? overrideActiveId : activeCustomStyleId;
+      await onSave({ style, formation, lineup: filled, bench: validBench.length ? validBench : undefined, plannedSubs: validPlannedSubs.length ? validPlannedSubs : undefined, formationLabel, positionMap, tokenPositions, customStyles: cs, activeCustomStyleId: acid });
     } finally {
       setSaving(false);
     }
@@ -271,6 +273,11 @@ export function TacticsPanel({ team, players, onSave }: Props) {
   function saveCustomStyles(next: CustomTacticStyle[], activeId?: string) {
     setCustomStyles(next);
     setActiveCustomStyleId(activeId);
+    if (onSaveStyles) {
+      onSaveStyles(next, activeId);
+    } else {
+      save(next, activeId);
+    }
   }
 
   const layout = FORMATION_LAYOUT[formation];
@@ -447,7 +454,7 @@ export function TacticsPanel({ team, players, onSave }: Props) {
               <Button variant="ghost" size="sm" onClick={fillBestXI} className="self-start">
                 ⚡ Meilleure XI
               </Button>
-              <Button onClick={save} disabled={saving || filledCount < 11}>
+              <Button onClick={() => save()} disabled={saving || filledCount < 11}>
                 {saving ? <Spinner className="mr-2 h-4 w-4" /> : null}
                 {filledCount < 11 ? `Sauvegarder (${filledCount}/11)` : 'Sauvegarder la tactique'}
               </Button>
@@ -489,7 +496,7 @@ export function TacticsPanel({ team, players, onSave }: Props) {
             {style === 'long-ball' && 'Ballons longs — attaque boostée (+15%), milieu réduit.'}
             {style === 'chaos' && 'Tous azimuts — tirs (+30%) et fautes (+35%) extrêmes.'}
           </p>
-          <Button onClick={save} disabled={saving || filledCount < 11}>
+          <Button onClick={() => save()} disabled={saving || filledCount < 11}>
             {saving ? <Spinner className="mr-2 h-4 w-4" /> : null}
             Sauvegarder
           </Button>
