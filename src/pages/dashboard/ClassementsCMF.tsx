@@ -278,7 +278,7 @@ export default function ClassementsCMF({ embedded }: { embedded?: boolean }) {
                         rank === 3 ? 'text-orange-500 font-bold' :
                         'text-muted';
                       return (
-                        <tr key={player.id} className="border-t border-border hover:bg-border/10 transition-colors cursor-pointer" onClick={() => setViewingPlayer(player as unknown as Player)}>
+                        <tr key={player.id} className="border-t border-border hover:bg-border/10 transition-colors">
                           <td className={`px-3 py-2.5 text-center tabular-nums text-sm ${rankColor}`}>{rank}</td>
                           <td className="px-3 py-2.5">
                             <div className="font-medium leading-tight">{player.firstName} {player.lastName}</div>
