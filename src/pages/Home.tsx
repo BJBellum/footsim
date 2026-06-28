@@ -82,25 +82,21 @@ function LiveTicker() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    async function load() {
-      const names: string[] = storeTeams.map((t) => t.name);
-      setLoaded(true);
-      if (names.length < 2) return;
-      const shuffled = [...names].sort(() => Math.random() - 0.5).slice(0, 10);
-      const built = [];
-      for (let i = 0; i < shuffled.length - 1; i += 2) {
-        built.push({
-          home: shuffled[i],
-          away: shuffled[i + 1],
-          sh: Math.floor(Math.random() * 4),
-          sa: Math.floor(Math.random() * 4),
-        });
-      }
-      if (built.length > 0) setPairs(built);
+    const names: string[] = storeTeams.map((t) => t.name);
+    setLoaded(true);
+    if (names.length < 2) return;
+    const shuffled = [...names].sort(() => Math.random() - 0.5).slice(0, 10);
+    const built: { home: string; away: string; sh: number; sa: number }[] = [];
+    for (let i = 0; i < shuffled.length - 1; i += 2) {
+      built.push({
+        home: shuffled[i],
+        away: shuffled[i + 1],
+        sh: Math.floor(Math.random() * 4),
+        sa: Math.floor(Math.random() * 4),
+      });
     }
-    load();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (built.length > 0) setPairs(built);
+  }, [storeTeams.length]);
 
   const FALLBACK = [
     { home: 'Arcadie', away: 'Veldora', sh: 2, sa: 1 },
@@ -207,6 +203,12 @@ export default function Home() {
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] });
   const heroY = useTransform(scrollYProgress, [0, 1], ['0%', '18%']);
   const heroOpacity = useTransform(scrollYProgress, [0, 0.75], [1, 0]);
+
+  useEffect(() => {
+    if (!effectivePat || teamsStore.length > 0) return;
+    refreshTeams(ownerId, null, effectivePat);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectivePat]);
 
   useEffect(() => {
     if (!isLoggedIn || isAdmin || !session) return;
