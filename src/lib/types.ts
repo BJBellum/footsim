@@ -300,6 +300,8 @@ export type Team = {
   savedTactics?: SavedTactic[];
   /** ID of the active saved tactic */
   activeTacticId?: string;
+  /** Custom tactic styles shared across all tactics for this team */
+  customStyles?: CustomTacticStyle[];
   /** Primary jersey color as CSS hex (e.g. "#e63c3c") */
   jerseyColor?: string;
   /** Action sur le Foot: funding (M€, capped 250) → strength bonus 0–5 */

@@ -119,7 +119,12 @@ export default function MyTeam() {
     if (!data || !prApiToken) return;
     setSavedTactics(next);
     setActiveTacticId(activeId);
-    const updatedTeam: Team = { ...data.team, savedTactics: next, activeTacticId: activeId };
+    // Merge all custom styles from all tactics into team-level customStyles
+    const mergedStyles = Object.values(
+      next.flatMap((t) => t.customStyles ?? [])
+        .reduce<Record<string, import('@/lib/types').CustomTacticStyle>>((acc, s) => { acc[s.id] = s; return acc; }, {})
+    );
+    const updatedTeam: Team = { ...data.team, savedTactics: next, activeTacticId: activeId, customStyles: mergedStyles };
     setData({ ...data, team: updatedTeam });
     new PrApiTeamBackend(prApiToken).saveTeam(updatedTeam, data.players).catch(() => {
       toast('error', 'Échec de la sauvegarde des tactiques.');

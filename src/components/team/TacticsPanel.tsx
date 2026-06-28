@@ -115,7 +115,9 @@ export function TacticsPanel({ team, players, onSave }: Props) {
   const [formation, setFormation] = useState<Formation>(team.tactics?.formation ?? team.formation);
   const [formationLabel, setFormationLabel] = useState<string | undefined>(team.tactics?.formationLabel);
   const [style, setStyle] = useState<TacticStyle>(team.tactics?.style ?? 'possession');
-  const [customStyles, setCustomStyles] = useState<CustomTacticStyle[]>(team.tactics?.customStyles ?? []);
+  const [customStyles, setCustomStyles] = useState<CustomTacticStyle[]>(
+    team.customStyles ?? team.tactics?.customStyles ?? [],
+  );
   const [activeCustomStyleId, setActiveCustomStyleId] = useState<string | undefined>(team.tactics?.activeCustomStyleId);
 
   const [lineup, setLineup] = useState<(string | null)[]>(

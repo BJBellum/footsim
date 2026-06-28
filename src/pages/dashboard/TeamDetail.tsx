@@ -105,7 +105,11 @@ const [regenStrength, setRegenStrength] = useState(false);
     setSavedTactics(next);
     setActiveTacticId(activeId);
     if (!data) return;
-    mutate({ ...data, team: { ...data.team, savedTactics: next, activeTacticId: activeId } });
+    const mergedStyles = Object.values(
+      next.flatMap((t) => t.customStyles ?? [])
+        .reduce<Record<string, import('@/lib/types').CustomTacticStyle>>((acc, s) => { acc[s.id] = s; return acc; }, {})
+    );
+    mutate({ ...data, team: { ...data.team, savedTactics: next, activeTacticId: activeId, customStyles: mergedStyles } });
   }
 
 
