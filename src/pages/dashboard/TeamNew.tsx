@@ -137,7 +137,7 @@ export default function TeamNew() {
     setPublishing(true);
     try {
       await saveTeam(draft.team, draft.players, null, prApiToken);
-      toast('success', `${draft.team.name} publiée avec ${draft.players.length} joueurs.`);
+      toast('success', `${draft.team.name} sauvegardée avec ${draft.players.length} joueurs.`);
       navigate(`/dashboard/teams/${draft.team.slug}`);
     } catch (err) {
       toast('error', String(err));
@@ -303,7 +303,7 @@ export default function TeamNew() {
         {draft && (
           <Button onClick={publish} disabled={publishing || generating} size="lg">
             {publishing ? <Spinner className="mr-2" /> : null}
-            {publishing ? 'Publication…' : `Publier ${draft.players.length} joueurs`}
+            {publishing ? 'Sauvegarde…' : `Sauvegarder ${draft.players.length} joueurs`}
           </Button>
         )}
 
@@ -324,7 +324,7 @@ export default function TeamNew() {
       {draft && !generating && (
         <div className="space-y-3">
           <div className="rounded-lg border border-accent/30 bg-accent/5 px-4 py-3 text-sm text-accent">
-            {draft.players.length} joueurs générés localement — non encore publiés.
+            {draft.players.length} joueurs générés — non encore sauvegardés.
           </div>
           {coach && (
             <div className="rounded-lg border border-border bg-surface p-4 space-y-3">

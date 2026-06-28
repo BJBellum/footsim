@@ -35,8 +35,6 @@ export default function TeamDetail() {
 
   const [data, setData] = useState<{ team: Team; players: Player[] } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [unpublished, setUnpublished] = useState(false);
-  const [publishing, setPublishing] = useState(false);
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteCount, setDeleteCount] = useState(1);
@@ -65,31 +63,9 @@ const [regenStrength, setRegenStrength] = useState(false);
     setLoading(true);
     (async () => {
       try {
-        // IDB first (has unsaved local edits), fallback to GitHub
-        const local = await fetchTeam(slug, ownerId, null);
-        if (local) {
-          // If GitHub version exists too, merge: prefer local data but keep publishedAt from GH
-          if (effectivePat) {
-            const remote = await fetchTeam(slug, ownerId, null, effectivePat).catch(() => null);
-            if (remote && remote.team.publishedAt) {
-              const merged = { ...local, team: { ...local.team, publishedAt: remote.team.publishedAt } };
-              setData(merged);
-              setUnpublished(!merged.team.publishedAt);
-            } else {
-              setData(local);
-              setUnpublished(true);
-            }
-          } else {
-            setData(local);
-            setUnpublished(!local.team.publishedAt);
-          }
-          return;
-        }
-        // No local copy — fetch from GitHub
         const res = await fetchTeam(slug, ownerId, null, effectivePat);
         if (!res) toast('error', 'Équipe introuvable.');
         setData(res);
-        setUnpublished(!res?.team.publishedAt);
       } catch (err) {
         toast('error', String(err));
       } finally {
@@ -118,7 +94,6 @@ const [regenStrength, setRegenStrength] = useState(false);
 
   function mutate(next: { team: Team; players: Player[] }, opts?: { silent?: boolean }) {
     setData(next);
-    setUnpublished(true);
     if (effectivePat) {
       saveTeam({ ...next.team, ownerId }, next.players, null, effectivePat).catch(() => {
         if (!opts?.silent) toast('error', 'Échec de la sauvegarde en base.');
@@ -133,19 +108,6 @@ const [regenStrength, setRegenStrength] = useState(false);
     mutate({ ...data, team: { ...data.team, savedTactics: next, activeTacticId: activeId } });
   }
 
-  async function publish() {
-    if (!data) return;
-    setPublishing(true);
-    try {
-      await saveTeam({ ...data.team, ownerId }, data.players, null, effectivePat);
-      setUnpublished(false);
-      toast('success', 'Équipe publiée sur GitHub.');
-    } catch (err) {
-      toast('error', String(err));
-    } finally {
-      setPublishing(false);
-    }
-  }
 
   async function addPlayers(extra: number) {
     if (!data) return;
@@ -280,20 +242,6 @@ async function applyNewStrength(strength: number) {
     URL.revokeObjectURL(url);
   }
 
-  async function publishTactics() {
-    if (!data || !effectivePat) return;
-    setPublishing(true);
-    try {
-      const teamToPublish = { ...data.team, savedTactics, activeTacticId };
-      await saveTeam(teamToPublish, data.players, null, effectivePat);
-      setUnpublished(false);
-      toast('success', 'Tactiques publiées sur GitHub.');
-    } catch (err) {
-      toast('error', String(err));
-    } finally {
-      setPublishing(false);
-    }
-  }
 
   function importTactics(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -487,16 +435,8 @@ async function applyNewStrength(strength: number) {
           )}
         </div>
 
-        {/* Publish / delete zone */}
+        {/* Delete zone */}
         <div className="flex flex-col items-end gap-2">
-          {unpublished && effectivePat && (
-            <div className="flex items-center gap-2">
-              <Button size="sm" onClick={publish} disabled={publishing}>
-                {publishing ? <Spinner className="mr-1" /> : null}
-                ↑ GitHub
-              </Button>
-            </div>
-          )}
           {confirmingDelete ? (
             <div className="flex gap-2">
               <Button variant="danger" onClick={deleteTeamHandler} disabled={deleting}>
@@ -612,10 +552,6 @@ async function applyNewStrength(strength: number) {
               <Button size="sm" variant="ghost" onClick={exportTactics}>↑ Exporter JSON</Button>
               <Button size="sm" variant="ghost" onClick={() => tacticsImportRef.current?.click()}>↓ Importer JSON</Button>
               <input ref={tacticsImportRef} type="file" accept=".json" className="hidden" onChange={importTactics} />
-              <Button size="sm" onClick={publishTactics} disabled={publishing || !effectivePat || savedTactics.length === 0}>
-                {publishing ? <Spinner className="mr-1" /> : null}
-                ↑ Publier GitHub
-              </Button>
             </div>
           </div>
 
@@ -788,7 +724,7 @@ async function applyNewStrength(strength: number) {
                     },
                     players: updatedPlayers,
                   });
-                  toast('success', `Action sur le Foot appliquée : force ${newStrength} (non publié).`);
+                  toast('success', `Action sur le Foot appliquée : force ${newStrength}.`);
                 }}
               />
             )}
@@ -1158,7 +1094,7 @@ function ActionFootPanel({
         </div>
       </div>
 
-      <Button onClick={() => onSave(bonus)}>Appliquer (non publié)</Button>
+      <Button onClick={() => onSave(bonus)}>Appliquer</Button>
     </div>
   );
 }
@@ -1378,7 +1314,7 @@ function CultureEditPanel({
       </div>
 
       <Button onClick={onSave} disabled={cultures.length === 0}>
-        Enregistrer (non publié)
+        Enregistrer
       </Button>
     </section>
   );
@@ -1412,7 +1348,7 @@ function PalmaresTab({ compHistory }: { compHistory: CompHistoryEntry[] }) {
   if (compHistory.length === 0) {
     return (
       <div className="py-16 text-center text-muted text-sm">
-        Aucun palmarès enregistré. Les résultats apparaissent ici quand une compétition terminée est sauvegardée sur GitHub.
+        Aucun palmarès enregistré. Les résultats apparaissent ici après avoir cliqué sur Sauvegarde dans une compétition terminée.
       </div>
     );
   }
@@ -1604,7 +1540,7 @@ function HistoriqueTab({
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted">
-          Historique complet · {matches.length} match{matches.length > 1 ? 's' : ''} — les suppressions s'appliquent localement, publie pour valider sur GitHub.
+          Historique complet · {matches.length} match{matches.length > 1 ? 's' : ''}
         </p>
         <button
           onClick={() => { if (confirm('Supprimer tout l\'historique de matchs ?')) onDeleteAll(); }}
