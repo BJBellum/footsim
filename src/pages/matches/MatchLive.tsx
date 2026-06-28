@@ -9,6 +9,7 @@ import { EventFeed } from '@/components/match/EventFeed';
 import { StatsPanel } from '@/components/match/StatsPanel';
 import { SpeedControls } from '@/components/match/SpeedControls';
 import { HalftimeOverlay } from '@/components/match/HalftimeOverlay';
+import { PauseTacticPanel } from '@/components/match/PauseTacticPanel';
 import { GoalCelebration } from '@/components/match/GoalCelebration';
 import { PenaltyShootout } from '@/components/match/PenaltyShootout';
 import { useMatch } from '@/stores/match';
@@ -178,6 +179,25 @@ export default function MatchLive() {
             onPause={pause}
             onResume={resume}
           />
+          {paused && !showHalftime && !finished && (
+            <PauseTacticPanel
+              home={input.home.team}
+              away={input.away.team}
+              homeSavedTactics={homeSavedTactics}
+              awaySavedTactics={awaySavedTactics}
+              onTacticChange={(side, tactic) => {
+                updateSideTactic(side, {
+                  formation: tactic.formation,
+                  lineup: tactic.lineup,
+                  bench: tactic.bench,
+                  plannedSubs: tactic.plannedSubs,
+                  tacticStyle: tactic.style as TacticStyle,
+                  positionMap: tactic.positionMap,
+                  tokenPositions: tactic.tokenPositions,
+                });
+              }}
+            />
+          )}
           {!finished && (state.status === 'firstHalf' || state.status === 'secondHalf' || state.status === 'extraTimeFirst' || state.status === 'extraTimeSecond') && (
             <div className="flex gap-2">
               <Button size="sm" variant="ghost" onClick={() => setShowSubPanel(true)}>

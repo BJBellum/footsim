@@ -10,6 +10,7 @@ import { EventFeed } from '@/components/match/EventFeed';
 import { StatsPanel } from '@/components/match/StatsPanel';
 import { SpeedControls } from '@/components/match/SpeedControls';
 import { HalftimeOverlay } from '@/components/match/HalftimeOverlay';
+import { PauseTacticPanel } from '@/components/match/PauseTacticPanel';
 import { GoalCelebration } from '@/components/match/GoalCelebration';
 import { PenaltyShootout } from '@/components/match/PenaltyShootout';
 import { useMatch } from '@/stores/match';
@@ -384,7 +385,7 @@ export default function CompetitionMatchLive() {
         corruptionRevealedThisMatch = true;
       }
 
-      if (compMatch.phase !== 'group' && compMatch.phase !== 'league') {
+      if (compMatch.phase !== 'group' && compMatch.phase !== 'league' && compMatch.phase !== 'lpm_playoff') {
         updatedMatches = advanceBracket(updatedMatches, matchId!);
       }
 
@@ -573,9 +574,10 @@ export default function CompetitionMatchLive() {
         const teamCoach = isHome ? matchInput!.home.team.coach : matchInput!.away.team.coach;
         const tidRank = rankOf(tid);
         const tidStanding = updatedStandings[tid];
-        // isEliminated: top N qualify — can't mathematically reach qualification
-        // Never true if the team just won this match (a win article takes priority)
-        const qualifyCount = snap!.config.qualifyPerGroup ?? Math.ceil(totalTeams / 4);
+        // isEliminated: can't mathematically reach any qualifying position
+        // LPM: top 24 direct + 25-40 barrages → 40 teams still alive, only 41+ truly eliminated
+        const isLPMLeague = compMatch.phase === 'league' && totalTeams >= 40;
+        const qualifyCount = isLPMLeague ? 40 : (snap!.config.qualifyPerGroup ?? Math.ceil(totalTeams / 4));
         const justWon = goalsFor > goalsAgainst;
         const maxRemainingPts = (() => {
           const totalRounds = snap!.matches.filter((m) => m.phase === compMatch.phase).reduce((max, m) => Math.max(max, m.round), 0);
@@ -587,8 +589,8 @@ export default function CompetitionMatchLive() {
           && !!tidStanding && tidStanding.played >= 3
           && maxRemainingPts < minPtsForSafeZone
           && !justWon;
-        // isInDangerZone: bottom 20% of table (or specific relegation zone)
-        const dangerThreshold = Math.max(qualifyCount + 1, Math.ceil(totalTeams * 0.75));
+        // isInDangerZone: LPM = Zone Rouge (25-40), standard = bottom 25%
+        const dangerThreshold = isLPMLeague ? 40 : Math.max(qualifyCount + 1, Math.ceil(totalTeams * 0.75));
         const isInDangerZone = (compMatch.phase === 'group' || compMatch.phase === 'league')
           && tidRank > dangerThreshold;
 
@@ -1006,6 +1008,25 @@ export default function CompetitionMatchLive() {
             onPause={pause}
             onResume={resume}
           />
+          {paused && !showHalftime && !finished && (
+            <PauseTacticPanel
+              home={matchInput.home.team}
+              away={matchInput.away.team}
+              homeSavedTactics={homeSavedTactics}
+              awaySavedTactics={awaySavedTactics}
+              onTacticChange={(side, tactic) => {
+                updateSideTactic(side, {
+                  formation: tactic.formation,
+                  lineup: tactic.lineup,
+                  bench: tactic.bench,
+                  plannedSubs: tactic.plannedSubs,
+                  tacticStyle: tactic.style as TacticStyle,
+                  positionMap: tactic.positionMap,
+                  tokenPositions: tactic.tokenPositions,
+                });
+              }}
+            />
+          )}
         </div>
         <div className="space-y-6">
           <StatsPanel state={matchState} />

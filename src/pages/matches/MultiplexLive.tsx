@@ -65,6 +65,7 @@ export default function MultiplexLive() {
   const resultsComputedRef = useRef(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [halftimeTacticOpen, setHalftimeTacticOpen] = useState(false);
+  const [pauseTacticOpen, setPauseTacticOpen] = useState(false);
 
   // Pre-launch corruption state
   type PendingSlot = {
@@ -453,7 +454,9 @@ export default function MultiplexLive() {
       );
       const rankOf = (tid: string) => sortedStandings.findIndex((s) => s.teamId === tid) + 1;
       const totalTeams = current.teamIds.length;
-      const qualifyCount = current.config.qualifyPerGroup ?? Math.ceil(totalTeams / 4);
+      // LPM: top 24 direct + 25-40 barrages → only rank 41+ truly eliminated
+      const isLPMLeague = compMatch.phase === 'league' && totalTeams >= 40;
+      const qualifyCount = isLPMLeague ? 40 : (current.config.qualifyPerGroup ?? Math.ceil(totalTeams / 4));
       const totalRoundsInPhase = current.matches.filter((m) => m.phase === compMatch.phase).reduce((mx, m) => Math.max(mx, m.round), 0);
 
       for (const [tid, goalsFor, goalsAgainst] of [
@@ -476,7 +479,7 @@ export default function MultiplexLive() {
         const isEliminated = (compMatch.phase === 'group' || compMatch.phase === 'league')
           && !!tidStanding && tidStanding.played >= 3
           && maxRemainingPts < minPtsForSafeZone;
-        const dangerThreshold = Math.max(qualifyCount + 1, Math.ceil(totalTeams * 0.75));
+        const dangerThreshold = isLPMLeague ? 40 : Math.max(qualifyCount + 1, Math.ceil(totalTeams * 0.75));
         const isInDangerZone = (compMatch.phase === 'group' || compMatch.phase === 'league')
           && tidRank > dangerThreshold;
 
@@ -1062,6 +1065,42 @@ export default function MultiplexLive() {
     </div>
   );
 
+  const activeSlots = slots.filter((s) => s.state && !['halftime', 'extraTimeHalfTime', 'fulltime', 'pregame'].includes(s.state.status));
+
+  // Pause tactic bar — visible when manually paused (not halftime)
+  const pauseBar = paused && !isHalftime && !allFinished && activeSlots.length > 0 && (
+    <div className="border border-border/60 bg-surface rounded-lg flex-shrink-0">
+      <div className="px-4 py-2 flex items-center justify-between gap-3">
+        <span className="text-xs font-medium">⏸ Pause — {activeSlots.length} match(s)</span>
+        <button
+          onClick={() => setPauseTacticOpen((v) => !v)}
+          className="text-xs text-muted hover:text-text border border-border rounded px-2 py-1 transition-colors"
+        >
+          {pauseTacticOpen ? '▼ Tactiques' : '▶ Tactiques'}
+        </button>
+      </div>
+      {pauseTacticOpen && (
+        <div className="border-t border-border/40 px-4 py-2 grid gap-2 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 max-h-52 overflow-y-auto">
+          {activeSlots.map((slot) => (
+            <HalftimeTacticRow
+              key={slot.compMatchId}
+              slot={slot}
+              onTacticChange={(side, tactic) => updateSlotTactic(slot.compMatchId, side, {
+                formation: tactic.formation,
+                lineup: tactic.lineup,
+                bench: tactic.bench,
+                plannedSubs: tactic.plannedSubs,
+                tacticStyle: tactic.style as TacticStyle,
+                positionMap: tactic.positionMap,
+                tokenPositions: tactic.tokenPositions,
+              })}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   // Halftime tactic bar (fixed bottom)
   const halftimeBar = isHalftime && (
     <div className="border border-warning/40 bg-warning/5 rounded-lg flex-shrink-0">
@@ -1139,6 +1178,7 @@ export default function MultiplexLive() {
           </div>
         )}
 
+        {pauseBar && <div className="px-3 flex-shrink-0">{pauseBar}</div>}
         {halftimeBar && <div className="px-3 flex-shrink-0">{halftimeBar}</div>}
 
         {/* Grid fills all remaining space */}
@@ -1172,6 +1212,7 @@ export default function MultiplexLive() {
         {controlsBar}
       </div>
 
+      {pauseBar}
       {halftimeBar}
 
       {allFinished && (
