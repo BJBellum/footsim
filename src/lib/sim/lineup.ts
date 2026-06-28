@@ -59,8 +59,7 @@ function sameFamily(a: Position, b: Position): boolean {
     ['CB'],
     ['LB','RB'],
     ['DM','CM'],
-    ['AM','CM'],
-    ['LM','RM','LW','RW'],
+    ['LM','RM','LW','RW','AM'],
     ['ST'],
   ];
   for (const f of fams) if (f.includes(a) && f.includes(b)) return true;

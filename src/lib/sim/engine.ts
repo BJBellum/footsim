@@ -160,8 +160,9 @@ function teamRatingMultiplier(side: 'home' | 'away', state: MatchState): number 
 
 function posFamily(pos: Position): Position[] {
   if (['CB', 'LB', 'RB'].includes(pos)) return ['CB', 'LB', 'RB'];
-  if (['DM', 'CM', 'AM', 'LM', 'RM'].includes(pos)) return ['DM', 'CM', 'AM', 'LM', 'RM'];
-  return ['LW', 'RW', 'ST'];
+  if (['DM', 'CM'].includes(pos)) return ['DM', 'CM'];
+  if (['AM', 'LM', 'RM', 'LW', 'RW'].includes(pos)) return ['AM', 'LM', 'RM', 'LW', 'RW'];
+  return ['ST'];
 }
 
 function injectGoal(state: MatchState, ctx: EngineCtx, side: 'home' | 'away'): void {
