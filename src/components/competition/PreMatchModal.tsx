@@ -4,29 +4,30 @@ import { Button } from '@/components/ui/Button';
 import { CorruptionPanel } from '@/components/match/CorruptionPanel';
 import type { CorruptionDeal } from '@/lib/sim/types';
 import type { SavedTactic, Team } from '@/lib/types';
-import { loadLocalSavedTactics } from '@/lib/localTactics';
 
 type Props = {
   home: Team;
   away: Team;
   defaultCountForStats?: boolean;
+  fetchTeam?: (slug: string) => Promise<{ team: Team; players: unknown[] } | null>;
   onConfirm: (corruption: CorruptionDeal | null, tactics?: { homeId?: string; awayId?: string }, countForStats?: boolean) => void;
   onCancel: () => void;
 };
 
-export function PreMatchModal({ home, away, defaultCountForStats = true, onConfirm, onCancel }: Props) {
+export function PreMatchModal({ home, away, defaultCountForStats = true, fetchTeam, onConfirm, onCancel }: Props) {
   const [corruption, setCorruption] = useState<CorruptionDeal | null>(null);
-  const [homeTactics, setHomeTactics] = useState<SavedTactic[]>([]);
-  const [awayTactics, setAwayTactics] = useState<SavedTactic[]>([]);
+  const [homeTactics, setHomeTactics] = useState<SavedTactic[]>(home.savedTactics ?? []);
+  const [awayTactics, setAwayTactics] = useState<SavedTactic[]>(away.savedTactics ?? []);
   const [homeTacticId, setHomeTacticId] = useState<string>('');
   const [awayTacticId, setAwayTacticId] = useState<string>('');
   const [countForStats, setCountForStats] = useState(defaultCountForStats);
 
   useEffect(() => {
-    const h = loadLocalSavedTactics(home.id);
-    setHomeTactics(h.savedTactics.length > 0 ? h.savedTactics : (home.savedTactics ?? []));
-    const a = loadLocalSavedTactics(away.id);
-    setAwayTactics(a.savedTactics.length > 0 ? a.savedTactics : (away.savedTactics ?? []));
+    if (!fetchTeam) return;
+    Promise.all([fetchTeam(home.slug), fetchTeam(away.slug)]).then(([h, a]) => {
+      if (h) setHomeTactics(h.team.savedTactics ?? []);
+      if (a) setAwayTactics(a.team.savedTactics ?? []);
+    }).catch(() => {});
   }, [home.id, away.id]);
 
   return (

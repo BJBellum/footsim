@@ -13,7 +13,7 @@ import { useTeams } from '@/stores/teams';
 
 import { useMatch } from '@/stores/match';
 import { useBackendArgs } from '@/hooks/useBackendArgs';
-import { resolveActiveTactic, loadLocalSavedTactics } from '@/lib/localTactics';
+import { resolveActiveTactic } from '@/lib/localTactics';
 
 const FORMATIONS: Formation[] = ['4-3-3', '4-4-2', '3-5-2', '4-2-3-1', '5-3-2', '4-1-4-1', '3-4-3', '4-3-2-1', '4-5-1', '4-4-1-1', '3-4-1-2', '5-4-1', '3-6-1'];
 
@@ -44,24 +44,26 @@ export default function MatchSetup() {
     if (ownerId) refreshIfStale(ownerId, null, effectivePat);
   }, [effectivePat, refreshIfStale]);
 
-  function handleHomeSlug(slug: string) {
+  async function handleHomeSlug(slug: string) {
     setHomeSlug(slug);
-    const t = teams.find((x) => x.slug === slug);
+    if (!slug) { setHomeTactics(null); setHomeSavedTactics([]); return; }
+    const fresh = await fetchTeam(slug, ownerId, null, effectivePat).catch(() => null);
+    const t = fresh?.team ?? teams.find((x) => x.slug === slug);
     const tactics = t ? (resolveActiveTactic(t) ?? null) : null;
     setHomeTactics(tactics);
     if (tactics) setHomeFormation(tactics.formation);
-    const local = t ? loadLocalSavedTactics(t.id) : { savedTactics: [] };
-    setHomeSavedTactics(local.savedTactics.length > 0 ? local.savedTactics : (t?.savedTactics ?? []));
+    setHomeSavedTactics(t?.savedTactics ?? []);
   }
 
-  function handleAwaySlug(slug: string) {
+  async function handleAwaySlug(slug: string) {
     setAwaySlug(slug);
-    const t = teams.find((x) => x.slug === slug);
+    if (!slug) { setAwayTactics(null); setAwaySavedTactics([]); return; }
+    const fresh = await fetchTeam(slug, ownerId, null, effectivePat).catch(() => null);
+    const t = fresh?.team ?? teams.find((x) => x.slug === slug);
     const tactics = t ? (resolveActiveTactic(t) ?? null) : null;
     setAwayTactics(tactics);
     if (tactics) setAwayFormation(tactics.formation);
-    const local = t ? loadLocalSavedTactics(t.id) : { savedTactics: [] };
-    setAwaySavedTactics(local.savedTactics.length > 0 ? local.savedTactics : (t?.savedTactics ?? []));
+    setAwaySavedTactics(t?.savedTactics ?? []);
   }
 
   async function launch() {
