@@ -68,13 +68,13 @@ function goalDiffBonus(sf: number, sa: number): number {
   return 0.0;
 }
 
-function entryPoints(entry: { result?: string; scope?: string; kind?: string; importance?: string; participantCount?: number }): number {
+function entryPoints(entry: { result?: string; scope?: string; kind?: string; importance?: string; participantCount?: number; cmfZoneBonus?: number }): number {
   const base = RESULT_BASE[(entry.result as CompHistoryResult) ?? 'participant'] ?? 8;
   const scope = SCOPE_MULT[entry.scope ?? 'autre'] ?? 0.8;
   const kind = KIND_MULT[entry.kind ?? 'amicale'] ?? 0.2;
   const importance = IMPORTANCE_MULT[entry.importance ?? 'tournoi'] ?? 0.8;
   const size = participantSizeMult(entry.participantCount);
-  return Math.round(base * scope * kind * importance * size);
+  return Math.round(base * scope * kind * importance * size) + (entry.cmfZoneBonus ?? 0);
 }
 
 function matchPoints(m: RecentMatchSummary): number {
@@ -573,8 +573,8 @@ function ExplicationsTab() {
         <h2 className="font-display text-2xl">Bonus de zone LPM</h2>
         <p className="text-muted leading-relaxed">
           À la clôture de la <strong className="text-text">Ligue Préliminaire Mondiale</strong>, chaque équipe reçoit un bonus CMF
-          unique selon sa zone de classement final. Ces points s'ajoutent au classement CMF comme une entrée distincte
-          (visible dans l'historique de l'équipe).
+          unique selon sa zone de classement final. Ces points s'ajoutent directement à l'entrée palmarès de la compétition
+          (visible dans l'onglet Palmarès de l'équipe, pas dans l'historique matchs).
         </p>
         <div className="space-y-3">
           <div className="rounded-lg border border-yellow-400/40 bg-yellow-400/5 p-4 space-y-2">
@@ -631,6 +631,7 @@ function ExplicationsTab() {
         </div>
         <p className="text-xs text-muted">
           Ces bonus sont distribués via le bouton <strong className="text-text">★ Points CMF LPM</strong> sur la page de la compétition une fois celle-ci terminée.
+          Ils s'ajoutent au total palmarès de l'équipe (colonne <em>+pts bonus</em> dans le classement CMF).
           Chaque équipe ne peut recevoir ce bonus qu'une seule fois par édition.
         </p>
       </section>
@@ -734,6 +735,13 @@ function FormIcon({ result }: { result: MatchResult }) {
 }
 
 // ─── Expanded team detail ─────────────────────────────────────────────────────
+
+function lpmRankBadge(rank: number): { label: string; cls: string } {
+  const ord = rank === 1 ? '1er' : `${rank}e`;
+  if (rank <= 24) return { label: `${ord} — Zone Or`, cls: 'border-yellow-500/40 bg-yellow-500/10 text-yellow-400' };
+  if (rank <= 40) return { label: `${ord} — Zone Rouge`, cls: 'border-danger/40 bg-danger/10 text-danger' };
+  return { label: `${ord} — Zone Noire`, cls: 'border-border bg-surface text-muted' };
+}
 
 const RESULT_BADGE: Record<CompHistoryResult, { label: string; cls: string }> = {
   winner:    { label: '🏆 Vainqueur',    cls: 'border-warning/50 bg-warning/10 text-warning' },
@@ -885,7 +893,9 @@ function ExpandedTeamDetail({ entry }: { entry: TeamRankEntry }) {
           ) : (
             <div className="space-y-1.5">
               {[...history].sort((a, b) => (b.year ?? 0) - (a.year ?? 0)).map((e, i) => {
-                const badge = RESULT_BADGE[e.result] ?? RESULT_BADGE.participant;
+                const badge = (e.format === 'lpm' && e.finishRank)
+                  ? lpmRankBadge(e.finishRank)
+                  : (RESULT_BADGE[e.result] ?? RESULT_BADGE.participant);
                 const pts = entryPoints(e);
                 return (
                   <div key={i} className="flex items-center gap-2 text-xs">

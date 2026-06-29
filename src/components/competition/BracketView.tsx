@@ -50,8 +50,8 @@ function LPMPairCard({
   teams: Record<string, Team>;
   onSimulate?: (matchId: string) => void;
 }) {
-  const higher = leg1.homeTeamId ? teams[leg1.homeTeamId] : null; // leg2 home
-  const lower = leg1.awayTeamId ? teams[leg1.awayTeamId] : null;  // leg1 home
+  const lower = leg1.homeTeamId ? teams[leg1.homeTeamId] : null;  // reçoit à l'aller
+  const higher = leg1.awayTeamId ? teams[leg1.awayTeamId] : null; // reçoit au retour
   const tbd = !leg1.homeTeamId && !leg1.awayTeamId;
 
   // Agrégat

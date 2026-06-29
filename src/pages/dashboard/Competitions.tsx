@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import { useCompetition } from '@/stores/competition';
+import { useTeams } from '@/stores/teams';
 import { useSession } from '@/stores/session';
 import { useBackendArgs } from '@/hooks/useBackendArgs';
 import { FORMAT_LABEL, COMPETITION_KIND_LABEL } from '@/lib/competition/types';
@@ -27,12 +28,19 @@ export default function Competitions() {
   const refresh = useCompetition((s) => s.refresh);
   const { prApiToken } = useBackendArgs();
   const isAdmin = useSession((s) => s.isAdmin());
+  const session = useSession((s) => s.session);
+  const allTeams = useTeams((s) => s.teams);
+  const refreshTeams = useTeams((s) => s.refreshIfStale);
+  const myTeamIds = new Set(
+    allTeams.filter((t) => t.managerDiscordId === session?.id).map((t) => t.id),
+  );
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'setup' | 'ongoing' | 'completed'>('all');
   const [kindFilter, setKindFilter] = useState<'all' | CompetitionKind>('all');
 
   useEffect(() => {
     refresh('', prApiToken);
+    if (prApiToken) refreshTeams('', null, prApiToken);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prApiToken]);
 
@@ -53,6 +61,9 @@ export default function Competitions() {
       (acc[year] = acc[year] ?? []).push(s);
       return acc;
     }, {});
+    for (const year of Object.keys(map)) {
+      map[year].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    }
     return { byYear: map, years: Object.keys(map).sort((a, b) => Number(b) - Number(a)) };
   }
 
@@ -105,7 +116,7 @@ export default function Competitions() {
               </div>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {byYear[year].map((s) => (
-                  <CompetitionCard key={s.id} summary={s} isAdmin={isAdmin} />
+                  <CompetitionCard key={s.id} summary={s} isAdmin={isAdmin} myTeamIds={myTeamIds} />
                 ))}
               </div>
             </div>
@@ -182,9 +193,10 @@ export default function Competitions() {
   );
 }
 
-function CompetitionCard({ summary, isAdmin }: { summary: CompetitionSummary; isAdmin: boolean }) {
+function CompetitionCard({ summary, isAdmin, myTeamIds }: { summary: CompetitionSummary; isAdmin: boolean; myTeamIds: Set<string> }) {
   const isAmicale = summary.kind === 'amicale';
   const to = isAdmin ? `/dashboard/competitions/${summary.id}` : `/competitions/${summary.id}`;
+  const participated = myTeamIds.size > 0 && (summary.teamIds ?? []).some((id) => myTeamIds.has(id));
   return (
     <Link to={to} className="block">
       <div className="rounded-lg border border-border bg-surface p-5 hover:border-accent/50 transition-colors space-y-3">
@@ -196,6 +208,9 @@ function CompetitionCard({ summary, isAdmin }: { summary: CompetitionSummary; is
             </span>
             {isAmicale && (
               <span className="text-xs text-muted border border-border rounded px-1.5 py-0.5">Amicale</span>
+            )}
+            {participated && (
+              <span className="text-xs text-accent border border-accent/40 rounded px-1.5 py-0.5">Participé</span>
             )}
           </div>
         </div>

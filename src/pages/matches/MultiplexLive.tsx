@@ -58,7 +58,9 @@ export default function MultiplexLive() {
   const stopAll = useMultiplex((s) => s.stop);
   const updateSlotTactic = useMultiplex((s) => s.updateSlotTactic);
 
+  // Read-and-consume: delete immediately after reading so it never bleeds into the next visit
   const autoSimulate = sessionStorage.getItem('footsim.autoSimulate') === '1';
+  sessionStorage.removeItem('footsim.autoSimulate');
 
   const [loading, setLoading] = useState(true);
   const [paused, setPaused] = useState(false);
@@ -366,7 +368,9 @@ export default function MultiplexLive() {
       ? roundNum + 1
       : roundNum;
 
-    const allDone = updatedMatches.every((m) => m.status === 'completed');
+    const allDone = updatedMatches.every(
+      (m) => m.status === 'completed' || ((!m.homeTeamId && !m.awayTeamId) && m.phase !== 'lpm_playoff'),
+    );
     let winner: string | undefined;
     if (allDone) {
       const finalMatch = updatedMatches.find((m) => m.phase === 'F');
@@ -935,7 +939,6 @@ export default function MultiplexLive() {
     if (hasMore && pendingUpdate.status !== 'completed') {
       navigate(`/competition/${competitionId}/round/${nextRound}`, { replace: true });
     } else {
-      sessionStorage.removeItem('footsim.autoSimulate');
       navigate(`/dashboard/competitions/${competitionId}`, { replace: true });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

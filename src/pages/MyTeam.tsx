@@ -627,6 +627,13 @@ const RESULT_COLOR: Record<CompHistoryEntry['result'], string> = {
   participant: 'text-muted border-border bg-surface',
 };
 
+function lpmRankBadge(rank: number): { label: string; cls: string } {
+  const ord = rank === 1 ? '1er' : `${rank}e`;
+  if (rank <= 24) return { label: `${ord} — Zone Or`, cls: 'text-yellow-400 border-yellow-500/40 bg-yellow-500/10' };
+  if (rank <= 40) return { label: `${ord} — Zone Rouge`, cls: 'text-danger border-danger/40 bg-danger/10' };
+  return { label: `${ord} — Zone Noire`, cls: 'text-muted border-border bg-surface' };
+}
+
 function MyTeamStatsTab({
   recentMatches,
   players,
@@ -775,14 +782,17 @@ function MyTeamPalmaresTab({
                 </div>
               </div>
               <div className="space-y-1.5">
-                {sorted.map((e, i) => (
+                {sorted.map((e, i) => {
+                  const lpmBadge = e.format === 'lpm' && e.finishRank ? lpmRankBadge(e.finishRank) : null;
+                  return (
                   <div key={i} className="flex items-center justify-between gap-3 text-sm">
                     <span className="text-muted text-xs">{e.year ?? '—'}</span>
-                    <span className={`rounded border px-2 py-0.5 text-xs font-medium ${RESULT_COLOR[e.result]}`}>
-                      {RESULT_LABEL[e.result]}
+                    <span className={`rounded border px-2 py-0.5 text-xs font-medium ${lpmBadge ? lpmBadge.cls : RESULT_COLOR[e.result]}`}>
+                      {lpmBadge ? lpmBadge.label : RESULT_LABEL[e.result]}
                     </span>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           );

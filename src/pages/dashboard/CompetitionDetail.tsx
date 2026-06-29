@@ -232,6 +232,23 @@ export default function CompetitionDetail() {
     }
   }
 
+  function calcLpmZonePoints(rank: number, inPlayoff: boolean, playoffQualified: boolean): number {
+    if (rank >= 1 && rank <= 24) {
+      // Zone Or: 80 − (rang − 1) × (60 / 23), arrondi
+      return Math.round(80 - (rank - 1) * (60 / 23));
+    }
+    if (rank >= 25 && rank <= 40) {
+      // Zone Rouge: +8 si qualifié barrage, -5 si éliminé barrage
+      if (!inPlayoff) return 0; // barrages pas encore joués
+      return playoffQualified ? 8 : -5;
+    }
+    if (rank >= 41 && rank <= 48) {
+      // Zone Noire: -10 − (rang − 41) × (10 / 7), arrondi
+      return Math.round(-10 - (rank - 41) * (10 / 7));
+    }
+    return 0;
+  }
+
   async function handleDistributeLpmZone() {
     if (!effectivePat || !current || current.format !== 'lpm') return;
     setDistributingLpm(true);
@@ -245,19 +262,26 @@ export default function CompetitionDetail() {
       sorted.forEach((s, i) => { ranks[s.teamId] = i + 1; });
 
       const playoffQualifiedIds = new Set<string>();
+      const playoffParticipantIds = new Set<string>();
       for (const m of current.matches) {
-        if (m.phase !== 'lpm_playoff' || m.status !== 'completed' || !m.result) continue;
+        if (m.phase !== 'lpm_playoff' || !m.homeTeamId || !m.awayTeamId) continue;
+        if (m.homeTeamId) playoffParticipantIds.add(m.homeTeamId);
+        if (m.awayTeamId) playoffParticipantIds.add(m.awayTeamId);
+        if (m.status !== 'completed' || !m.result) continue;
         const homeWon = m.result.home > m.result.away || (m.result.penalties && m.result.penalties.home > m.result.penalties.away);
         if (homeWon && m.homeTeamId) playoffQualifiedIds.add(m.homeTeamId);
         else if (!homeWon && m.awayTeamId) playoffQualifiedIds.add(m.awayTeamId);
       }
+      const playoffDone = playoffParticipantIds.size > 0 && [...playoffParticipantIds].every(
+        (tid) => playoffQualifiedIds.has(tid) || [...playoffQualifiedIds].length > 0,
+      );
 
-      // LPM zone points: 3 zones (Rouge top5, Orange mid, Verte bottom)
       const LPM_ZONE_POINTS: Record<string, number> = {};
       sorted.forEach((s, i) => {
         const rank = i + 1;
-        LPM_ZONE_POINTS[s.teamId] = rank <= 5 ? 3 : rank <= 10 ? 1 : 0;
-        if (playoffQualifiedIds.has(s.teamId)) LPM_ZONE_POINTS[s.teamId] += 2;
+        const inPlayoff = playoffParticipantIds.has(s.teamId);
+        const qualified = playoffQualifiedIds.has(s.teamId);
+        LPM_ZONE_POINTS[s.teamId] = calcLpmZonePoints(rank, inPlayoff && playoffDone, qualified);
       });
 
       let distributed = 0;
@@ -276,21 +300,30 @@ export default function CompetitionDetail() {
         const res = bySlugLpm.get(slug);
         if (!res) { skipped++; return; }
         const tid = slugToTidLpm[slug];
-        const pts = LPM_ZONE_POINTS[tid] ?? 0;
-        if (pts === 0) { skipped++; return; }
-        const bonusEntry: import('@/lib/github/matches').RecentMatchSummary = {
-          matchId: `lpm-zone-${current.id}-${tid}`,
-          playedAt: new Date().toISOString(),
-          opponentSlug: '',
-          opponentName: `LPM — Bonus zone (${current.name})`,
-          homeAway: 'home',
-          scoreFor: 0,
-          scoreAgainst: 0,
-          cmfPoints: pts,
-          compKind: current.kind,
-        };
-        const recentMatches = [...(res.team.recentMatches ?? []), bonusEntry];
-        await backend.saveTeam({ ...res.team, recentMatches }, res.players);
+        const pts = LPM_ZONE_POINTS[tid];
+        if (pts === undefined || pts === 0) { skipped++; return; }
+        const rank = ranks[tid];
+        // Remove legacy fake match entry if present
+        const recentMatches = (res.team.recentMatches ?? []).filter((r) => r.matchId !== `lpm-zone-${current.id}-${tid}`);
+        // Store rank + zone bonus on compHistory entry (palmarès)
+        const prevHistory = res.team.compHistory ?? [];
+        const histIdx = prevHistory.findIndex((e) => e.compId === current.id);
+        const nextHistory = histIdx >= 0
+          ? prevHistory.map((e, i) => i === histIdx ? { ...e, finishRank: rank, cmfZoneBonus: pts } : e)
+          : [...prevHistory, {
+              compId: current.id,
+              compName: current.name,
+              year: current.year,
+              format: current.format as import('@/lib/competition/types').CompetitionFormat,
+              kind: current.kind,
+              scope: current.scope,
+              importance: current.importance,
+              result: 'participant' as const,
+              participantCount: current.teamIds.length,
+              finishRank: rank,
+              cmfZoneBonus: pts,
+            }];
+        await backend.saveTeam({ ...res.team, recentMatches, compHistory: nextHistory }, res.players);
         distributed++;
       });
       for (let i = 0; i < lpmTasks.length; i += 5) {
@@ -310,9 +343,39 @@ export default function CompetitionDetail() {
     try {
       await save(current, '', effectivePat);
 
-      if (current.status === 'completed') {
+      const lpmLeagueDone = current.format === 'lpm'
+        && current.matches.filter((m) => m.phase === 'league').every((m) => m.status === 'completed')
+        && current.matches.some((m) => m.phase === 'league');
+      if (current.status === 'completed' || lpmLeagueDone) {
         const teamSnap = current.teamSnapshot ?? {};
         const backend = new PrApiTeamBackend(effectivePat);
+
+        // LPM: pre-compute ranks + zone bonus points
+        const { sortStandings: sortSt } = await import('@/lib/competition/scheduler');
+        const lpmRanks: Record<string, number> = {};
+        const lpmZonePoints: Record<string, number> = {};
+        if (current.format === 'lpm') {
+          const sorted = sortSt(Object.values(current.standings));
+          sorted.forEach((s, i) => { lpmRanks[s.teamId] = i + 1; });
+          const playoffQuals = new Set<string>();
+          const playoffParticipants = new Set<string>();
+          for (const m of current.matches) {
+            if (m.phase !== 'lpm_playoff' || !m.homeTeamId || !m.awayTeamId) continue;
+            playoffParticipants.add(m.homeTeamId);
+            playoffParticipants.add(m.awayTeamId);
+            if (m.status !== 'completed' || !m.result) continue;
+            const homeWon = m.result.home > m.result.away || (m.result.penalties && m.result.penalties.home > m.result.penalties.away);
+            if (homeWon && m.homeTeamId) playoffQuals.add(m.homeTeamId);
+            else if (!homeWon && m.awayTeamId) playoffQuals.add(m.awayTeamId);
+          }
+          const playoffDone = playoffParticipants.size > 0 && playoffQuals.size > 0;
+          sorted.forEach((s, i) => {
+            const rank = i + 1;
+            const inPlayoff = playoffParticipants.has(s.teamId);
+            const qualified = playoffQuals.has(s.teamId);
+            lpmZonePoints[s.teamId] = calcLpmZonePoints(rank, inPlayoff && playoffDone, qualified);
+          });
+        }
 
         const slugToTidSave: Record<string, string> = {};
         const slugsSave: string[] = [];
@@ -323,7 +386,7 @@ export default function CompetitionDetail() {
         const bulkSave = await backend.bulkTeams(slugsSave);
         const bySlugSave = new Map(bulkSave.map((r) => [r.team.slug, r]));
 
-        // Update compHistory + recentMatches on every team
+        // Update compHistory + recentMatches (+ LPM zone bonus) on every team
         const saveTasks = slugsSave.map((slug) => async () => {
           const tid = slugToTidSave[slug];
           const res = bySlugSave.get(slug);
@@ -332,6 +395,7 @@ export default function CompetitionDetail() {
           // compHistory
           const prev = res.team.compHistory ?? [];
           const idx = prev.findIndex((e) => e.compId === current.id);
+          const prevCmfZoneBonus = prev[idx]?.cmfZoneBonus;
           const entry: CompHistoryEntry = {
             compId: current.id,
             compName: current.name,
@@ -343,14 +407,17 @@ export default function CompetitionDetail() {
             result: deriveTeamResult(tid, current),
             phase: deriveTeamPhase(tid, current),
             participantCount: current.teamIds.length,
+            ...(current.format === 'lpm' && lpmRanks[tid] ? { finishRank: lpmRanks[tid] } : {}),
+            ...(current.format === 'lpm' && lpmZonePoints[tid] ? { cmfZoneBonus: lpmZonePoints[tid] } : prevCmfZoneBonus ? { cmfZoneBonus: prevCmfZoneBonus } : {}),
           };
           const nextHistory = idx >= 0
             ? prev.map((e, i) => i === idx ? entry : e)
             : [...prev, entry];
 
-          // recentMatches — rebuild from all completed matches in competition
+          // recentMatches — rebuild from all completed matches in competition (strip legacy lpm-zone fake entries)
           const existingOther = (res.team.recentMatches ?? []).filter(
-            (r) => !current.matches.some((m) => m.id === r.matchId),
+            (r) => !current.matches.some((m) => m.id === r.matchId)
+              && r.matchId !== `lpm-zone-${current.id}-${tid}`,
           );
           const newEntries: RecentMatchSummary[] = [];
           for (const m of current.matches) {
@@ -382,6 +449,7 @@ export default function CompetitionDetail() {
               cmfPoints: calcCmfMatchPoints({ scoreFor, scoreAgainst, opponentStrength: oppStrength, compKind: current.kind, compScope: current.scope, compImportance: current.importance, participantCount: current.teamIds.length }),
             });
           }
+
           const mergedRecent = [...existingOther, ...newEntries];
 
           // injuries/suspensions from competition state
@@ -449,10 +517,19 @@ export default function CompetitionDetail() {
   // LPM: barrages à seeder quand les 11 journées sont terminées et les slots sont encore TBD
   const lpmLeagueMatches = isLPM ? current.matches.filter((m) => m.phase === 'league') : [];
   const lpmPlayoffMatches = isLPM ? current.matches.filter((m) => m.phase === 'lpm_playoff') : [];
-  const showLPMPlayoffSeed = isAdmin && isLPM
+  const lpmLeagueDone = isLPM
     && lpmLeagueMatches.length > 0
-    && lpmLeagueMatches.every((m) => m.status === 'completed')
+    && lpmLeagueMatches.every((m) => m.status === 'completed');
+
+  const showLPMPlayoffSeed = isAdmin && isLPM
+    && lpmLeagueDone
     && lpmPlayoffMatches.some((m) => m.homeTeamId === null && !m.homeFromMatch);
+
+  const showLPMReseed = isAdmin && isLPM
+    && lpmLeagueDone
+    && lpmPlayoffMatches.length > 0
+    && lpmPlayoffMatches.every((m) => m.status === 'pending')
+    && lpmPlayoffMatches.some((m) => m.homeTeamId !== null);
 
   function seedLPMBarrages() {
     if (!current) return;
@@ -462,13 +539,18 @@ export default function CompetitionDetail() {
       ? standings.findIndex((s) => s.teamId === current.hostTeamId)
       : -1;
     let playoffZone = standings.slice(24, 40).map((s) => s.teamId);
-    if (current.hostTeamId && hostRank >= 24 && hostRank <= 39) {
-      const hostPosInZone = hostRank - 24;
-      playoffZone = [
-        ...playoffZone.slice(0, hostPosInZone),
-        standings[40]?.teamId ?? '',
-        ...playoffZone.slice(hostPosInZone + 1),
-      ].filter(Boolean);
+    if (current.hostTeamId && hostRank >= 0) {
+      if (hostRank < 24) {
+        // Host top 24 → 25th qualifies directly → zone shifts to 26th–41st
+        playoffZone = standings.slice(25, 41).map((s) => s.teamId);
+      } else if (hostRank >= 24 && hostRank <= 39) {
+        const hostPosInZone = hostRank - 24;
+        playoffZone = [
+          ...playoffZone.slice(0, hostPosInZone),
+          standings[40]?.teamId ?? '',
+          ...playoffZone.slice(hostPosInZone + 1),
+        ].filter(Boolean);
+      }
     }
     const pairs: LPMPair[] = Array.from({ length: 8 }, (_, i) => ({
       home: playoffZone[15 - i], // lower seed (40e→33e) reçoit à l'aller
@@ -481,7 +563,10 @@ export default function CompetitionDetail() {
     if (!current || !lpmDraw) return;
     const standings = sortStandings(Object.values(current.standings));
     const updatedMatches = seedLPMPlayoffs(current.matches, standings, current.hostTeamId);
-    const updated: Competition = { ...current, matches: updatedMatches };
+    // Ensure currentRound points to the first playoff round (12 = aller)
+    const playoffRound = updatedMatches.find((m) => m.phase === 'lpm_playoff')?.round ?? current.currentRound;
+    const nextRound = Math.max(current.currentRound, playoffRound);
+    const updated: Competition = { ...current, matches: updatedMatches, currentRound: nextRound };
     setCurrent(updated);
     setLpmDraw(null);
     if (effectivePat) save(updated, '', effectivePat).catch(() => {});
@@ -698,22 +783,31 @@ export default function CompetitionDetail() {
                 🔧 Réparer noms
               </Button>
             )}
-            {isLPM && current.status === 'completed' && (
+            {isLPM && (current.status === 'completed' || (lpmLeagueDone && lpmPlayoffMatches.length > 0 && lpmPlayoffMatches.every((m) => m.status === 'completed'))) && (
               <Button size="sm" variant="ghost" onClick={handleDistributeLpmZone} disabled={distributingLpm}>
                 {distributingLpm ? <Spinner className="h-4 w-4" /> : '★ Points CMF LPM'}
               </Button>
             )}
-            {current.status !== 'completed' && (
-              <Button
-                size="sm"
-                onClick={async () => simulateRound(currentRound)}
-                disabled={!current.matches.some(
-                  (m) => m.round === currentRound && m.status === 'pending' && m.homeTeamId && m.awayTeamId,
-                )}
-              >
-                ▶ Journée {currentRound}
-              </Button>
-            )}
+            {current.status !== 'completed' && (() => {
+              const currentRoundMatches = current.matches.filter(
+                (m) => m.round === currentRound && m.status === 'pending' && m.homeTeamId && m.awayTeamId,
+              );
+              const currentPhase = current.matches.find((m) => m.round === currentRound)?.phase;
+              const roundLabel = isLPM && currentPhase === 'lpm_playoff'
+                ? (current.matches.find((m) => m.round === currentRound)?.leg === 1
+                  ? `▶ Barrages · Aller`
+                  : `▶ Barrages · Retour`)
+                : `▶ Journée ${currentRound}`;
+              return (
+                <Button
+                  size="sm"
+                  onClick={async () => simulateRound(currentRound)}
+                  disabled={currentRoundMatches.length === 0}
+                >
+                  {roundLabel}
+                </Button>
+              );
+            })()}
             {current.status !== 'completed' && (isLeague || isLPM) && current.matches.some((m) => m.status === 'pending' && m.phase === 'league') && (
               <Button
                 size="sm"
@@ -805,6 +899,18 @@ export default function CompetitionDetail() {
           </div>
           <Button size="sm" onClick={seedLPMBarrages}>
             ⚔ Lancer les barrages
+          </Button>
+        </div>
+      )}
+
+      {showLPMReseed && (
+        <div className="rounded-lg border border-accent/40 bg-accent/5 p-4 flex items-center justify-between gap-3">
+          <div>
+            <div className="font-medium">Barrages déjà tirés — aucun match joué</div>
+            <div className="text-sm text-muted">Refaire le tirage avec les règles corrigées (hôte, zone).</div>
+          </div>
+          <Button size="sm" variant="ghost" onClick={seedLPMBarrages}>
+            🔁 Refaire le tirage
           </Button>
         </div>
       )}

@@ -331,7 +331,7 @@ export function generateLPMMatches(teamIds: string[]): CompMatch[] {
 
 /**
  * Après J11: seed les barrages LPM avec les équipes classées 25–40.
- * Si hostTeamId est défini et l'hôte finit dans le top 24 → le 25ème prend sa place (direct qual).
+ * Si hostTeamId est défini et l'hôte finit dans le top 24 → le 25ème qualifié directement, barrages = 26e–41e.
  * Si l'hôte finit 25-40 → il est qualifié directement, le 41ème entre en barrage à sa place.
  * Si l'hôte finit 41-48 → qualifié directement, pas d'impact sur les barrages.
  * Retourne aussi la liste des équipes directement qualifiées (top 24 + hôte éventuel).
@@ -350,9 +350,9 @@ export function seedLPMPlayoffs(
 
   if (hostTeamId && hostRank >= 0) {
     if (hostRank < 24) {
-      // Host in top 24 → already directly qualified, 25th (index 24) stays, no change needed
-      // But the 25th slot is freed: direct qualification, so playoffZone unchanged (25-40)
-      // Actually no change: the host is already top 24, zone is still indices 24-39
+      // Host in top 24 → host's qualification slot is passed to the 25th → 25th qualifies directly
+      // Playoff zone shifts to 26th–41st (indices 25–40)
+      playoffZone = sortedStandings.slice(25, 41).map((s) => s.teamId);
     } else if (hostRank >= 24 && hostRank <= 39) {
       // Host in playoff zone → remove host, add 41st (index 40) at host's position
       const hostPosInZone = hostRank - 24;

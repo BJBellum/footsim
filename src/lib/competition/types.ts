@@ -186,6 +186,10 @@ export type CompHistoryEntry = {
   phase?: string;
   /** Number of teams in the competition (for size multiplier) */
   participantCount?: number;
+  /** Final standing rank (e.g. 1 = winner, used for LPM league) */
+  finishRank?: number;
+  /** LPM zone bonus CMF points (added to palmarès total, not match history) */
+  cmfZoneBonus?: number;
 };
 
 export type Competition = {
