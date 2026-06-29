@@ -78,6 +78,10 @@ export const prapi = {
   uploadFlag: (slug: string, dataUrl: string, token: string) =>
     request<{ url: string }>('POST', '/upload-flag', token, { slug, dataUrl }),
 
+  /** Return the team+players managed by the authenticated user. */
+  myTeam: (token: string) =>
+    request<{ team: import('@/lib/types').Team; players: import('@/lib/types').Player[] }>('GET', '/teams/me', token),
+
   /** Exchange a Discord access_token for a FootSim JWT. */
   exchangeDiscordToken: (discordToken: string) =>
     request<{

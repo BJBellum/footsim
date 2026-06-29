@@ -9,6 +9,7 @@ import { TacticsSummary } from '@/components/team/TacticsSummary';
 import { useSession } from '@/stores/session';
 import { usePrApiToken } from '@/stores/prApiToken';
 import { PrApiTeamBackend } from '@/lib/prapi/teamBackend';
+import { prapi } from '@/lib/prapi/client';
 import { useCompetition } from '@/stores/competition';
 import { POSITION_LABEL } from '@/lib/types';
 import { FORMAT_LABEL } from '@/lib/competition/types';
@@ -45,7 +46,6 @@ export default function MyTeam() {
 
   useEffect(() => {
     if (!session || !prApiToken) return;
-    const backend = new PrApiTeamBackend(prApiToken);
 
     async function applyFull(full: { team: Team; players: Player[] }) {
       const dbTactics = full.team.savedTactics ?? [];
@@ -71,12 +71,10 @@ export default function MyTeam() {
 
     async function load() {
       try {
-        const all = await backend.bulkTeams();
-        const full = all.find((r) => r.team.managerDiscordId === session!.id) ?? null;
-        if (!full) { setData(null); return; }
+        const full = await prapi.myTeam(prApiToken!);
         await applyFull(full);
-      } catch (err) {
-        toast('error', String(err));
+      } catch {
+        setData(null);
       } finally {
         setLoading(false);
       }
