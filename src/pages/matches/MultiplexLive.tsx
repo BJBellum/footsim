@@ -238,6 +238,7 @@ export default function MultiplexLive() {
     console.log('[MultiplexLive allFinished effect]', { allFinished, hasCurrent: !!current, slotsLen: slots.length, hasPendingUpdate: !!pendingUpdateRef.current, resultsComputed: resultsComputedRef.current, currentRound: current?.currentRound, slotsStatus: slots.map(s => s.state?.status) });
     if (!allFinished || !current || slots.length === 0 || pendingUpdateRef.current || resultsComputedRef.current) return;
 
+    try {
     let updatedMatches = current.matches;
     let updatedStandings = current.standings;
     let updatedPlayerStats = current.playerStats ?? {};
@@ -950,6 +951,16 @@ export default function MultiplexLive() {
           setSaving(false);
         }
       })();
+    }
+    } catch (err) {
+      // Computing nextState (bracket advance, standings, press, etc.) threw before any
+      // network call fired. Without resultsComputedRef set here, the guard at the top of
+      // this effect never blocks re-entry, so it throws again on every re-render — an
+      // infinite retry loop the UI shows as endless loading with nothing ever saved.
+      resultsComputedRef.current = true;
+      console.error('[MultiplexLive] nextState computation failed', err);
+      toast('error', `Erreur calcul résultats : ${String(err)}`);
+      setSaving(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allFinished]);
