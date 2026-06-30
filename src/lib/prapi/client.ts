@@ -47,13 +47,36 @@ export const prapi = {
         teamSlug: string;
         teamName: string;
       }[];
+      topScorers: {
+        id: string;
+        playerName: string;
+        position: string;
+        overall: number;
+        teamName: string;
+        teamSlug: string;
+        teamFlag: string;
+        goals: number;
+        assists: number;
+      }[];
+      topAssists: {
+        id: string;
+        playerName: string;
+        position: string;
+        overall: number;
+        teamName: string;
+        teamSlug: string;
+        teamFlag: string;
+        goals: number;
+        assists: number;
+      }[];
       pagination: { page: number; per_page: number; total: number; pages: number };
     }>('GET', `/rankings?page=${page}&per_page=${perPage}`, null),
 
   /** Top players paginated — no auth required. */
-  rankingsPlayers: (page = 1, perPage = 100, position?: string) => {
+  rankingsPlayers: (page = 1, perPage = 50, position?: string, teamSlug?: string) => {
     const qs = new URLSearchParams({ page: String(page), per_page: String(perPage) });
     if (position) qs.set('position', position);
+    if (teamSlug) qs.set('team_slug', teamSlug);
     return request<{
       players: {
         id: string; firstName: string; lastName: string;
@@ -62,6 +85,28 @@ export const prapi = {
       }[];
       pagination: { page: number; per_page: number; total: number; pages: number };
     }>('GET', `/rankings/players?${qs}`, null);
+  },
+
+  /** Top scorers (goals from official matches) — paginated, no auth required. */
+  rankingsScorers: (page = 1, perPage = 50, position?: string, teamSlug?: string) => {
+    const qs = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+    if (position) qs.set('position', position);
+    if (teamSlug) qs.set('team_slug', teamSlug);
+    return request<{
+      players: { id: string; playerName: string; position: string; overall: number; teamName: string; teamSlug: string; teamFlag: string; goals: number; assists: number }[];
+      pagination: { page: number; per_page: number; total: number; pages: number };
+    }>('GET', `/rankings/scorers?${qs}`, null);
+  },
+
+  /** Top assisters (assists from official matches) — paginated, no auth required. */
+  rankingsAssisters: (page = 1, perPage = 50, position?: string, teamSlug?: string) => {
+    const qs = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+    if (position) qs.set('position', position);
+    if (teamSlug) qs.set('team_slug', teamSlug);
+    return request<{
+      players: { id: string; playerName: string; position: string; overall: number; teamName: string; teamSlug: string; teamFlag: string; goals: number; assists: number }[];
+      pagination: { page: number; per_page: number; total: number; pages: number };
+    }>('GET', `/rankings/assisters?${qs}`, null);
   },
 
   /** Players + formation for one team — for expanded ranking detail. No auth required. */

@@ -448,13 +448,45 @@ export function advanceBracket(matches: CompMatch[], completedMatchId: string): 
   const done = matches.find((m) => m.id === completedMatchId);
   if (!done?.result || done.homeTeamId === null || done.awayTeamId === null) return matches;
 
-  const winnerId = done.result.home > done.result.away
-    ? done.homeTeamId
-    : done.result.away > done.result.home
-    ? done.awayTeamId
-    : done.result.penalties
-    ? (done.result.penalties.home > done.result.penalties.away ? done.homeTeamId : done.awayTeamId)
-    : done.homeTeamId; // tie without penalties shouldn't happen in knockout
+  let winnerId: string;
+  if (done.leg === 2 && done.phase === 'lpm_playoff') {
+    // Two-legged tie: determine winner on aggregate
+    const leg1 = matches.find((m) =>
+      m.phase === 'lpm_playoff' && m.leg === 1 && m.status === 'completed' && m.result &&
+      ((m.homeTeamId === done.awayTeamId && m.awayTeamId === done.homeTeamId) ||
+       (m.homeTeamId === done.homeTeamId && m.awayTeamId === done.awayTeamId)),
+    );
+    if (leg1?.result) {
+      // leg1: home=lower, away=higher. leg2: home=higher, away=lower.
+      // Aggregate from higher's perspective (home at leg2):
+      const higherAgg = done.result.home + (leg1.homeTeamId === done.awayTeamId ? leg1.result.away : leg1.result.home);
+      const lowerAgg = done.result.away + (leg1.homeTeamId === done.awayTeamId ? leg1.result.home : leg1.result.away);
+      if (higherAgg > lowerAgg) {
+        winnerId = done.homeTeamId; // higher
+      } else if (lowerAgg > higherAgg) {
+        winnerId = done.awayTeamId; // lower
+      } else if (done.result.penalties) {
+        winnerId = done.result.penalties.home > done.result.penalties.away ? done.homeTeamId : done.awayTeamId;
+      } else {
+        winnerId = done.homeTeamId; // aggregate tie without penalties shouldn't happen
+      }
+    } else {
+      // No leg1 found, fall back to match result
+      winnerId = done.result.home > done.result.away ? done.homeTeamId
+        : done.result.away > done.result.home ? done.awayTeamId
+        : done.result.penalties
+        ? (done.result.penalties.home > done.result.penalties.away ? done.homeTeamId : done.awayTeamId)
+        : done.homeTeamId;
+    }
+  } else {
+    winnerId = done.result.home > done.result.away
+      ? done.homeTeamId
+      : done.result.away > done.result.home
+      ? done.awayTeamId
+      : done.result.penalties
+      ? (done.result.penalties.home > done.result.penalties.away ? done.homeTeamId : done.awayTeamId)
+      : done.homeTeamId; // tie without penalties shouldn't happen in knockout
+  }
 
   const loserId = winnerId === done.homeTeamId ? done.awayTeamId : done.homeTeamId;
 

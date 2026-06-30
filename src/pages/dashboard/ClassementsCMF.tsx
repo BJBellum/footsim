@@ -4,7 +4,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { toast } from '@/components/ui/Toast';
 
 import { prapi } from '@/lib/prapi/client';
-import { POSITION_LABEL, CULTURE_LABEL, CONTINENT_LABEL } from '@/lib/types';
+import { POSITION_LABEL, CONTINENT_LABEL } from '@/lib/types';
 import type { Continent, Formation } from '@/lib/types';
 import type { Team, Position, Player } from '@/lib/types';
 import { PlayerView } from '@/components/team/PlayerView';
@@ -96,16 +96,127 @@ type TeamRankEntry = {
   wins: number;
   finals: number;
   thirds: number;
-  participations: number;
   form: MatchResult[];
 };
 
-type PlayerEntry = {
-  player: { id: string; firstName: string; lastName: string; position: string; overall: number };
-  team: Team;
-};
-
 type Tab = 'equipes' | 'joueurs' | 'explications';
+type PlayerSubTab = 'note' | 'buteurs' | 'passeurs';
+
+type ScorerEntry = { id: string; playerName: string; position: string; overall: number; teamName: string; teamSlug: string; teamFlag: string; goals: number; assists: number };
+type OverallEntry = { id: string; firstName: string; lastName: string; position: string; overall: number; teamSlug: string; teamName: string; teamFlag: string | null; culture: string | null };
+
+const ALL_POSITIONS = ['GK','CB','LB','RB','DM','CM','AM','LM','RM','LW','RW','ST'];
+
+// ─── PlayerFilters ────────────────────────────────────────────────────────────
+
+function PlayerFilters({ posFilter, teamFilter, teams, loading, total, onPos, onTeam }: {
+  posFilter: string; teamFilter: string;
+  teams: { slug: string; name: string }[];
+  loading: boolean; total: number;
+  onPos: (v: string) => void; onTeam: (v: string) => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 flex-wrap">
+      <select value={posFilter} onChange={(e) => onPos(e.target.value)} className="h-8 rounded-md border border-border bg-surface px-2 text-xs">
+        <option value="all">Tous les postes</option>
+        {ALL_POSITIONS.map((p) => <option key={p} value={p}>{POSITION_LABEL[p as Position] ?? p}</option>)}
+      </select>
+      <select value={teamFilter} onChange={(e) => onTeam(e.target.value)} className="h-8 rounded-md border border-border bg-surface px-2 text-xs">
+        <option value="all">Toutes les équipes</option>
+        {teams.map((t) => <option key={t.slug} value={t.slug}>{t.name}</option>)}
+      </select>
+      {total > 0 && <span className="text-xs text-muted">{total} joueur{total > 1 ? 's' : ''}</span>}
+      {loading && <Spinner className="h-4 w-4" />}
+    </div>
+  );
+}
+
+// ─── PlayerTable (overall) ────────────────────────────────────────────────────
+
+function OverallTable({ entries, page, perPage }: { entries: OverallEntry[]; page: number; perPage: number }) {
+  const rankColor = (r: number) => r === 1 ? 'text-yellow-500 font-bold' : r === 2 ? 'text-zinc-400 font-bold' : r === 3 ? 'text-orange-500 font-bold' : 'text-muted';
+  return (
+    <div className="overflow-x-auto rounded-lg border border-border bg-surface">
+      <table className="w-full text-sm min-w-[400px]">
+        <thead className="bg-bg text-left text-xs text-muted uppercase tracking-wide">
+          <tr>
+            <th className="px-3 py-2 w-10 text-center">#</th>
+            <th className="px-3 py-2">Joueur</th>
+            <th className="px-3 py-2 hidden sm:table-cell">Poste</th>
+            <th className="px-3 py-2">Équipe</th>
+            <th className="px-3 py-2 text-right font-bold">OVR</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map((p, idx) => {
+            const rank = (page - 1) * perPage + idx + 1;
+            return (
+              <tr key={p.id} className="border-t border-border hover:bg-border/10 transition-colors">
+                <td className={`px-3 py-2.5 text-center tabular-nums text-sm ${rankColor(rank)}`}>{rank}</td>
+                <td className="px-3 py-2.5 font-medium">{p.firstName} {p.lastName}</td>
+                <td className="px-3 py-2.5 hidden sm:table-cell"><span className="rounded bg-border/40 px-2 py-0.5 font-mono text-xs">{POSITION_LABEL[p.position as Position] ?? p.position}</span></td>
+                <td className="px-3 py-2.5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {p.teamFlag && <img src={p.teamFlag} alt="" className="h-5 w-5 rounded-sm object-cover shrink-0" />}
+                    <span className="truncate max-w-[100px] text-sm">{p.teamName}</span>
+                  </div>
+                </td>
+                <td className="px-3 py-2.5 text-right tabular-nums font-bold text-accent">{p.overall}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── ScorerTable ──────────────────────────────────────────────────────────────
+
+function ScorerTable({ entries, page, perPage, valueKey, valueLabel, secondKey, secondLabel }: {
+  entries: ScorerEntry[]; page: number; perPage: number;
+  valueKey: 'goals' | 'assists'; valueLabel: string;
+  secondKey: 'goals' | 'assists'; secondLabel: string;
+}) {
+  const rankColor = (r: number) => r === 1 ? 'text-yellow-500 font-bold' : r === 2 ? 'text-zinc-400 font-bold' : r === 3 ? 'text-orange-500 font-bold' : 'text-muted';
+  if (entries.length === 0) return <p className="text-xs text-muted py-8 text-center">Aucune donnée — les stats apparaissent après des matchs officiels.</p>;
+  return (
+    <div className="overflow-x-auto rounded-lg border border-border bg-surface">
+      <table className="w-full text-sm min-w-[360px]">
+        <thead className="bg-bg text-left text-xs text-muted uppercase tracking-wide">
+          <tr>
+            <th className="px-3 py-2 w-10 text-center">#</th>
+            <th className="px-3 py-2">Joueur</th>
+            <th className="px-3 py-2 hidden sm:table-cell">Poste</th>
+            <th className="px-3 py-2">Équipe</th>
+            <th className="px-3 py-2 text-center font-bold">{valueLabel}</th>
+            <th className="px-3 py-2 text-center text-muted">{secondLabel}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map((e, idx) => {
+            const rank = (page - 1) * perPage + idx + 1;
+            return (
+              <tr key={e.id} className="border-t border-border hover:bg-border/10 transition-colors">
+                <td className={`px-3 py-2.5 text-center tabular-nums text-sm ${rankColor(rank)}`}>{rank}</td>
+                <td className="px-3 py-2.5 font-medium">{e.playerName}</td>
+                <td className="px-3 py-2.5 hidden sm:table-cell"><span className="rounded bg-border/40 px-2 py-0.5 font-mono text-xs">{POSITION_LABEL[e.position as Position] ?? e.position}</span></td>
+                <td className="px-3 py-2.5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {e.teamFlag && <img src={e.teamFlag} alt="" className="h-5 w-5 rounded-sm object-cover shrink-0" />}
+                    <span className="truncate max-w-[100px] text-sm">{e.teamName}</span>
+                  </div>
+                </td>
+                <td className="px-3 py-2.5 text-center tabular-nums font-bold text-accent">{e[valueKey]}</td>
+                <td className="px-3 py-2.5 text-center tabular-nums text-muted">{e[secondKey]}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -113,7 +224,10 @@ export default function ClassementsCMF({ embedded }: { embedded?: boolean }) {
   const location = useLocation();
   const isPublicRoute = !embedded && location.pathname === '/classements-cmf';
 
+  const PER_PAGE = 50;
+
   const [tab, setTab] = useState<Tab>('equipes');
+  const [playerSubTab, setPlayerSubTab] = useState<PlayerSubTab>('note');
   const [loading, setLoading] = useState(true);
   const [pageLoading, setPageLoading] = useState(false);
   const [teamEntries, setTeamEntries] = useState<TeamRankEntry[]>([]);
@@ -123,13 +237,32 @@ export default function ClassementsCMF({ embedded }: { embedded?: boolean }) {
   // team filters
   const [continentFilter, setContinentFilter] = useState<Continent | 'all'>('all');
 
-  // player tab state
-  const [playerPage, setPlayerPage] = useState(1);
-  const [playerPageLoading, setPlayerPageLoading] = useState(false);
-  const [playerEntries, setPlayerEntries] = useState<PlayerEntry[]>([]);
-  const [playerPagination, setPlayerPagination] = useState({ page: 1, per_page: 100, total: 0, pages: 1 });
-  const [posFilter, setPosFilter] = useState<string>('all');
-  const [playerTabLoaded, setPlayerTabLoaded] = useState(false);
+  // player sub-tab state — note
+  const [noteEntries, setNoteEntries] = useState<OverallEntry[]>([]);
+  const [notePagination, setNotePagination] = useState({ page: 1, per_page: PER_PAGE, total: 0, pages: 1 });
+  const [notePosFilter, setNotePosFilter] = useState('all');
+  const [noteTeamFilter, setNoteTeamFilter] = useState('all');
+  const [noteLoading, setNoteLoading] = useState(false);
+  const [noteLoaded, setNoteLoaded] = useState(false);
+
+  // player sub-tab state — buteurs
+  const [scorerEntries, setScorerEntries] = useState<ScorerEntry[]>([]);
+  const [scorerPagination, setScorerPagination] = useState({ page: 1, per_page: PER_PAGE, total: 0, pages: 1 });
+  const [scorerPosFilter, setScorerPosFilter] = useState('all');
+  const [scorerTeamFilter, setScorerTeamFilter] = useState('all');
+  const [scorerLoading, setScorerLoading] = useState(false);
+  const [scorerLoaded, setScorerLoaded] = useState(false);
+
+  // player sub-tab state — passeurs
+  const [assisterEntries, setAssisterEntries] = useState<ScorerEntry[]>([]);
+  const [assisterPagination, setAssisterPagination] = useState({ page: 1, per_page: PER_PAGE, total: 0, pages: 1 });
+  const [assisterPosFilter, setAssisterPosFilter] = useState('all');
+  const [assisterTeamFilter, setAssisterTeamFilter] = useState('all');
+  const [assisterLoading, setAssisterLoading] = useState(false);
+  const [assisterLoaded, setAssisterLoaded] = useState(false);
+
+  // sorted team list for filters
+  const teamList = [...teamEntries].sort((a, b) => a.team.name.localeCompare(b.team.name)).map((e) => ({ slug: e.team.slug, name: e.team.name }));
 
   async function loadTeamPage(page: number, isInitial = false) {
     if (isInitial) setLoading(true); else setPageLoading(true);
@@ -144,32 +277,45 @@ export default function ClassementsCMF({ embedded }: { embedded?: boolean }) {
     }
   }
 
-  async function loadPlayerPage(page: number, position?: string) {
-    setPlayerPageLoading(true);
+  async function loadNote(page: number, pos = notePosFilter, team = noteTeamFilter) {
+    setNoteLoading(true);
     try {
-      const data = await prapi.rankingsPlayers(page, 100, position === 'all' ? undefined : position);
-      setPlayerEntries(data.players.map((p) => ({
-        player: p as unknown as PlayerEntry['player'],
-        team: { slug: p.teamSlug, name: p.teamName, flag: p.teamFlag, culture: p.culture } as unknown as Team,
-      })));
-      setPlayerPagination(data.pagination);
-      setPlayerPage(page);
-    } catch (err) {
-      toast('error', String(err));
-    } finally {
-      setPlayerPageLoading(false);
-      setPlayerTabLoaded(true);
-    }
+      const data = await prapi.rankingsPlayers(page, PER_PAGE, pos === 'all' ? undefined : pos, team === 'all' ? undefined : team);
+      setNoteEntries(data.players as OverallEntry[]);
+      setNotePagination(data.pagination);
+    } catch (err) { toast('error', String(err)); }
+    finally { setNoteLoading(false); setNoteLoaded(true); }
+  }
+
+  async function loadScorers(page: number, pos = scorerPosFilter, team = scorerTeamFilter) {
+    setScorerLoading(true);
+    try {
+      const data = await prapi.rankingsScorers(page, PER_PAGE, pos === 'all' ? undefined : pos, team === 'all' ? undefined : team);
+      setScorerEntries(data.players as ScorerEntry[]);
+      setScorerPagination(data.pagination);
+    } catch (err) { toast('error', String(err)); }
+    finally { setScorerLoading(false); setScorerLoaded(true); }
+  }
+
+  async function loadAssisters(page: number, pos = assisterPosFilter, team = assisterTeamFilter) {
+    setAssisterLoading(true);
+    try {
+      const data = await prapi.rankingsAssisters(page, PER_PAGE, pos === 'all' ? undefined : pos, team === 'all' ? undefined : team);
+      setAssisterEntries(data.players as ScorerEntry[]);
+      setAssisterPagination(data.pagination);
+    } catch (err) { toast('error', String(err)); }
+    finally { setAssisterLoading(false); setAssisterLoaded(true); }
   }
 
   useEffect(() => { loadTeamPage(1, true); }, []);
 
-  // Lazy-load players tab on first open
+  // lazy load each sub-tab on first open
   useEffect(() => {
-    if (tab === 'joueurs' && !playerTabLoaded) {
-      loadPlayerPage(1);
-    }
-  }, [tab]);
+    if (tab !== 'joueurs') return;
+    if (playerSubTab === 'note' && !noteLoaded) loadNote(1);
+    if (playerSubTab === 'buteurs' && !scorerLoaded) loadScorers(1);
+    if (playerSubTab === 'passeurs' && !assisterLoaded) loadAssisters(1);
+  }, [tab, playerSubTab]);
 
   if (loading) {
     return (
@@ -178,9 +324,6 @@ export default function ClassementsCMF({ embedded }: { embedded?: boolean }) {
       </div>
     );
   }
-
-  const ALL_POSITIONS = ['GK','CB','LB','RB','DM','CM','AM','LM','RM','LW','RW','ST'];
-
 
   return (
     <>
@@ -235,88 +378,56 @@ export default function ClassementsCMF({ embedded }: { embedded?: boolean }) {
 
       {tab === 'joueurs' && (
         <div className="space-y-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            <select
-              value={posFilter}
-              onChange={(e) => { setPosFilter(e.target.value); loadPlayerPage(1, e.target.value); }}
-              className="h-8 rounded-md border border-border bg-surface px-2 text-xs"
-            >
-              <option value="all">Tous les postes</option>
-              {ALL_POSITIONS.map((p) => (
-                <option key={p} value={p}>{POSITION_LABEL[p as keyof typeof POSITION_LABEL] ?? p}</option>
-              ))}
-            </select>
-            {playerPagination.total > 0 && (
-              <span className="text-xs text-muted">{playerPagination.total} joueurs</span>
-            )}
-            {playerPageLoading && <Spinner className="h-4 w-4" />}
+          {/* Sub-tabs */}
+          <div className="flex gap-1 overflow-x-auto scrollbar-none">
+            {([['note', 'Note générale'], ['buteurs', 'Buteurs'], ['passeurs', 'Passeurs décisifs']] as const).map(([t, label]) => (
+              <button key={t} onClick={() => setPlayerSubTab(t)}
+                className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${playerSubTab === t ? 'border-accent text-accent' : 'border-transparent text-muted hover:text-text'}`}>
+                {label}
+              </button>
+            ))}
           </div>
 
-          {!playerTabLoaded ? (
-            <div className="flex justify-center py-12"><Spinner className="h-6 w-6" /></div>
-          ) : (
-            <>
-              <div className="overflow-x-auto rounded-lg border border-border bg-surface">
-                <table className="w-full text-sm min-w-[400px]">
-                  <thead className="bg-bg text-left text-xs text-muted uppercase tracking-wide">
-                    <tr>
-                      <th className="px-3 py-2 w-10 text-center">#</th>
-                      <th className="px-3 py-2">Joueur</th>
-                      <th className="px-3 py-2 hidden sm:table-cell">Poste</th>
-                      <th className="px-3 py-2">Équipe</th>
-                      <th className="px-3 py-2 hidden md:table-cell">Culture</th>
-                      <th className="px-3 py-2 text-right font-bold">OVR</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {playerEntries.map((e, idx) => {
-                      const { player, team } = e;
-                      const rank = (playerPagination.page - 1) * playerPagination.per_page + idx + 1;
-                      const rankColor =
-                        rank === 1 ? 'text-yellow-500 font-bold' :
-                        rank === 2 ? 'text-zinc-400 font-bold' :
-                        rank === 3 ? 'text-orange-500 font-bold' :
-                        'text-muted';
-                      return (
-                        <tr key={player.id} className="border-t border-border hover:bg-border/10 transition-colors">
-                          <td className={`px-3 py-2.5 text-center tabular-nums text-sm ${rankColor}`}>{rank}</td>
-                          <td className="px-3 py-2.5">
-                            <div className="font-medium leading-tight">{player.firstName} {player.lastName}</div>
-                            <div className="sm:hidden text-xs text-muted mt-0.5">
-                              <span className="rounded bg-border/40 px-1.5 py-0.5 font-mono">{POSITION_LABEL[player.position as Position]}</span>
-                            </div>
-                          </td>
-                          <td className="px-3 py-2.5 hidden sm:table-cell">
-                            <span className="rounded bg-border/40 px-2 py-0.5 font-mono text-xs">
-                              {POSITION_LABEL[player.position as Position]}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <div className="flex items-center gap-2 min-w-0">
-                              {team.flag && (
-                                <img src={team.flag} alt="" className="h-5 w-5 rounded-sm object-cover shrink-0" />
-                              )}
-                              <span className="truncate max-w-[100px] text-sm">{team.name}</span>
-                            </div>
-                          </td>
-                          <td className="px-3 py-2.5 text-muted text-xs hidden md:table-cell">
-                            {CULTURE_LABEL[team.culture] ?? team.culture}
-                          </td>
-                          <td className="px-3 py-2.5 text-right tabular-nums font-bold text-accent">{player.overall}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+          {playerSubTab === 'note' && (
+            <div className="space-y-3">
+              <PlayerFilters posFilter={notePosFilter} teamFilter={noteTeamFilter} teams={teamList} loading={noteLoading} total={notePagination.total}
+                onPos={(v) => { setNotePosFilter(v); setNoteLoaded(false); loadNote(1, v, noteTeamFilter); }}
+                onTeam={(v) => { setNoteTeamFilter(v); setNoteLoaded(false); loadNote(1, notePosFilter, v); }} />
+              {!noteLoaded ? <div className="flex justify-center py-12"><Spinner className="h-6 w-6" /></div> : (
+                <>
+                  <OverallTable entries={noteEntries} page={notePagination.page} perPage={PER_PAGE} />
+                  <Pagination page={notePagination.page} pages={notePagination.pages} loading={noteLoading} onChange={(p) => loadNote(p)} />
+                </>
+              )}
+            </div>
+          )}
 
-              <Pagination
-                page={playerPage}
-                pages={playerPagination.pages}
-                loading={playerPageLoading}
-                onChange={(p) => loadPlayerPage(p, posFilter)}
-              />
-            </>
+          {playerSubTab === 'buteurs' && (
+            <div className="space-y-3">
+              <PlayerFilters posFilter={scorerPosFilter} teamFilter={scorerTeamFilter} teams={teamList} loading={scorerLoading} total={scorerPagination.total}
+                onPos={(v) => { setScorerPosFilter(v); setScorerLoaded(false); loadScorers(1, v, scorerTeamFilter); }}
+                onTeam={(v) => { setScorerTeamFilter(v); setScorerLoaded(false); loadScorers(1, scorerPosFilter, v); }} />
+              {!scorerLoaded ? <div className="flex justify-center py-12"><Spinner className="h-6 w-6" /></div> : (
+                <>
+                  <ScorerTable entries={scorerEntries} page={scorerPagination.page} perPage={PER_PAGE} valueKey="goals" valueLabel="Buts" secondKey="assists" secondLabel="PD" />
+                  <Pagination page={scorerPagination.page} pages={scorerPagination.pages} loading={scorerLoading} onChange={(p) => loadScorers(p)} />
+                </>
+              )}
+            </div>
+          )}
+
+          {playerSubTab === 'passeurs' && (
+            <div className="space-y-3">
+              <PlayerFilters posFilter={assisterPosFilter} teamFilter={assisterTeamFilter} teams={teamList} loading={assisterLoading} total={assisterPagination.total}
+                onPos={(v) => { setAssisterPosFilter(v); setAssisterLoaded(false); loadAssisters(1, v, assisterTeamFilter); }}
+                onTeam={(v) => { setAssisterTeamFilter(v); setAssisterLoaded(false); loadAssisters(1, assisterPosFilter, v); }} />
+              {!assisterLoaded ? <div className="flex justify-center py-12"><Spinner className="h-6 w-6" /></div> : (
+                <>
+                  <ScorerTable entries={assisterEntries} page={assisterPagination.page} perPage={PER_PAGE} valueKey="assists" valueLabel="PD" secondKey="goals" secondLabel="Buts" />
+                  <Pagination page={assisterPagination.page} pages={assisterPagination.pages} loading={assisterLoading} onChange={(p) => loadAssisters(p)} />
+                </>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -859,10 +970,12 @@ function LineupSection({ players, formation, formationLabel, lineup, tokenPositi
 
 function ExpandedTeamDetail({ entry }: { entry: TeamRankEntry }) {
   const history = entry.team.compHistory ?? [];
+  const historyOfficial = history.filter((e) => e.kind === 'officielle').slice(0, 5);
+  const historyFriendly = history.filter((e) => e.kind !== 'officielle').slice(0, 10);
   const sorted = [...(entry.team.recentMatches ?? [])].sort((a, b) => b.playedAt.localeCompare(a.playedAt));
   const recentOfficial = sorted.filter((m) => m.compKind === 'officielle').slice(0, CMF_MATCH_LIMIT);
   const recentFriendly = sorted.filter((m) => m.compKind !== 'officielle').slice(0, CMF_MATCH_LIMIT);
-  const palmaresTotal = history.reduce((s, e) => s + entryPoints(e), 0);
+  const palmaresTotal = [...historyOfficial, ...historyFriendly].reduce((s, e) => s + entryPoints(e), 0);
 
   const [lineup, setLineup] = useState<{
     players: Player[]; formation: Formation; formationLabel?: string;
@@ -891,19 +1004,37 @@ function ExpandedTeamDetail({ entry }: { entry: TeamRankEntry }) {
           {history.length === 0 ? (
             <p className="text-xs text-muted py-2">Aucun résultat de compétition enregistré.</p>
           ) : (
-            <div className="space-y-1.5">
-              {[...history].sort((a, b) => (b.year ?? 0) - (a.year ?? 0)).map((e, i) => {
-                const badge = (e.format === 'lpm' && e.finishRank)
-                  ? lpmRankBadge(e.finishRank)
-                  : (RESULT_BADGE[e.result] ?? RESULT_BADGE.participant);
-                const pts = entryPoints(e);
+            <div className="space-y-3">
+              {([['officielle', 'Compétitions officielles', historyOfficial], ['amicale', 'Compétitions amicales', historyFriendly]] as const).map(([kind, label, entries]) => {
+                if (entries.length === 0) return null;
+                const grouped = entries.reduce<Record<string, typeof entries>>((acc, e) => {
+                  const y = String(e.year ?? '—');
+                  (acc[y] ??= []).push(e);
+                  return acc;
+                }, {});
                 return (
-                  <div key={i} className="flex items-center gap-2 text-xs">
-                    <span className="text-muted w-8 tabular-nums shrink-0">{e.year ?? '—'}</span>
-                    <span className={`rounded border px-1.5 py-0.5 font-medium shrink-0 ${badge.cls}`}>{badge.label}</span>
-                    <span className="truncate text-muted flex-1">{e.compName}</span>
-                    <span className="text-[10px] text-muted shrink-0">{SCOPE_SHORT[e.scope ?? 'autre'] ?? e.scope}</span>
-                    <span className="tabular-nums font-bold text-accent shrink-0">{pts > 0 ? '+' : ''}{pts}</span>
+                  <div key={kind} className="space-y-2">
+                    {kind === 'amicale' && historyOfficial.length > 0 && <div className="border-t border-border/40" />}
+                    <div className="text-[10px] uppercase tracking-widest text-muted font-medium">{label}</div>
+                    {Object.entries(grouped).map(([year, items]) => (
+                      <div key={year} className="space-y-1">
+                        <div className="text-[10px] text-muted tabular-nums font-semibold">{year}</div>
+                        {items.map((e, i) => {
+                          const badge = (e.format === 'lpm' && e.finishRank)
+                            ? lpmRankBadge(e.finishRank)
+                            : (RESULT_BADGE[e.result] ?? RESULT_BADGE.participant);
+                          const pts = entryPoints(e);
+                          return (
+                            <div key={i} className="flex items-center gap-2 text-xs">
+                              <span className={`rounded border px-1.5 py-0.5 font-medium shrink-0 w-28 text-center ${badge.cls}`}>{badge.label}</span>
+                              <span className="truncate text-muted flex-1">{e.compName}</span>
+                              <span className="text-[10px] text-muted shrink-0 w-6 text-right">{SCOPE_SHORT[e.scope ?? 'autre'] ?? e.scope}</span>
+                              <span className="tabular-nums font-bold text-accent shrink-0 w-10 text-right">{pts > 0 ? '+' : ''}{pts}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
                   </div>
                 );
               })}
@@ -1013,9 +1144,8 @@ function TeamRanking({ entries, continentFilter, onContinentFilter, pagination, 
             <th className="px-2 py-2 text-center hidden sm:table-cell">🏆</th>
             <th className="px-2 py-2 text-center hidden sm:table-cell">🥈</th>
             <th className="px-2 py-2 text-center hidden sm:table-cell">🥉</th>
-            <th className="px-2 py-2 text-center hidden md:table-cell">Partic.</th>
             <th className="px-2 py-2 text-center hidden sm:table-cell">Forme</th>
-            <th className="px-3 py-2 text-right font-bold">Pts</th>
+            <th className="px-3 py-2 text-center font-bold">Pts</th>
           </tr>
         </thead>
         <tbody>
@@ -1059,7 +1189,6 @@ function TeamRanking({ entries, continentFilter, onContinentFilter, pagination, 
                   <td className="px-2 py-2.5 text-center tabular-nums hidden sm:table-cell">{e.wins || '—'}</td>
                   <td className="px-2 py-2.5 text-center tabular-nums hidden sm:table-cell">{e.finals || '—'}</td>
                   <td className="px-2 py-2.5 text-center tabular-nums hidden sm:table-cell">{e.thirds || '—'}</td>
-                  <td className="px-2 py-2.5 text-center tabular-nums text-muted hidden md:table-cell">{e.participations}</td>
                   <td className="px-2 py-2.5 hidden sm:table-cell">
                     <div className="flex items-center justify-center gap-0.5">
                       {e.form.length === 0
@@ -1068,7 +1197,7 @@ function TeamRanking({ entries, continentFilter, onContinentFilter, pagination, 
                       }
                     </div>
                   </td>
-                  <td className="pl-4 pr-3 py-2.5 text-right tabular-nums font-bold text-accent">{e.points}</td>
+                  <td className="px-3 py-2.5 text-center tabular-nums font-bold text-accent">{e.points}</td>
                 </tr>
                 {isOpen && (
                   <tr key={`${e.team.id}-detail`} className="border-t border-border bg-bg/30">

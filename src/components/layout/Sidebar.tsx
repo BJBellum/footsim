@@ -10,7 +10,7 @@ const items: NavItem[] = [
   { to: '/dashboard/competitions', label: 'Compétitions', adminOnly: true },
   { to: '/competitions', label: 'Compétitions', nonAdminOnly: true },
   { to: '/play', label: 'Jouer un match', nonAdminOnly: true },
-  { to: '/match', label: 'Matchs', adminOnly: true },
+  { to: '/match', label: 'Jouer un match', adminOnly: true },
   { to: '/my-team/classements-cmf', label: 'Classements CMF' },
   { to: '/my-team/simulation', label: 'Simulation' },
 ];

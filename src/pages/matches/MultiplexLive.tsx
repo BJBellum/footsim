@@ -11,7 +11,7 @@ import { useTeams } from '@/stores/teams';
 import { useBackendArgs } from '@/hooks/useBackendArgs';
 import { advanceBracket, applyResultToStandings, applyCorruptionDisqualification, applyPointsPenalty } from '@/lib/competition/scheduler';
 import { rulesForPhase } from '@/lib/competition/types';
-import type { MatchSummary } from '@/lib/competition/types';
+import type { MatchSummary, CompMatch } from '@/lib/competition/types';
 import { accumulateMatchStats, computeAwards, computeMotm } from '@/lib/competition/statsAccumulator';
 import { extractGoalsAndCards } from '@/lib/github/matches';
 import { CorruptionPanel } from '@/components/match/CorruptionPanel';
@@ -199,8 +199,10 @@ export default function MultiplexLive() {
                 hasTactic: !!awayTactics,
               },
               speed: globalSpeed,
-              rules: (m.phase === 'lpm_playoff' && m.leg === 1)
-                ? { ...rulesForPhase(comp.config, m.phase), extraTime: false, penalties: false }
+              rules: m.phase === 'lpm_playoff'
+                ? m.leg === 1
+                  ? { ...rulesForPhase(comp.config, m.phase), extraTime: false, penalties: false }
+                  : { ...rulesForPhase(comp.config, m.phase), extraTime: true, penalties: true }
                 : rulesForPhase(comp.config, m.phase),
               leg1Score,
             },
@@ -860,7 +862,6 @@ export default function MultiplexLive() {
         const compMatch = current.matches.find((m) => m.id === slot.compMatchId);
         if (!compMatch?.homeTeamId || !compMatch?.awayTeamId) continue;
 
-        // Save full match record
         const storedMatch: StoredMatch = {
           id: slot.compMatchId,
           input: {
@@ -874,56 +875,65 @@ export default function MultiplexLive() {
           playedAt: compMatch.simulatedAt ?? new Date().toISOString(),
         };
         matchBk.saveMatch(storedMatch).catch(() => {});
+      }
 
-        // Save recentMatches on both teams
+      // Bulk-fetch all team data to update recentMatches — one request instead of N×2
+      const recentMatchUpdates: Array<{ slug: string; homeId: string; awayId: string; isHome: boolean; slot: typeof slots[number]; compMatch: CompMatch }> = [];
+      for (const slot of slots) {
+        if (!slot.state || slot.state.status !== 'fulltime') continue;
+        const compMatch: CompMatch | undefined = current.matches.find((m) => m.id === slot.compMatchId);
+        if (!compMatch?.homeTeamId || !compMatch?.awayTeamId) continue;
         const homeId = compMatch.homeTeamId;
         const awayId = compMatch.awayTeamId;
-        const homeSnap = teamSnap[homeId];
-        const awaySnap = teamSnap[awayId];
-        const playedAt = compMatch.simulatedAt ?? new Date().toISOString();
-        const participantCount = current.teamIds.length;
+        const homeSlug = teamSnap[homeId]?.slug;
+        const awaySlug = teamSnap[awayId]?.slug;
+        if (homeSlug) recentMatchUpdates.push({ slug: homeSlug, homeId, awayId, isHome: true, slot, compMatch });
+        if (awaySlug) recentMatchUpdates.push({ slug: awaySlug, homeId, awayId, isHome: false, slot, compMatch });
+      }
 
-        const allSlotPlayers2 = [...slot.homePlayers, ...slot.awayPlayers];
-        const slotHomeGoals = extractGoalsAndCards(slot.state!.events, 'home', allSlotPlayers2).goals;
-        const slotAwayGoals = extractGoalsAndCards(slot.state!.events, 'away', allSlotPlayers2).goals;
-
-        const makeSummary = (isHome: boolean): RecentMatchSummary => {
-          const oppSnap = isHome ? awaySnap : homeSnap;
-          const oppStrength = (oppSnap as any)?.globalStrength ?? 50;
-          const scoreFor = isHome ? slot.state!.score.home : slot.state!.score.away;
-          const scoreAgainst = isHome ? slot.state!.score.away : slot.state!.score.home;
-          const myGoals = isHome ? slotHomeGoals : slotAwayGoals;
-          return {
-            matchId: slot.compMatchId,
-            playedAt,
-            opponentSlug: oppSnap?.slug ?? '',
-            opponentName: oppSnap?.name ?? '',
-            homeAway: isHome ? 'home' : 'away',
-            homeTeamId: homeId,
-            awayTeamId: awayId,
-            scoreFor,
-            scoreAgainst,
-            opponentStrength: oppStrength,
-            compKind: current.kind,
-            compScope: current.scope,
-            compImportance: current.importance,
-            participantCount,
-            scorers: myGoals.length ? myGoals : undefined,
-            cmfPoints: calcCmfMatchPoints({ scoreFor, scoreAgainst, opponentStrength: oppStrength, compKind: current.kind, compScope: current.scope, compImportance: current.importance, participantCount }),
-          };
-        };
-
-        for (const [tid, isHome] of [[homeId, true], [awayId, false]] as [string, boolean][]) {
-          const slug = teamSnap[tid]?.slug;
-          if (!slug) continue;
-          const summary = makeSummary(isHome);
-          teamBk.loadTeam(slug, '').then((res) => {
-            if (!res) return;
-            const existing = (res.team.recentMatches ?? []).filter((r) => r.matchId !== slot.compMatchId);
+      if (recentMatchUpdates.length > 0) {
+        const uniqueSlugs2 = [...new Set(recentMatchUpdates.map((u) => u.slug))];
+        teamBk.bulkTeams(uniqueSlugs2).then((bulkResults) => {
+          const bySlug = new Map(bulkResults.map((r) => [r.team.slug, r]));
+          const saves: Promise<void>[] = [];
+          for (const update of recentMatchUpdates) {
+            const res = bySlug.get(update.slug);
+            if (!res) continue;
+            const allSlotPlayers2 = [...update.slot.homePlayers, ...update.slot.awayPlayers];
+            const slotHomeGoals = extractGoalsAndCards(update.slot.state!.events, 'home', allSlotPlayers2).goals;
+            const slotAwayGoals = extractGoalsAndCards(update.slot.state!.events, 'away', allSlotPlayers2).goals;
+            const playedAt2 = update.compMatch.simulatedAt ?? new Date().toISOString();
+            const participantCount2 = current.teamIds.length;
+            const oppId = update.isHome ? update.awayId : update.homeId;
+            const oppSnap = teamSnap[oppId];
+            const oppStrength = (oppSnap as any)?.globalStrength ?? 50;
+            const scoreFor = update.isHome ? update.slot.state!.score.home : update.slot.state!.score.away;
+            const scoreAgainst = update.isHome ? update.slot.state!.score.away : update.slot.state!.score.home;
+            const myGoals = update.isHome ? slotHomeGoals : slotAwayGoals;
+            const summary: RecentMatchSummary = {
+              matchId: update.slot.compMatchId,
+              playedAt: playedAt2,
+              opponentSlug: oppSnap?.slug ?? '',
+              opponentName: oppSnap?.name ?? '',
+              homeAway: update.isHome ? 'home' : 'away',
+              homeTeamId: update.homeId,
+              awayTeamId: update.awayId,
+              scoreFor,
+              scoreAgainst,
+              opponentStrength: oppStrength,
+              compKind: current.kind,
+              compScope: current.scope,
+              compImportance: current.importance,
+              participantCount: participantCount2,
+              scorers: myGoals.length ? myGoals : undefined,
+              cmfPoints: calcCmfMatchPoints({ scoreFor, scoreAgainst, opponentStrength: oppStrength, compKind: current.kind, compScope: current.scope, compImportance: current.importance, participantCount: participantCount2 }),
+            };
+            const existing = (res.team.recentMatches ?? []).filter((r) => r.matchId !== update.slot.compMatchId);
             const merged = [...existing, summary];
-            teamBk.saveTeam({ ...res.team, recentMatches: merged }, res.players).catch(() => {});
-          }).catch(() => {});
-        }
+            saves.push(teamBk.saveTeam({ ...res.team, recentMatches: merged }, res.players).catch(() => {}));
+          }
+          return Promise.all(saves);
+        }).catch(() => {});
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
