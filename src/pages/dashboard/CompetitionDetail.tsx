@@ -467,7 +467,14 @@ export default function CompetitionDetail() {
     const updated: Competition = { ...current, matches: updatedMatches, currentRound: nextRound };
     setCurrent(updated);
     setLpmDraw(null);
-    if (effectivePat) save(updated, '', effectivePat).catch(() => {});
+    if (effectivePat) {
+      save(updated, '', effectivePat).catch((err) => {
+        // Was silently swallowed before: the draw looked saved locally but never
+        // reached the backend, so the next round load came back with homeTeamId
+        // still null — matches stayed unseeded server-side with no visible error.
+        toast('error', `Tirage LPM non sauvegardé en base : ${String(err)}. Réessaie ou recharge la page pour retenter.`);
+      });
+    }
     toast('success', 'Barrages LPM générés.');
   }
 
@@ -501,7 +508,11 @@ export default function CompetitionDetail() {
     const updated: Competition = { ...current, matches: updatedMatches, currentRound: nextRound };
     setCurrent(updated);
     setKnockoutDraw(null);
-    if (effectivePat) save(updated, '', effectivePat).catch(() => {});
+    if (effectivePat) {
+      save(updated, '', effectivePat).catch((err) => {
+        toast('error', `Tirage non sauvegardé en base : ${String(err)}. Réessaie ou recharge la page pour retenter.`);
+      });
+    }
     toast('success', 'Tirage phase finale effectué.');
   }
 

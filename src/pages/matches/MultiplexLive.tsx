@@ -68,6 +68,10 @@ export default function MultiplexLive() {
   const [pendingUpdate, setPendingUpdate] = useState<Parameters<typeof save>[0] | null>(null);
   const pendingUpdateRef = useRef(pendingUpdate);
   useEffect(() => { pendingUpdateRef.current = pendingUpdate; }, [pendingUpdate]);
+  // Matches/teams payload from the last failed round-complete attempt — retry must resend
+  // the same bundle, not just the competition, or matches/teams silently never get saved.
+  const [pendingMatches, setPendingMatches] = useState<StoredMatch[]>([]);
+  const [pendingTeams, setPendingTeams] = useState<{ slug: string; team: Team; players: Player[] }[]>([]);
   // Once we've computed results for this round, block any re-fire of the allFinished effect
   const resultsComputedRef = useRef(false);
   const [fullscreen, setFullscreen] = useState(false);
@@ -942,6 +946,8 @@ export default function MultiplexLive() {
             teamItems = [...bulkItems.values()];
           }
 
+          setPendingMatches(storedMatches);
+          setPendingTeams(teamItems);
           await roundComplete(nextState, storedMatches, teamItems, effectivePat);
           setSaveFailed(false);
         } catch (err) {
@@ -1259,7 +1265,7 @@ export default function MultiplexLive() {
                   onClick={() => {
                     if (!pendingUpdate || !effectivePat) return;
                     setSaving(true);
-                    save(pendingUpdate, '', effectivePat).then(() => {
+                    roundComplete(pendingUpdate, pendingMatches, pendingTeams, effectivePat).then(() => {
                       setSaveFailed(false);
                     }).catch((err) => {
                       setSaveFailed(true);
@@ -1328,7 +1334,7 @@ export default function MultiplexLive() {
                 onClick={() => {
                   if (!pendingUpdate || !effectivePat) return;
                   setSaving(true);
-                  save(pendingUpdate, '', effectivePat).then(() => {
+                  roundComplete(pendingUpdate, pendingMatches, pendingTeams, effectivePat).then(() => {
                     setSaveFailed(false);
                   }).catch((err) => {
                     setSaveFailed(true);
