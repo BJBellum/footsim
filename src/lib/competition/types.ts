@@ -242,6 +242,9 @@ export type Competition = {
   cmfDebutGenerated?: boolean;
   /** Manually assigned 3rd place teamId (when no 3rd-place match was played) */
   manualThird?: string;
+  /** LPM: manual playoff (barrage A/R) qualifier override, keyed by the duel's leg-1 match id.
+   *  Takes priority over the aggregate-score/penalties computation when set. */
+  manualPlayoffQualifiers?: Record<string, string>;
 };
 
 export type CompetitionSummary = {

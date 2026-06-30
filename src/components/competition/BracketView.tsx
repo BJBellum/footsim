@@ -3,14 +3,45 @@ import type { Team } from '@/lib/types';
 
 type LPMPair = { leg1: CompMatch; leg2: CompMatch | undefined };
 
+/** Resolve the qualifier for an LPM barrage A/R duel: manual override first, then aggregate score / penalties. */
+export function resolveLPMPlayoffQualifier(
+  leg1: CompMatch,
+  leg2: CompMatch | undefined,
+  manualOverrides?: Record<string, string>,
+): string | null {
+  const override = manualOverrides?.[leg1.id];
+  if (override) return override;
+
+  if (!leg2 || leg1.status !== 'completed' || leg2.status !== 'completed') return null;
+  const l1h = leg1.result?.home ?? 0;
+  const l1a = leg1.result?.away ?? 0;
+  const l2h = leg2.result?.home ?? 0;
+  const l2a = leg2.result?.away ?? 0;
+  // Depuis leg1: higher=away (reçoit au retour), lower=home. Agrégat: higher = l1a + l2h, lower = l1h + l2a
+  const aggHigher = l1a + l2h;
+  const aggLower = l1h + l2a;
+  if (aggHigher > aggLower) return leg1.awayTeamId ?? null;
+  if (aggLower > aggHigher) return leg1.homeTeamId ?? null;
+  if (leg2.result?.penalties) {
+    return leg2.result.penalties.home > leg2.result.penalties.away
+      ? (leg2.homeTeamId ?? null)
+      : (leg2.awayTeamId ?? null);
+  }
+  return null;
+}
+
 export function LPMBracketView({
   matches,
   teams,
   onSimulate,
+  manualOverrides,
+  onForceQualify,
 }: {
   matches: CompMatch[];
   teams: Record<string, Team>;
   onSimulate?: (matchId: string) => void;
+  manualOverrides?: Record<string, string>;
+  onForceQualify?: (leg1MatchId: string, teamId: string | null) => void;
 }) {
   const leg1s = matches.filter((m) => m.leg === 1).sort((a, b) => {
     const ha = teams[a.homeTeamId ?? '']?.name ?? '';
@@ -35,20 +66,31 @@ export function LPMBracketView({
   return (
     <div className="space-y-3">
       {pairs.map(({ leg1, leg2 }, i) => (
-        <LPMPairCard key={leg1.id} index={i + 1} leg1={leg1} leg2={leg2} teams={teams} onSimulate={onSimulate} />
+        <LPMPairCard
+          key={leg1.id}
+          index={i + 1}
+          leg1={leg1}
+          leg2={leg2}
+          teams={teams}
+          onSimulate={onSimulate}
+          manualOverrides={manualOverrides}
+          onForceQualify={onForceQualify}
+        />
       ))}
     </div>
   );
 }
 
 function LPMPairCard({
-  index, leg1, leg2, teams, onSimulate,
+  index, leg1, leg2, teams, onSimulate, manualOverrides, onForceQualify,
 }: {
   index: number;
   leg1: CompMatch;
   leg2: CompMatch | undefined;
   teams: Record<string, Team>;
   onSimulate?: (matchId: string) => void;
+  manualOverrides?: Record<string, string>;
+  onForceQualify?: (leg1MatchId: string, teamId: string | null) => void;
 }) {
   const lower = leg1.homeTeamId ? teams[leg1.homeTeamId] : null;  // reçoit à l'aller
   const higher = leg1.awayTeamId ? teams[leg1.awayTeamId] : null; // reçoit au retour
@@ -63,29 +105,20 @@ function LPMPairCard({
   const leg2Done = leg2?.status === 'completed';
   const bothDone = leg1Done && leg2Done;
 
-  // Depuis leg1: higher=away, lower=home. Agrégat: higher = l1a + l2h, lower = l1h + l2a
   const aggHigher = l1a + l2h;
   const aggLower = l1h + l2a;
 
-  let qualifiedId: string | null = null;
-  if (bothDone) {
-    if (aggHigher > aggLower) qualifiedId = leg1.awayTeamId ?? null;
-    else if (aggLower > aggHigher) qualifiedId = leg1.homeTeamId ?? null;
-    else if (leg2?.result?.penalties) {
-      qualifiedId = (leg2.result.penalties.home > leg2.result.penalties.away)
-        ? (leg2.homeTeamId ?? null)
-        : (leg2.awayTeamId ?? null);
-    }
-  }
+  const isManual = !!manualOverrides?.[leg1.id];
+  const qualifiedId = resolveLPMPlayoffQualifier(leg1, leg2, manualOverrides);
 
   return (
     <div className="rounded-lg border border-border bg-surface overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between bg-bg px-4 py-2 text-xs text-muted uppercase tracking-wide">
         <span>Barrage {index}</span>
-        {bothDone && qualifiedId && (
-          <span className="text-green-400 font-medium normal-case">
-            ✓ {teams[qualifiedId]?.name ?? '?'} qualifié
+        {qualifiedId && (
+          <span className={`font-medium normal-case ${isManual ? 'text-accent' : 'text-green-400'}`}>
+            ✓ {teams[qualifiedId]?.name ?? '?'} qualifié{isManual ? ' (forcé)' : ''}
           </span>
         )}
       </div>
@@ -137,6 +170,34 @@ function LPMPairCard({
           {leg2 && leg1Done && leg2.status === 'pending' && (
             <button onClick={() => onSimulate(leg2.id)} className="text-xs text-accent hover:text-accent/70 transition-colors">
               ▶ Simuler retour
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Manual qualifier override (admin) */}
+      {onForceQualify && !tbd && (
+        <div className="flex flex-wrap items-center gap-3 border-t border-border/50 px-4 py-2">
+          <span className="text-[10px] uppercase tracking-widest text-muted shrink-0">Forcer qualifié</span>
+          {leg1.homeTeamId && (
+            <button
+              onClick={() => onForceQualify(leg1.id, qualifiedId === leg1.homeTeamId && isManual ? null : leg1.homeTeamId!)}
+              className={`text-xs transition-colors ${qualifiedId === leg1.homeTeamId && isManual ? 'text-accent font-medium' : 'text-muted hover:text-accent'}`}
+            >
+              {qualifiedId === leg1.homeTeamId && isManual ? '✓ ' : ''}{teams[leg1.homeTeamId]?.name ?? '?'}
+            </button>
+          )}
+          {leg1.awayTeamId && (
+            <button
+              onClick={() => onForceQualify(leg1.id, qualifiedId === leg1.awayTeamId && isManual ? null : leg1.awayTeamId!)}
+              className={`text-xs transition-colors ${qualifiedId === leg1.awayTeamId && isManual ? 'text-accent font-medium' : 'text-muted hover:text-accent'}`}
+            >
+              {qualifiedId === leg1.awayTeamId && isManual ? '✓ ' : ''}{teams[leg1.awayTeamId]?.name ?? '?'}
+            </button>
+          )}
+          {isManual && (
+            <button onClick={() => onForceQualify(leg1.id, null)} className="text-xs text-danger hover:text-danger/70 transition-colors">
+              Annuler le forçage
             </button>
           )}
         </div>

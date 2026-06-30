@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/Input';
 import { Spinner } from '@/components/ui/Spinner';
 import { toast } from '@/components/ui/Toast';
 import { StandingsTable } from '@/components/competition/StandingsTable';
-import { BracketView, LPMBracketView } from '@/components/competition/BracketView';
+import { BracketView, LPMBracketView, resolveLPMPlayoffQualifier } from '@/components/competition/BracketView';
 import { CompetitionStats } from '@/components/competition/CompetitionStats';
 import { DrawCeremony } from '@/components/competition/DrawCeremony';
 import { PreMatchModal } from '@/components/competition/PreMatchModal';
@@ -521,6 +521,17 @@ export default function CompetitionDetail() {
     toast('success', 'Match départage ajouté — TAB direct.');
   }
 
+  function forcePlayoffQualifier(leg1MatchId: string, teamId: string | null) {
+    if (!current || !effectivePat) return;
+    const nextOverrides = { ...(current.manualPlayoffQualifiers ?? {}) };
+    if (teamId) nextOverrides[leg1MatchId] = teamId;
+    else delete nextOverrides[leg1MatchId];
+    const updated: Competition = { ...current, manualPlayoffQualifiers: nextOverrides };
+    setCurrent(updated);
+    save(updated, '', effectivePat).catch(() => {});
+    toast('success', teamId ? 'Qualification forcée.' : 'Forçage annulé.');
+  }
+
   function startKnockoutDraw() {
     if (!current || !current.groups || !current.config.qualifyPerGroup) return;
     const byRank = getQualifiersByRank(current.groups, current.standings, current.config.qualifyPerGroup);
@@ -938,7 +949,7 @@ export default function CompetitionDetail() {
                 <StandingsTable standings={allStandings} teams={teamMap} />
               )}
               {isLPM && (
-                <LPMStandingsView standings={allStandings} teams={teamMap} hostTeamId={current.hostTeamId} playoffMatches={lpmPlayoffMatches} />
+                <LPMStandingsView standings={allStandings} teams={teamMap} hostTeamId={current.hostTeamId} playoffMatches={lpmPlayoffMatches} manualOverrides={current.manualPlayoffQualifiers} />
               )}
               {isGroupsKO && current.groups && (
                 <div className="grid gap-6 md:grid-cols-2">
@@ -972,6 +983,8 @@ export default function CompetitionDetail() {
                     matches={lpmPlayoffMatches}
                     teams={teamMap}
                     onSimulate={isAdmin ? openMatchModal : undefined}
+                    manualOverrides={current.manualPlayoffQualifiers}
+                    onForceQualify={isAdmin ? forcePlayoffQualifier : undefined}
                   />
                 ) : (
                   <p className="text-muted text-sm">Les barrages seront disponibles après les 11 journées.</p>
@@ -2397,11 +2410,13 @@ function LPMStandingsView({
   teams,
   hostTeamId,
   playoffMatches = [],
+  manualOverrides,
 }: {
   standings: import('@/lib/competition/types').Standing[];
   teams: Record<string, Team>;
   hostTeamId?: string;
   playoffMatches?: import('@/lib/competition/types').CompMatch[];
+  manualOverrides?: Record<string, string>;
 }) {
   const sorted = [...standings].sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
@@ -2422,33 +2437,20 @@ function LPMStandingsView({
     if (hostRank >= 24 && hostRank <= 39 && sorted[40]) inheritNote[sorted[40].teamId] = 'Place hôte → barrage';
   }
 
-  // Compute playoff qualifiers from completed aller/retour pairs
+  // Compute playoff qualifiers: manual override first, else completed aller/retour aggregate
   const playoffQualifiedIds = new Set<string>();
-  const leg1s = playoffMatches.filter((m) => m.leg === 1 && m.status === 'completed');
-  for (const leg1 of leg1s) {
+  const leg1sAll = playoffMatches.filter((m) => m.leg === 1);
+  for (const leg1 of leg1sAll) {
     const leg2 = playoffMatches.find((m) =>
-      m.leg === 2 && m.status === 'completed' && (
+      m.leg === 2 && (
         m.homeFromMatch === leg1.id ||
         (m.homeTeamId && m.awayTeamId && leg1.homeTeamId && leg1.awayTeamId &&
           ((m.homeTeamId === leg1.awayTeamId && m.awayTeamId === leg1.homeTeamId) ||
            (m.homeTeamId === leg1.homeTeamId && m.awayTeamId === leg1.awayTeamId)))
       )
     );
-    if (!leg2) continue;
-    const l1h = leg1.result?.home ?? 0;
-    const l1a = leg1.result?.away ?? 0;
-    const l2h = leg2.result?.home ?? 0;
-    const l2a = leg2.result?.away ?? 0;
-    // higher seed = leg1.awayTeamId (reçoit au retour), lower = leg1.homeTeamId
-    const aggHigher = l1a + l2h;
-    const aggLower = l1h + l2a;
-    if (aggHigher > aggLower && leg1.awayTeamId) playoffQualifiedIds.add(leg1.awayTeamId);
-    else if (aggLower > aggHigher && leg1.homeTeamId) playoffQualifiedIds.add(leg1.homeTeamId);
-    else if (leg2.result?.penalties) {
-      const winnerId = leg2.result.penalties.home > leg2.result.penalties.away
-        ? leg2.homeTeamId : leg2.awayTeamId;
-      if (winnerId) playoffQualifiedIds.add(winnerId);
-    }
+    const qualified = resolveLPMPlayoffQualifier(leg1, leg2, manualOverrides);
+    if (qualified) playoffQualifiedIds.add(qualified);
   }
 
   const zones = [
@@ -2503,6 +2505,7 @@ function LPMStandingsView({
                     const isHost = s.teamId === hostTeamId;
                     const note = inheritNote[s.teamId];
                     const isPlayoffQualified = playoffQualifiedIds.has(s.teamId);
+                    const isManualQualified = Object.values(manualOverrides ?? {}).includes(s.teamId);
                     return (
                       <tr key={s.teamId} className={`hover:bg-border/10 transition-colors ${isHost ? 'bg-accent/5' : ''} ${isPlayoffQualified ? 'bg-green-500/5' : ''}`}>
                         <td className="px-3 py-2 tabular-nums text-muted text-xs">{rank}</td>
@@ -2517,7 +2520,9 @@ function LPMStandingsView({
                               <span className="rounded border border-warning/40 bg-warning/10 px-1 py-0.5 text-[9px] font-medium text-warning shrink-0">{note}</span>
                             )}
                             {isPlayoffQualified && (
-                              <span className="rounded border border-green-500/40 bg-green-500/10 px-1 py-0.5 text-[9px] font-medium text-green-400 shrink-0">✓ Qualifié</span>
+                              <span className={`rounded border px-1 py-0.5 text-[9px] font-medium shrink-0 ${isManualQualified ? 'border-accent/40 bg-accent/10 text-accent' : 'border-green-500/40 bg-green-500/10 text-green-400'}`}>
+                                ✓ Qualifié{isManualQualified ? ' (forcé)' : ''}
+                              </span>
                             )}
                           </div>
                         </td>

@@ -408,7 +408,7 @@ export default function CompetitionNew() {
           </div>
           <button
             type="button"
-            onClick={applyWorldCupPreset}
+            onClick={() => applyWorldCupPreset()}
             className="shrink-0 rounded-md border border-yellow-500/40 bg-yellow-500/10 px-3 py-1.5 text-xs font-medium text-yellow-400 hover:bg-yellow-500/20 transition-colors"
           >
             Preset CdM
