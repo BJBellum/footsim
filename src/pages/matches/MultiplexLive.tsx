@@ -195,11 +195,11 @@ export default function MultiplexLive() {
                 hasTactic: !!awayTactics,
               },
               speed: globalSpeed,
+              // LPM barrage: leg 1 settles nothing on its own (aggregate decides); leg 2 always
+              // goes to extra time + penalties on an aggregate draw, regardless of base config.
               rules: m.phase === 'lpm_playoff'
                 ? m.leg === 1
                   ? { ...rulesForPhase(comp.config, m.phase), extraTime: false, penalties: false }
-                  : m.leg === 3
-                  ? { ...rulesForPhase(comp.config, m.phase), extraTime: false, penalties: true }
                   : { ...rulesForPhase(comp.config, m.phase), extraTime: true, penalties: true }
                 : rulesForPhase(comp.config, m.phase),
               leg1Score,
@@ -848,100 +848,108 @@ export default function MultiplexLive() {
     setPendingUpdate(nextState);
     if (effectivePat) {
       setSaving(true);
-      save(nextState, '', effectivePat).then(() => {
-        setSaveFailed(false);
-      }).catch((err) => {
-        setSaveFailed(true);
-        toast('error', `Échec sauvegarde en base : ${String(err)}. Relance non automatique pour éviter une boucle.`);
-      }).finally(() => setSaving(false));
+      // Single sequential pipeline (not 3 independent fire-and-forget chains): the
+      // auto-simulate effect navigates to the next round/leg as soon as `saving` clears,
+      // so every network call for this round must resolve first. Otherwise barrage legs
+      // (which auto-chain leg1 → leg2 within seconds) overlap their request bursts and
+      // trip nginx's per-IP rate limit (10r/s burst 20), which the browser misreports as CORS.
+      (async () => {
+        try {
+          await save(nextState, '', effectivePat);
+          setSaveFailed(false);
 
-      // Save StoredMatch + recentMatches for each slot
-      const matchBk = new PrApiMatchBackend(effectivePat);
-      const teamBk = new PrApiTeamBackend(effectivePat);
-      const teamSnap = current.teamSnapshot ?? {};
+          const matchBk = new PrApiMatchBackend(effectivePat);
+          const teamBk = new PrApiTeamBackend(effectivePat);
+          const teamSnap = current.teamSnapshot ?? {};
 
-      const storedMatches: StoredMatch[] = [];
-      for (const slot of slots) {
-        if (!slot.state || slot.state.status !== 'fulltime') continue;
-        const compMatch = current.matches.find((m) => m.id === slot.compMatchId);
-        if (!compMatch?.homeTeamId || !compMatch?.awayTeamId) continue;
-        storedMatches.push({
-          id: slot.compMatchId,
-          input: {
-            home: { team: slot.home, players: slot.homePlayers },
-            away: { team: slot.away, players: slot.awayPlayers },
-            rules: rulesForPhase(current.config, compMatch.phase),
-          } as any,
-          state: slot.state,
-          home: { team: slot.home, players: slot.homePlayers },
-          away: { team: slot.away, players: slot.awayPlayers },
-          playedAt: compMatch.simulatedAt ?? new Date().toISOString(),
-        });
-      }
-      matchBk.bulkSaveMatches(storedMatches).catch((err) => console.error('[MultiplexLive] bulkSaveMatches failed', err));
-
-      // Bulk-fetch all team data to update recentMatches — one request instead of N×2
-      const recentMatchUpdates: Array<{ slug: string; homeId: string; awayId: string; isHome: boolean; slot: typeof slots[number]; compMatch: CompMatch }> = [];
-      for (const slot of slots) {
-        if (!slot.state || slot.state.status !== 'fulltime') continue;
-        const compMatch: CompMatch | undefined = current.matches.find((m) => m.id === slot.compMatchId);
-        if (!compMatch?.homeTeamId || !compMatch?.awayTeamId) continue;
-        const homeId = compMatch.homeTeamId;
-        const awayId = compMatch.awayTeamId;
-        const homeSlug = teamSnap[homeId]?.slug;
-        const awaySlug = teamSnap[awayId]?.slug;
-        if (homeSlug) recentMatchUpdates.push({ slug: homeSlug, homeId, awayId, isHome: true, slot, compMatch });
-        if (awaySlug) recentMatchUpdates.push({ slug: awaySlug, homeId, awayId, isHome: false, slot, compMatch });
-      }
-
-      if (recentMatchUpdates.length > 0) {
-        const uniqueSlugs2 = [...new Set(recentMatchUpdates.map((u) => u.slug))];
-        teamBk.bulkTeams(uniqueSlugs2).then((bulkResults) => {
-          const bySlug = new Map(bulkResults.map((r) => [r.team.slug, r]));
-          // Accumulate per-slug so a team with several updates this round merges all of them
-          // into one entry — bulk-update sends a single request instead of one PUT per team,
-          // which was tripping nginx's per-IP rate limit (10r/s burst 20) under multiplex load.
-          const bulkItems = new Map<string, { slug: string; team: Team; players: Player[] }>();
-          for (const update of recentMatchUpdates) {
-            const res = bySlug.get(update.slug);
-            if (!res) continue;
-            const allSlotPlayers2 = [...update.slot.homePlayers, ...update.slot.awayPlayers];
-            const slotHomeGoals = extractGoalsAndCards(update.slot.state!.events, 'home', allSlotPlayers2).goals;
-            const slotAwayGoals = extractGoalsAndCards(update.slot.state!.events, 'away', allSlotPlayers2).goals;
-            const playedAt2 = update.compMatch.simulatedAt ?? new Date().toISOString();
-            const participantCount2 = current.teamIds.length;
-            const oppId = update.isHome ? update.awayId : update.homeId;
-            const oppSnap = teamSnap[oppId];
-            const oppStrength = (oppSnap as any)?.globalStrength ?? 50;
-            const scoreFor = update.isHome ? update.slot.state!.score.home : update.slot.state!.score.away;
-            const scoreAgainst = update.isHome ? update.slot.state!.score.away : update.slot.state!.score.home;
-            const myGoals = update.isHome ? slotHomeGoals : slotAwayGoals;
-            const summary: RecentMatchSummary = {
-              matchId: update.slot.compMatchId,
-              playedAt: playedAt2,
-              opponentSlug: oppSnap?.slug ?? '',
-              opponentName: oppSnap?.name ?? '',
-              homeAway: update.isHome ? 'home' : 'away',
-              homeTeamId: update.homeId,
-              awayTeamId: update.awayId,
-              scoreFor,
-              scoreAgainst,
-              opponentStrength: oppStrength,
-              compKind: current.kind,
-              compScope: current.scope,
-              compImportance: current.importance,
-              participantCount: participantCount2,
-              scorers: myGoals.length ? myGoals : undefined,
-              cmfPoints: calcCmfMatchPoints({ scoreFor, scoreAgainst, opponentStrength: oppStrength, compKind: current.kind, compScope: current.scope, compImportance: current.importance, participantCount: participantCount2 }),
-            };
-            const base = bulkItems.get(update.slug)?.team ?? res.team;
-            const existing = (base.recentMatches ?? []).filter((r) => r.matchId !== update.slot.compMatchId);
-            const merged = [...existing, summary];
-            bulkItems.set(update.slug, { slug: update.slug, team: { ...base, recentMatches: merged }, players: res.players });
+          const storedMatches: StoredMatch[] = [];
+          for (const slot of slots) {
+            if (!slot.state || slot.state.status !== 'fulltime') continue;
+            const compMatch = current.matches.find((m) => m.id === slot.compMatchId);
+            if (!compMatch?.homeTeamId || !compMatch?.awayTeamId) continue;
+            storedMatches.push({
+              id: slot.compMatchId,
+              input: {
+                home: { team: slot.home, players: slot.homePlayers },
+                away: { team: slot.away, players: slot.awayPlayers },
+                rules: rulesForPhase(current.config, compMatch.phase),
+              } as any,
+              state: slot.state,
+              home: { team: slot.home, players: slot.homePlayers },
+              away: { team: slot.away, players: slot.awayPlayers },
+              playedAt: compMatch.simulatedAt ?? new Date().toISOString(),
+            });
           }
-          return teamBk.bulkUpdateTeams([...bulkItems.values()]);
-        }).catch((err) => console.error('[MultiplexLive] bulkTeams/bulkUpdateTeams failed', err));
-      }
+          await matchBk.bulkSaveMatches(storedMatches);
+
+          // Bulk-fetch all team data to update recentMatches — one request instead of N×2
+          const recentMatchUpdates: Array<{ slug: string; homeId: string; awayId: string; isHome: boolean; slot: typeof slots[number]; compMatch: CompMatch }> = [];
+          for (const slot of slots) {
+            if (!slot.state || slot.state.status !== 'fulltime') continue;
+            const compMatch: CompMatch | undefined = current.matches.find((m) => m.id === slot.compMatchId);
+            if (!compMatch?.homeTeamId || !compMatch?.awayTeamId) continue;
+            const homeId = compMatch.homeTeamId;
+            const awayId = compMatch.awayTeamId;
+            const homeSlug = teamSnap[homeId]?.slug;
+            const awaySlug = teamSnap[awayId]?.slug;
+            if (homeSlug) recentMatchUpdates.push({ slug: homeSlug, homeId, awayId, isHome: true, slot, compMatch });
+            if (awaySlug) recentMatchUpdates.push({ slug: awaySlug, homeId, awayId, isHome: false, slot, compMatch });
+          }
+
+          if (recentMatchUpdates.length > 0) {
+            const uniqueSlugs2 = [...new Set(recentMatchUpdates.map((u) => u.slug))];
+            const bulkResults = await teamBk.bulkTeams(uniqueSlugs2);
+            const bySlug = new Map(bulkResults.map((r) => [r.team.slug, r]));
+            // Accumulate per-slug so a team with several updates this round merges all of them
+            // into one entry — bulk-update sends a single request instead of one PUT per team,
+            // which was tripping nginx's per-IP rate limit under multiplex load.
+            const bulkItems = new Map<string, { slug: string; team: Team; players: Player[] }>();
+            for (const update of recentMatchUpdates) {
+              const res = bySlug.get(update.slug);
+              if (!res) continue;
+              const allSlotPlayers2 = [...update.slot.homePlayers, ...update.slot.awayPlayers];
+              const slotHomeGoals = extractGoalsAndCards(update.slot.state!.events, 'home', allSlotPlayers2).goals;
+              const slotAwayGoals = extractGoalsAndCards(update.slot.state!.events, 'away', allSlotPlayers2).goals;
+              const playedAt2 = update.compMatch.simulatedAt ?? new Date().toISOString();
+              const participantCount2 = current.teamIds.length;
+              const oppId = update.isHome ? update.awayId : update.homeId;
+              const oppSnap = teamSnap[oppId];
+              const oppStrength = (oppSnap as any)?.globalStrength ?? 50;
+              const scoreFor = update.isHome ? update.slot.state!.score.home : update.slot.state!.score.away;
+              const scoreAgainst = update.isHome ? update.slot.state!.score.away : update.slot.state!.score.home;
+              const myGoals = update.isHome ? slotHomeGoals : slotAwayGoals;
+              const summary: RecentMatchSummary = {
+                matchId: update.slot.compMatchId,
+                playedAt: playedAt2,
+                opponentSlug: oppSnap?.slug ?? '',
+                opponentName: oppSnap?.name ?? '',
+                homeAway: update.isHome ? 'home' : 'away',
+                homeTeamId: update.homeId,
+                awayTeamId: update.awayId,
+                scoreFor,
+                scoreAgainst,
+                opponentStrength: oppStrength,
+                compKind: current.kind,
+                compScope: current.scope,
+                compImportance: current.importance,
+                participantCount: participantCount2,
+                scorers: myGoals.length ? myGoals : undefined,
+                cmfPoints: calcCmfMatchPoints({ scoreFor, scoreAgainst, opponentStrength: oppStrength, compKind: current.kind, compScope: current.scope, compImportance: current.importance, participantCount: participantCount2 }),
+              };
+              const base = bulkItems.get(update.slug)?.team ?? res.team;
+              const existing = (base.recentMatches ?? []).filter((r) => r.matchId !== update.slot.compMatchId);
+              const merged = [...existing, summary];
+              bulkItems.set(update.slug, { slug: update.slug, team: { ...base, recentMatches: merged }, players: res.players });
+            }
+            await teamBk.bulkUpdateTeams([...bulkItems.values()]);
+          }
+        } catch (err) {
+          setSaveFailed(true);
+          toast('error', `Échec sauvegarde en base : ${String(err)}. Relance non automatique pour éviter une boucle.`);
+        } finally {
+          setSaving(false);
+        }
+      })();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allFinished]);

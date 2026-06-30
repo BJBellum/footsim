@@ -3,15 +3,12 @@ import type { Team } from '@/lib/types';
 
 type LPMPair = { leg1: CompMatch; leg2: CompMatch | undefined };
 
-/** Resolve the qualifier for an LPM barrage A/R duel: manual override first, then aggregate score / penalties. */
+/** Resolve the qualifier for an LPM barrage A/R duel from aggregate score / penalties.
+ *  Leg 2 always forces extra time + penalties on an aggregate draw, so this is never undecided. */
 export function resolveLPMPlayoffQualifier(
   leg1: CompMatch,
   leg2: CompMatch | undefined,
-  manualOverrides?: Record<string, string>,
 ): string | null {
-  const override = manualOverrides?.[leg1.id];
-  if (override) return override;
-
   if (!leg2 || leg1.status !== 'completed' || leg2.status !== 'completed') return null;
   const l1h = leg1.result?.home ?? 0;
   const l1a = leg1.result?.away ?? 0;
@@ -34,14 +31,10 @@ export function LPMBracketView({
   matches,
   teams,
   onSimulate,
-  manualOverrides,
-  onForceQualify,
 }: {
   matches: CompMatch[];
   teams: Record<string, Team>;
   onSimulate?: (matchId: string) => void;
-  manualOverrides?: Record<string, string>;
-  onForceQualify?: (leg1MatchId: string, teamId: string | null) => void;
 }) {
   const leg1s = matches.filter((m) => m.leg === 1).sort((a, b) => {
     const ha = teams[a.homeTeamId ?? '']?.name ?? '';
@@ -73,8 +66,6 @@ export function LPMBracketView({
           leg2={leg2}
           teams={teams}
           onSimulate={onSimulate}
-          manualOverrides={manualOverrides}
-          onForceQualify={onForceQualify}
         />
       ))}
     </div>
@@ -82,15 +73,13 @@ export function LPMBracketView({
 }
 
 function LPMPairCard({
-  index, leg1, leg2, teams, onSimulate, manualOverrides, onForceQualify,
+  index, leg1, leg2, teams, onSimulate,
 }: {
   index: number;
   leg1: CompMatch;
   leg2: CompMatch | undefined;
   teams: Record<string, Team>;
   onSimulate?: (matchId: string) => void;
-  manualOverrides?: Record<string, string>;
-  onForceQualify?: (leg1MatchId: string, teamId: string | null) => void;
 }) {
   const lower = leg1.homeTeamId ? teams[leg1.homeTeamId] : null;  // reçoit à l'aller
   const higher = leg1.awayTeamId ? teams[leg1.awayTeamId] : null; // reçoit au retour
@@ -108,8 +97,7 @@ function LPMPairCard({
   const aggHigher = l1a + l2h;
   const aggLower = l1h + l2a;
 
-  const isManual = !!manualOverrides?.[leg1.id];
-  const qualifiedId = resolveLPMPlayoffQualifier(leg1, leg2, manualOverrides);
+  const qualifiedId = resolveLPMPlayoffQualifier(leg1, leg2);
 
   return (
     <div className="rounded-lg border border-border bg-surface overflow-hidden">
@@ -117,8 +105,8 @@ function LPMPairCard({
       <div className="flex items-center justify-between bg-bg px-4 py-2 text-xs text-muted uppercase tracking-wide">
         <span>Barrage {index}</span>
         {qualifiedId && (
-          <span className={`font-medium normal-case ${isManual ? 'text-accent' : 'text-green-400'}`}>
-            ✓ {teams[qualifiedId]?.name ?? '?'} qualifié{isManual ? ' (forcé)' : ''}
+          <span className="font-medium normal-case text-green-400">
+            ✓ {teams[qualifiedId]?.name ?? '?'} qualifié
           </span>
         )}
       </div>
@@ -133,6 +121,9 @@ function LPMPairCard({
               <th className="px-3 py-1.5 text-center w-16">Aller</th>
               <th className="px-3 py-1.5 text-center w-16">Retour</th>
               <th className="px-3 py-1.5 text-center w-20 font-bold text-text">Cumul</th>
+              {leg2?.result?.penalties && (
+                <th className="px-3 py-1.5 text-center w-16">TAB</th>
+              )}
               <th className="px-3 py-1.5 w-8" />
             </tr>
           </thead>
@@ -143,6 +134,7 @@ function LPMPairCard({
               leg1Score={leg1Done ? l1h : undefined}
               leg2Score={leg2Done ? l2a : undefined}
               agg={leg1Done ? aggLower : undefined}
+              penalties={leg2?.result?.penalties ? leg2.result.penalties.away : undefined}
               qualified={qualifiedId === leg1.homeTeamId}
               bothDone={bothDone}
             />
@@ -152,6 +144,7 @@ function LPMPairCard({
               leg1Score={leg1Done ? l1a : undefined}
               leg2Score={leg2Done ? l2h : undefined}
               agg={leg1Done ? aggHigher : undefined}
+              penalties={leg2?.result?.penalties ? leg2.result.penalties.home : undefined}
               qualified={qualifiedId === leg1.awayTeamId}
               bothDone={bothDone}
             />
@@ -175,44 +168,18 @@ function LPMPairCard({
         </div>
       )}
 
-      {/* Manual qualifier override (admin) */}
-      {onForceQualify && !tbd && (
-        <div className="flex flex-wrap items-center gap-3 border-t border-border/50 px-4 py-2">
-          <span className="text-[10px] uppercase tracking-widest text-muted shrink-0">Forcer qualifié</span>
-          {leg1.homeTeamId && (
-            <button
-              onClick={() => onForceQualify(leg1.id, qualifiedId === leg1.homeTeamId && isManual ? null : leg1.homeTeamId!)}
-              className={`text-xs transition-colors ${qualifiedId === leg1.homeTeamId && isManual ? 'text-accent font-medium' : 'text-muted hover:text-accent'}`}
-            >
-              {qualifiedId === leg1.homeTeamId && isManual ? '✓ ' : ''}{teams[leg1.homeTeamId]?.name ?? '?'}
-            </button>
-          )}
-          {leg1.awayTeamId && (
-            <button
-              onClick={() => onForceQualify(leg1.id, qualifiedId === leg1.awayTeamId && isManual ? null : leg1.awayTeamId!)}
-              className={`text-xs transition-colors ${qualifiedId === leg1.awayTeamId && isManual ? 'text-accent font-medium' : 'text-muted hover:text-accent'}`}
-            >
-              {qualifiedId === leg1.awayTeamId && isManual ? '✓ ' : ''}{teams[leg1.awayTeamId]?.name ?? '?'}
-            </button>
-          )}
-          {isManual && (
-            <button onClick={() => onForceQualify(leg1.id, null)} className="text-xs text-danger hover:text-danger/70 transition-colors">
-              Annuler le forçage
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 }
 
 function LPMTeamRow({
-  team, leg1Score, leg2Score, agg, qualified, bothDone,
+  team, leg1Score, leg2Score, agg, penalties, qualified, bothDone,
 }: {
   team: Team | null;
   leg1Score?: number;
   leg2Score?: number;
   agg?: number;
+  penalties?: number;
   qualified: boolean;
   bothDone: boolean;
 }) {
@@ -236,6 +203,11 @@ function LPMTeamRow({
       <td className={`px-3 py-2 text-center tabular-nums font-bold ${bothDone && qualified ? 'text-green-400' : ''}`}>
         {agg !== undefined ? agg : '—'}
       </td>
+      {penalties !== undefined && (
+        <td className={`px-3 py-2 text-center tabular-nums ${qualified ? 'font-bold text-green-400' : 'text-muted'}`}>
+          {penalties}
+        </td>
+      )}
       <td className="px-3 py-2" />
     </tr>
   );

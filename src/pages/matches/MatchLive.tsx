@@ -28,7 +28,7 @@ import { extractGoalsAndCards } from '@/lib/github/matches';
 import type { RecentMatchSummary } from '@/lib/github/matches';
 
 export default function MatchLive() {
-  const { ownerId, prApiToken: effectivePat } = useBackendArgs();
+  const { prApiToken: effectivePat } = useBackendArgs();
   const session = useSession((s) => s.session);
   const isAdmin = useSession((s) => s.isAdmin());
   const setupPath = isAdmin ? '/match' : '/play';
@@ -127,32 +127,39 @@ export default function MatchLive() {
       const homeGoals = extractGoalsAndCards(state.events, 'home', allPlayers).goals;
       const awayGoals = extractGoalsAndCards(state.events, 'away', allPlayers).goals;
 
-      for (const isHome of [true, false]) {
-        const myTeam = isHome ? homeTeam : awayTeam;
-        const oppTeam = isHome ? awayTeam : homeTeam;
-        const scoreFor = isHome ? score.home : score.away;
-        const scoreAgainst = isHome ? score.away : score.home;
-        const myGoals = isHome ? homeGoals : awayGoals;
-        if (!myTeam.slug) continue;
-        const summary: RecentMatchSummary = {
-          matchId,
-          playedAt,
-          opponentSlug: oppTeam.slug ?? '',
-          opponentName: oppTeam.name,
-          homeAway: isHome ? 'home' : 'away',
-          homeTeamId: homeTeam.id,
-          awayTeamId: awayTeam.id,
-          scoreFor,
-          scoreAgainst,
-          opponentStrength: oppTeam.globalStrength ?? 50,
-          compKind: 'amicale',
-          scorers: myGoals.length ? myGoals : undefined,
-        };
-        backend.loadTeam(myTeam.slug, ownerId).then((res) => {
-          if (!res) return;
-          const existing = (res.team.recentMatches ?? []).filter((r) => r.matchId !== matchId);
-          const merged = [...existing, summary];
-          backend.saveTeam({ ...res.team, recentMatches: merged }, res.players).catch(() => {});
+      const slugs = [homeTeam.slug, awayTeam.slug].filter((s): s is string => !!s);
+      if (slugs.length > 0) {
+        backend.bulkTeams(slugs).then((bulkResults) => {
+          const bySlug = new Map(bulkResults.map((r) => [r.team.slug, r]));
+          const bulkItems: { slug: string; team: Team; players: typeof bulkResults[number]['players'] }[] = [];
+          for (const isHome of [true, false]) {
+            const myTeam = isHome ? homeTeam : awayTeam;
+            const oppTeam = isHome ? awayTeam : homeTeam;
+            const scoreFor = isHome ? score.home : score.away;
+            const scoreAgainst = isHome ? score.away : score.home;
+            const myGoals = isHome ? homeGoals : awayGoals;
+            if (!myTeam.slug) continue;
+            const res = bySlug.get(myTeam.slug);
+            if (!res) continue;
+            const summary: RecentMatchSummary = {
+              matchId,
+              playedAt,
+              opponentSlug: oppTeam.slug ?? '',
+              opponentName: oppTeam.name,
+              homeAway: isHome ? 'home' : 'away',
+              homeTeamId: homeTeam.id,
+              awayTeamId: awayTeam.id,
+              scoreFor,
+              scoreAgainst,
+              opponentStrength: oppTeam.globalStrength ?? 50,
+              compKind: 'amicale',
+              scorers: myGoals.length ? myGoals : undefined,
+            };
+            const existing = (res.team.recentMatches ?? []).filter((r) => r.matchId !== matchId);
+            const merged = [...existing, summary];
+            bulkItems.push({ slug: myTeam.slug, team: { ...res.team, recentMatches: merged }, players: res.players });
+          }
+          return backend.bulkUpdateTeams(bulkItems);
         }).catch(() => {});
       }
     }

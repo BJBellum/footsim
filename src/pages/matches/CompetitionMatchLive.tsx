@@ -20,7 +20,6 @@ import { useTeams } from '@/stores/teams';
 import { useBackendArgs } from '@/hooks/useBackendArgs';
 import { extractGoalsAndCards, calcCmfMatchPoints } from '@/lib/github/matches';
 import type { RecentMatchSummary } from '@/lib/github/matches';
-import { batchUpdateTeamMedical } from '@/lib/github/store';
 import type { CompHistoryEntry } from '@/lib/competition/types';
 import { deriveTeamResult, deriveTeamPhase } from '@/lib/competition/teamResult';
 import { PrApiTeamBackend } from '@/lib/prapi/teamBackend';
@@ -149,12 +148,11 @@ export default function CompetitionMatchLive() {
         const awayUnavail = unavailableIds(compMatch.awayTeamId!, compInjuries, compSuspensions);
 
         const baseRules = rulesForPhase(comp.config, compMatch.phase);
-        // Leg 1 of two-legged ties: no ET, no penalties — settled on aggregate via leg 2
+        // LPM barrage: leg 1 settles nothing on its own (aggregate decides); leg 2 always
+        // goes to extra time + penalties on an aggregate draw, regardless of base config.
         const matchRules = compMatch.phase === 'lpm_playoff'
           ? compMatch.leg === 1
             ? { ...baseRules, extraTime: false, penalties: false }
-            : compMatch.leg === 3
-            ? { ...baseRules, extraTime: false, penalties: true }
             : { ...baseRules, extraTime: true, penalties: true }
           : baseRules;
 
@@ -1043,13 +1041,23 @@ export default function CompetitionMatchLive() {
         } else {
           // Sync médical à chaque match (blessures/suspensions en cours)
           const teamSnap2 = snap!.teamSnapshot ?? {};
-          const slugs = snap!.teamIds.map((tid) => teamSnap2[tid]?.slug).filter(Boolean) as string[];
-          const teamIdBySlug: Record<string, string> = {};
-          for (const tid of snap!.teamIds) {
-            const slug = teamSnap2[tid]?.slug;
-            if (slug) teamIdBySlug[slug] = tid;
+          const medEntries = snap!.teamIds
+            .map((tid) => ({ tid, slug: teamSnap2[tid]?.slug }))
+            .filter((x): x is { tid: string; slug: string } => !!x.slug);
+
+          if (medEntries.length > 0) {
+            backend.bulkTeams(medEntries.map((e) => e.slug)).then((bulkRes) => {
+              const bySlug = new Map(bulkRes.map((r) => [r.team.slug, r]));
+              const items = medEntries.flatMap(({ tid, slug }) => {
+                const res = bySlug.get(slug);
+                if (!res) return [];
+                const teamInjuries = updatedInjuries.filter((i) => i.teamId === tid);
+                const teamSuspensions = updatedSuspensions.filter((s) => s.teamId === tid);
+                return [{ slug, team: { ...res.team, injuries: teamInjuries, suspensions: teamSuspensions }, players: res.players }];
+              });
+              return backend.bulkUpdateTeams(items);
+            }).catch(() => {});
           }
-          batchUpdateTeamMedical(slugs, teamIdBySlug, updatedInjuries, updatedSuspensions, effectivePat).catch(() => {});
         }
       }
 

@@ -242,8 +242,8 @@ export type Competition = {
   cmfDebutGenerated?: boolean;
   /** Manually assigned 3rd place teamId (when no 3rd-place match was played) */
   manualThird?: string;
-  /** LPM: manual playoff (barrage A/R) qualifier override, keyed by the duel's leg-1 match id.
-   *  Takes priority over the aggregate-score/penalties computation when set. */
+  /** @deprecated LPM barrage qualifiers are now always resolved by aggregate/penalties —
+   *  leg 2 forces extra time + penalties on a draw, so manual override is no longer needed. */
   manualPlayoffQualifiers?: Record<string, string>;
 };
 

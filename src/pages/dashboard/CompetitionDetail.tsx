@@ -210,20 +210,16 @@ export default function CompetitionDetail() {
       const bulk = await backend.bulkTeams(slugs);
       const bySlug = new Map(bulk.map((r) => [r.team.slug, r]));
 
-      const medicalTasks = slugs.map((slug) => async () => {
+      const bulkItems: { slug: string; team: Team; players: typeof bulk[number]['players'] }[] = [];
+      for (const slug of slugs) {
         const res = bySlug.get(slug);
-        if (!res) return;
+        if (!res) continue;
         const tid = slugToTid[slug];
         const teamInjuries = injuries.filter((i) => i.teamId === tid);
         const teamSuspensions = suspensions.filter((s) => s.teamId === tid);
-        await backend.saveTeam(
-          { ...res.team, injuries: teamInjuries, suspensions: teamSuspensions },
-          res.players,
-        );
-      });
-      for (let i = 0; i < medicalTasks.length; i += 5) {
-        await Promise.all(medicalTasks.slice(i, i + 5).map((fn) => fn()));
+        bulkItems.push({ slug, team: { ...res.team, injuries: teamInjuries, suspensions: teamSuspensions }, players: res.players });
       }
+      await backend.bulkUpdateTeams(bulkItems);
       toast('success', 'État médical synchronisé en DB.');
     } catch (err) {
       toast('error', String(err));
@@ -423,30 +419,6 @@ export default function CompetitionDetail() {
     && lpmLeagueMatches.length > 0
     && lpmLeagueMatches.every((m) => m.status === 'completed');
 
-  // Leg 2 lpm_playoff duels that ended in aggregate tie with no leg 3 yet
-  const lpmTiedDuels = isLPM ? lpmPlayoffMatches.filter((leg2) => {
-    if (leg2.leg !== 2 || leg2.status !== 'completed' || !leg2.result || !leg2.homeTeamId || !leg2.awayTeamId) return false;
-    // Check if leg 3 already exists for this duel
-    const hasLeg3 = lpmPlayoffMatches.some(
-      (m) => m.leg === 3 && (
-        (m.homeTeamId === leg2.homeTeamId && m.awayTeamId === leg2.awayTeamId) ||
-        (m.homeTeamId === leg2.awayTeamId && m.awayTeamId === leg2.homeTeamId)
-      ),
-    );
-    if (hasLeg3) return false;
-    if (leg2.result.penalties) return false; // already has TAB result
-    const leg1 = lpmPlayoffMatches.find(
-      (m) => m.leg === 1 && m.status === 'completed' && m.result && (
-        (m.homeTeamId === leg2.awayTeamId && m.awayTeamId === leg2.homeTeamId) ||
-        (m.homeTeamId === leg2.homeTeamId && m.awayTeamId === leg2.awayTeamId)
-      ),
-    );
-    if (!leg1?.result) return false;
-    const higherAgg = leg2.result.home + (leg1.homeTeamId === leg2.awayTeamId ? leg1.result.away : leg1.result.home);
-    const lowerAgg = leg2.result.away + (leg1.homeTeamId === leg2.awayTeamId ? leg1.result.home : leg1.result.away);
-    return higherAgg === lowerAgg;
-  }) : [];
-
   const showLPMPlayoffSeed = isAdmin && isLPM
     && lpmLeagueDone
     && lpmPlayoffMatches.some((m) => m.homeTeamId === null && !m.homeFromMatch);
@@ -497,39 +469,6 @@ export default function CompetitionDetail() {
     setLpmDraw(null);
     if (effectivePat) save(updated, '', effectivePat).catch(() => {});
     toast('success', 'Barrages LPM générés.');
-  }
-
-  function createLeg3Match(leg2: typeof lpmPlayoffMatches[number]) {
-    if (!current || !effectivePat) return;
-    const maxRound = Math.max(...current.matches.map((m) => m.round));
-    const leg3: import('@/lib/competition/types').CompMatch = {
-      id: crypto.randomUUID(),
-      homeTeamId: leg2.homeTeamId,
-      awayTeamId: leg2.awayTeamId,
-      round: maxRound + 1,
-      phase: 'lpm_playoff',
-      leg: 3,
-      status: 'pending',
-    };
-    const updated: Competition = {
-      ...current,
-      matches: [...current.matches, leg3],
-      currentRound: maxRound + 1,
-    };
-    setCurrent(updated);
-    save(updated, '', effectivePat).catch(() => {});
-    toast('success', 'Match départage ajouté — TAB direct.');
-  }
-
-  function forcePlayoffQualifier(leg1MatchId: string, teamId: string | null) {
-    if (!current || !effectivePat) return;
-    const nextOverrides = { ...(current.manualPlayoffQualifiers ?? {}) };
-    if (teamId) nextOverrides[leg1MatchId] = teamId;
-    else delete nextOverrides[leg1MatchId];
-    const updated: Competition = { ...current, manualPlayoffQualifiers: nextOverrides };
-    setCurrent(updated);
-    save(updated, '', effectivePat).catch(() => {});
-    toast('success', teamId ? 'Qualification forcée.' : 'Forçage annulé.');
   }
 
   function startKnockoutDraw() {
@@ -749,15 +688,6 @@ export default function CompetitionDetail() {
                 🔧 Réparer noms
               </Button>
             )}
-            {lpmTiedDuels.map((leg2) => {
-              const home = teamMap[leg2.homeTeamId!];
-              const away = teamMap[leg2.awayTeamId!];
-              return (
-                <Button key={leg2.id} size="sm" variant="ghost" onClick={() => createLeg3Match(leg2)}>
-                  ⚽ Départage : {home?.name ?? '?'} vs {away?.name ?? '?'}
-                </Button>
-              );
-            })}
             {(() => {
               // Find the effective round: currentRound if it has pending matches, else first round with pending+teams
               let effectiveRound = currentRound;
@@ -949,7 +879,7 @@ export default function CompetitionDetail() {
                 <StandingsTable standings={allStandings} teams={teamMap} />
               )}
               {isLPM && (
-                <LPMStandingsView standings={allStandings} teams={teamMap} hostTeamId={current.hostTeamId} playoffMatches={lpmPlayoffMatches} manualOverrides={current.manualPlayoffQualifiers} />
+                <LPMStandingsView standings={allStandings} teams={teamMap} hostTeamId={current.hostTeamId} playoffMatches={lpmPlayoffMatches} />
               )}
               {isGroupsKO && current.groups && (
                 <div className="grid gap-6 md:grid-cols-2">
@@ -983,8 +913,6 @@ export default function CompetitionDetail() {
                     matches={lpmPlayoffMatches}
                     teams={teamMap}
                     onSimulate={isAdmin ? openMatchModal : undefined}
-                    manualOverrides={current.manualPlayoffQualifiers}
-                    onForceQualify={isAdmin ? forcePlayoffQualifier : undefined}
                   />
                 ) : (
                   <p className="text-muted text-sm">Les barrages seront disponibles après les 11 journées.</p>
@@ -2410,13 +2338,11 @@ function LPMStandingsView({
   teams,
   hostTeamId,
   playoffMatches = [],
-  manualOverrides,
 }: {
   standings: import('@/lib/competition/types').Standing[];
   teams: Record<string, Team>;
   hostTeamId?: string;
   playoffMatches?: import('@/lib/competition/types').CompMatch[];
-  manualOverrides?: Record<string, string>;
 }) {
   const sorted = [...standings].sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
@@ -2437,7 +2363,8 @@ function LPMStandingsView({
     if (hostRank >= 24 && hostRank <= 39 && sorted[40]) inheritNote[sorted[40].teamId] = 'Place hôte → barrage';
   }
 
-  // Compute playoff qualifiers: manual override first, else completed aller/retour aggregate
+  // Compute playoff qualifiers from completed aller/retour aggregate (leg 2 always forces
+  // extra time + penalties on a draw, so this is never left undecided).
   const playoffQualifiedIds = new Set<string>();
   const leg1sAll = playoffMatches.filter((m) => m.leg === 1);
   for (const leg1 of leg1sAll) {
@@ -2449,7 +2376,7 @@ function LPMStandingsView({
            (m.homeTeamId === leg1.homeTeamId && m.awayTeamId === leg1.awayTeamId)))
       )
     );
-    const qualified = resolveLPMPlayoffQualifier(leg1, leg2, manualOverrides);
+    const qualified = resolveLPMPlayoffQualifier(leg1, leg2);
     if (qualified) playoffQualifiedIds.add(qualified);
   }
 
@@ -2505,7 +2432,6 @@ function LPMStandingsView({
                     const isHost = s.teamId === hostTeamId;
                     const note = inheritNote[s.teamId];
                     const isPlayoffQualified = playoffQualifiedIds.has(s.teamId);
-                    const isManualQualified = Object.values(manualOverrides ?? {}).includes(s.teamId);
                     return (
                       <tr key={s.teamId} className={`hover:bg-border/10 transition-colors ${isHost ? 'bg-accent/5' : ''} ${isPlayoffQualified ? 'bg-green-500/5' : ''}`}>
                         <td className="px-3 py-2 tabular-nums text-muted text-xs">{rank}</td>
@@ -2520,8 +2446,8 @@ function LPMStandingsView({
                               <span className="rounded border border-warning/40 bg-warning/10 px-1 py-0.5 text-[9px] font-medium text-warning shrink-0">{note}</span>
                             )}
                             {isPlayoffQualified && (
-                              <span className={`rounded border px-1 py-0.5 text-[9px] font-medium shrink-0 ${isManualQualified ? 'border-accent/40 bg-accent/10 text-accent' : 'border-green-500/40 bg-green-500/10 text-green-400'}`}>
-                                ✓ Qualifié{isManualQualified ? ' (forcé)' : ''}
+                              <span className="rounded border border-green-500/40 bg-green-500/10 px-1 py-0.5 text-[9px] font-medium text-green-400 shrink-0">
+                                ✓ Qualifié
                               </span>
                             )}
                           </div>
