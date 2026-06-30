@@ -46,7 +46,6 @@ export default function CompetitionMatchLive() {
   const setCurrent = useCompetition((s) => s.setCurrent);
   const current = useCompetition((s) => s.current);
   const teamsStore = useTeams((s) => s.teams);
-  const fetchTeam = useTeams((s) => s.fetchTeam);
   const refreshTeams = useTeams((s) => s.refresh);
   
   const navigate = useNavigate();
@@ -117,10 +116,9 @@ export default function CompetitionMatchLive() {
 
         if (!homeSlug || !awaySlug) { toast('error', 'Équipes introuvables.'); return; }
 
-        const [homeData, awayData] = await Promise.all([
-          fetchTeam(homeSlug, ownerId, null, effectivePat),
-          fetchTeam(awaySlug, ownerId, null, effectivePat),
-        ]);
+        const bulkData = await new PrApiTeamBackend(effectivePat!).bulkTeams([homeSlug, awaySlug]);
+        const homeData = bulkData.find((r) => r.team.slug === homeSlug) ?? null;
+        const awayData = bulkData.find((r) => r.team.slug === awaySlug) ?? null;
 
         if (!homeData || !awayData) { toast('error', 'Données équipes introuvables.'); return; }
 
@@ -983,15 +981,21 @@ export default function CompetitionMatchLive() {
             };
           };
 
-          for (const [tid, isHome] of [[homeId, true], [awayId, false]] as [string, boolean][]) {
-            const slug = teamSnap[tid]?.slug;
-            if (!slug) continue;
-            const summary = makeSummary(isHome);
-            backend.loadTeam(slug, '').then((res) => {
-              if (!res) return;
-              const existing = (res.team.recentMatches ?? []).filter((r) => r.matchId !== matchId);
-              const merged = [...existing, summary];
-              backend.saveTeam({ ...res.team, recentMatches: merged }, res.players).catch(() => {});
+          // Bulk-fetch both teams to update recentMatches — 1 request instead of 2
+          const recentSlugPairs = [[homeId, true], [awayId, false]] as [string, boolean][];
+          const recentEntries = recentSlugPairs
+            .map(([tid, isHome]) => ({ tid, slug: teamSnap[tid]?.slug, isHome }))
+            .filter((x): x is { tid: string; slug: string; isHome: boolean } => !!x.slug);
+          if (recentEntries.length > 0) {
+            backend.bulkTeams(recentEntries.map((e) => e.slug)).then((bulkRes) => {
+              const bySlug = new Map(bulkRes.map((r) => [r.team.slug, r]));
+              return Promise.all(recentEntries.map(({ slug, isHome }) => {
+                const res = bySlug.get(slug);
+                if (!res) return Promise.resolve();
+                const summary = makeSummary(isHome);
+                const existing = (res.team.recentMatches ?? []).filter((r) => r.matchId !== matchId);
+                return backend.saveTeam({ ...res.team, recentMatches: [...existing, summary] }, res.players).catch(() => {});
+              }));
             }).catch(() => {});
           }
         }
@@ -1002,32 +1006,36 @@ export default function CompetitionMatchLive() {
             .map((tid) => ({ tid, slug: teamSnap[tid]?.slug }))
             .filter((x): x is { tid: string; slug: string } => !!x.slug);
 
-          for (const { tid, slug } of entries) {
-            backend.loadTeam(slug, '').then((res) => {
-              if (!res) return;
-              const prev = res.team.compHistory ?? [];
-              const idx = prev.findIndex((e) => e.compId === updated.id);
-              const entry: CompHistoryEntry = {
-                compId: updated.id,
-                compName: updated.name,
-                year: updated.year,
-                format: updated.format,
-                kind: updated.kind,
-                scope: updated.scope,
-                importance: updated.importance,
-                result: deriveTeamResult(tid, updated),
-                phase: deriveTeamPhase(tid, updated),
-                participantCount: updated.teamIds.length,
-              };
-              const nextHistory = idx >= 0
-                ? prev.map((e, i) => i === idx ? entry : e)
-                : [...prev, entry];
-              const teamInjuries = updatedInjuries.filter((i) => i.teamId === tid);
-              const teamSuspensions = updatedSuspensions.filter((s) => s.teamId === tid);
-              backend.saveTeam(
-                { ...res.team, compHistory: nextHistory, injuries: teamInjuries, suspensions: teamSuspensions },
-                res.players,
-              ).catch(() => {});
+          if (entries.length > 0) {
+            backend.bulkTeams(entries.map((e) => e.slug)).then((bulkRes) => {
+              const bySlug = new Map(bulkRes.map((r) => [r.team.slug, r]));
+              return Promise.all(entries.map(({ tid, slug }) => {
+                const res = bySlug.get(slug);
+                if (!res) return Promise.resolve();
+                const prev = res.team.compHistory ?? [];
+                const idx = prev.findIndex((e) => e.compId === updated.id);
+                const entry: CompHistoryEntry = {
+                  compId: updated.id,
+                  compName: updated.name,
+                  year: updated.year,
+                  format: updated.format,
+                  kind: updated.kind,
+                  scope: updated.scope,
+                  importance: updated.importance,
+                  result: deriveTeamResult(tid, updated),
+                  phase: deriveTeamPhase(tid, updated),
+                  participantCount: updated.teamIds.length,
+                };
+                const nextHistory = idx >= 0
+                  ? prev.map((e, i) => i === idx ? entry : e)
+                  : [...prev, entry];
+                const teamInjuries = updatedInjuries.filter((i) => i.teamId === tid);
+                const teamSuspensions = updatedSuspensions.filter((s) => s.teamId === tid);
+                return backend.saveTeam(
+                  { ...res.team, compHistory: nextHistory, injuries: teamInjuries, suspensions: teamSuspensions },
+                  res.players,
+                ).catch(() => {});
+              }));
             }).catch(() => {});
           }
         } else {

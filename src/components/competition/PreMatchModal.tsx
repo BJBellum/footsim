@@ -9,12 +9,12 @@ type Props = {
   home: Team;
   away: Team;
   defaultCountForStats?: boolean;
-  fetchTeam?: (slug: string) => Promise<{ team: Team; players: unknown[] } | null>;
+  fetchBothTeams?: (slugs: string[]) => Promise<{ team: Team; players: unknown[] }[]>;
   onConfirm: (corruption: CorruptionDeal | null, tactics?: { homeId?: string; awayId?: string }, countForStats?: boolean) => void;
   onCancel: () => void;
 };
 
-export function PreMatchModal({ home, away, defaultCountForStats = true, fetchTeam, onConfirm, onCancel }: Props) {
+export function PreMatchModal({ home, away, defaultCountForStats = true, fetchBothTeams, onConfirm, onCancel }: Props) {
   const [corruption, setCorruption] = useState<CorruptionDeal | null>(null);
   const [homeTactics, setHomeTactics] = useState<SavedTactic[]>(home.savedTactics ?? []);
   const [awayTactics, setAwayTactics] = useState<SavedTactic[]>(away.savedTactics ?? []);
@@ -23,8 +23,10 @@ export function PreMatchModal({ home, away, defaultCountForStats = true, fetchTe
   const [countForStats, setCountForStats] = useState(defaultCountForStats);
 
   useEffect(() => {
-    if (!fetchTeam) return;
-    Promise.all([fetchTeam(home.slug), fetchTeam(away.slug)]).then(([h, a]) => {
+    if (!fetchBothTeams) return;
+    fetchBothTeams([home.slug, away.slug]).then((results) => {
+      const h = results.find((r) => r.team.slug === home.slug);
+      const a = results.find((r) => r.team.slug === away.slug);
       if (h) setHomeTactics(h.team.savedTactics ?? []);
       if (a) setAwayTactics(a.team.savedTactics ?? []);
     }).catch(() => {});

@@ -40,7 +40,6 @@ export default function MultiplexLive() {
   const currentRef = useRef(current);
   useEffect(() => { currentRef.current = current; }, [current]);
   const teamsStore = useTeams((s) => s.teams);
-  const fetchTeam = useTeams((s) => s.fetchTeam);
   const refreshTeams = useTeams((s) => s.refresh);
   
   const navigate = useNavigate();
@@ -130,14 +129,8 @@ export default function MultiplexLive() {
           if (as_) slugMap.set(m.awayTeamId!, as_);
         }
         const uniqueSlugs = Array.from(new Set(slugMap.values()));
-        const teamDataArr = await Promise.all(
-          uniqueSlugs.map((slug) => fetchTeam(slug, ownerId, null, effectivePat)),
-        );
-        const teamDataMap = new Map<string, NonNullable<typeof teamDataArr[number]>>();
-        for (let i = 0; i < uniqueSlugs.length; i++) {
-          const d = teamDataArr[i];
-          if (d) teamDataMap.set(uniqueSlugs[i], d);
-        }
+        const bulkResults = await new PrApiTeamBackend(effectivePat!).bulkTeams(uniqueSlugs);
+        const teamDataMap = new Map(bulkResults.map((r) => [r.team.slug, r]));
 
         for (const m of roundMatches) {
           const homeSlug = slugMap.get(m.homeTeamId!);

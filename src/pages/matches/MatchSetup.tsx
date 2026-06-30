@@ -14,6 +14,7 @@ import { useTeams } from '@/stores/teams';
 import { useMatch } from '@/stores/match';
 import { useBackendArgs } from '@/hooks/useBackendArgs';
 import { resolveActiveTactic } from '@/lib/localTactics';
+import { PrApiTeamBackend } from '@/lib/prapi/teamBackend';
 
 const FORMATIONS: Formation[] = ['4-3-3', '4-4-2', '3-5-2', '4-2-3-1', '5-3-2', '4-1-4-1', '3-4-3', '4-3-2-1', '4-5-1', '4-4-1-1', '3-4-1-2', '5-4-1', '3-6-1'];
 
@@ -71,7 +72,9 @@ export default function MatchSetup() {
     if (homeSlug === awaySlug) { toast('error', 'Les deux équipes doivent être différentes.'); return; }
     setBusy(true);
     try {
-      const [home, away] = await Promise.all([fetchTeam(homeSlug, ownerId, null, effectivePat), fetchTeam(awaySlug, ownerId, null, effectivePat)]);
+      const bulkData = await new PrApiTeamBackend(effectivePat!).bulkTeams([homeSlug, awaySlug]);
+      const home = bulkData.find((r) => r.team.slug === homeSlug) ?? null;
+      const away = bulkData.find((r) => r.team.slug === awaySlug) ?? null;
       if (!home || !away) { toast('error', 'Impossible de charger les équipes.'); return; }
       if (home.players.length < 11 || away.players.length < 11) {
         toast('error', 'Chaque équipe doit avoir au moins 11 joueurs.');

@@ -49,7 +49,7 @@ export default function CompetitionDetail() {
   const current = useCompetition((s) => s.current);
   const teams = useTeams((s) => s.teams);
   const refreshTeams = useTeams((s) => s.refresh);
-  const fetchTeam = useTeams((s) => s.fetchTeam);
+
   
   const navigate = useNavigate();
   const { ownerId, prApiToken: effectivePat } = useBackendArgs();
@@ -1086,7 +1086,7 @@ export default function CompetitionDetail() {
           home={preMatchModal.home}
           away={preMatchModal.away}
           defaultCountForStats={preMatchModal.phase !== '3rd'}
-          fetchTeam={(slug) => fetchTeam(slug, ownerId, null, effectivePat)}
+          fetchBothTeams={(slugs) => new PrApiTeamBackend(effectivePat!).bulkTeams(slugs)}
           onConfirm={(corruption, tactics, countForStats) => launchMatch(preMatchModal.matchId, corruption, tactics, countForStats)}
           onCancel={() => setPreMatchModal(null)}
         />
