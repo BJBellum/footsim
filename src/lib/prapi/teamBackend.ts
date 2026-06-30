@@ -10,8 +10,13 @@ export class PrApiTeamBackend implements ITeamBackend {
   }
 
   async bulkTeams(slugs?: string[]): Promise<{ team: Team; players: Player[] }[]> {
-    const qs = slugs && slugs.length > 0 ? `?slugs=${slugs.join(',')}` : '';
-    return prapi.get<{ team: Team; players: Player[] }[]>(`/teams/bulk${qs}`, this.token);
+    // POST with a body for slug lists — a long query string (15+ slugs) plus the
+    // Authorization header on the CORS preflight has been observed failing before
+    // the response comes back, which the browser reports as a CORS error.
+    if (slugs && slugs.length > 0) {
+      return prapi.post<{ team: Team; players: Player[] }[]>('/teams/bulk', this.token, { slugs });
+    }
+    return prapi.get<{ team: Team; players: Player[] }[]>('/teams/bulk', this.token);
   }
 
   async loadTeam(slug: string, _ownerId: string): Promise<{ team: Team; players: Player[] } | null> {

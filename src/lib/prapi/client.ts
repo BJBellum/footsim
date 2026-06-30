@@ -2,6 +2,12 @@ import { env } from '@/lib/env';
 
 export type ApiResult<T> = { success: true; data: T } | { success: false; error: string };
 
+// A hung fetch (dropped connection, failed CORS preflight that never settles, backend
+// stuck mid-request) never resolves or rejects on its own — every save/load button that
+// awaits this stayed in its loading state forever. Force it to fail after a fixed window
+// so callers' catch/finally always run.
+const REQUEST_TIMEOUT_MS = 30_000;
+
 async function request<T>(
   method: string,
   path: string,
@@ -10,11 +16,24 @@ async function request<T>(
 ): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
-  const res = await fetch(`${env.prApiUrl}/footsim${path}`, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(`${env.prApiUrl}/footsim${path}`, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error(`Requête expirée après ${REQUEST_TIMEOUT_MS / 1000}s (${method} ${path})`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
   const json = (await res.json()) as { success: boolean; data?: T; error?: string; message?: string };
   if (!json.success) throw new Error(json.error ?? json.message ?? `HTTP ${res.status}`);
   return json.data as T;
